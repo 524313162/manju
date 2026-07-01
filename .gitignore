@@ -36,9 +36,12 @@ test-reports/
 
 # SQLite
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 *.sqlite-journal
+*.db-journal
 
 # NuGet
 nuget.config
