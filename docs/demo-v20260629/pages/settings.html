@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设置 — ManjuCraft</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-left">
+            <h1 class="logo">ManjuCraft</h1>
+            <span class="subtitle">漫剧开发工具</span>
+        </div>
+        <div class="nav-right">
+            <a href="../index.html" class="nav-link">首页</a>
+            <a href="projects.html" class="nav-link">项目管理</a>
+            <a href="actors.html" class="nav-link">演员管理</a>
+            <a href="episodes.html" class="nav-link">分集分镜</a>
+            <a href="settings.html" class="nav-link active">设置</a>
+        </div>
+    </nav>
+
+    <main class="container" style="max-width:800px">
+        <h2 style="margin-bottom:24px;font-weight:700">⚙️ 设置</h2>
+
+        <div class="settings-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+                <h3 style="font-size:16px;font-weight:700;margin:0">🔌 ComfyUI API 配置</h3>
+            </div>
+
+            <div class="api-card">
+                <div class="api-card-header">
+                    <div style="display:flex;align-items:center;gap:12px">
+                        <span class="api-type-badge">ComfyUI</span>
+                        <span style="font-weight:700;font-size:14px">ComfyUI API</span>
+                    </div>
+                    <span class="badge badge-ok"><span class="badge-dot"></span>已连接</span>
+                </div>
+                <div class="api-card-body">
+                    <div class="api-field">
+                        <label>API 地址</label>
+                        <input type="text" value="http://localhost:8188" placeholder="http://localhost:8188">
+                    </div>
+                    <div class="api-field">
+                        <label>WebSocket 地址</label>
+                        <input type="text" value="ws://localhost:8188/ws" placeholder="ws://localhost:8188/ws">
+                    </div>
+                    <div class="api-field">
+                        <label>输出目录（可选）</label>
+                        <input type="text" value="D:/output/" placeholder="留空则使用 ComfyUI 默认输出目录">
+                    </div>
+                    <div style="display:flex;gap:10px;margin-top:8px">
+                        <button class="btn btn-primary btn-sm" onclick="alert('设置已保存')">保存</button>
+                        <button class="btn btn-ghost btn-sm" style="color:var(--ok)" onclick="alert('✅ 连接成功！版本：0.2.x')">测试连接</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-card">
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:18px">🎥 FFmpeg 配置</h3>
+            <div class="form-group">
+                <label>FFmpeg 路径</label>
+                <input type="text" placeholder="留空则使用 PATH 中的 ffmpeg">
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+                <button class="btn btn-ghost btn-sm" style="color:var(--info)" onclick="alert('✅ FFmpeg 可用\n版本：6.1')">检查 FFmpeg</button>
+                <span style="font-size:13px;color:var(--ok)">✅ FFmpeg 可用 (v6.1)</span>
+            </div>
+        </div>
+
+        <div class="settings-card">
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:18px">🗄️ 数据库</h3>
+            <p style="font-size:14px;color:var(--text2);line-height:1.7">SQLite 数据库存储于项目目录下：
+                <code style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-size:12px;margin-left:6px">manju.db</code></p>
+            <div style="margin-top:18px;display:flex;gap:10px">
+                <button class="btn btn-ghost btn-sm" onclick="alert('导出成功')">导出备份</button>
+                <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="if(confirm('确认重置？')) alert('已重置')">重置数据库</button>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>ManjuCraft v1.0 — Blazor Server + .NET 8 + ComfyUI</p>
+    </footer>
+
+    <script src="../js/main.js"></script>
+</body>
+</html>

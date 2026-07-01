@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] — ManjuCraft</title>
+    <link rel="stylesheet" href="~/css/style.css?v=2026070116" />
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css" />
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-left">
+            <h1 class="logo">
+                <a asp-controller="Home" asp-action="Index">ManjuCraft</a>
+            </h1>
+            <span class="subtitle">漫剧开发工具</span>
+        </div>
+        <div class="nav-right">
+            @{
+                var currentController = Context.GetRouteValue("controller")?.ToString()?.ToLower();
+                var currentAction = Context.GetRouteValue("action")?.ToString()?.ToLower();
+            }
+            <a asp-controller="Home" asp-action="Index" class="nav-link @(currentController == "home" ? "active" : "")">首页</a>
+            <a asp-controller="Projects" asp-action="Index" class="nav-link @(currentController == "projects" ? "active" : "")">项目管理</a>
+            @if (ViewData["CurrentProjectId"] != null)
+            {
+                var projectId = ViewData["CurrentProjectId"];
+                <a asp-controller="Actors" asp-action="Index" asp-route-projectId="@projectId" class="nav-link @(currentController == "actors" ? "active" : "")">演员管理</a>
+                <a asp-controller="Episodes" asp-action="Index" asp-route-projectId="@projectId" class="nav-link @(currentController == "episodes" ? "active" : "")">分集分镜</a>
+                <a asp-controller="Settings" asp-action="Comfyui" class="nav-link @(currentController == "settings" ? "active" : "")">设置</a>
+            }
+        </div>
+    </nav>
+
+    <main class="container">
+        @RenderBody()
+    </main>
+
+    <footer class="footer">
+        <p>ManjuCraft v1.0 — 漫剧开发工具</p>
+    </footer>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+    <script src="~/js/main.js"></script>
+    @RenderSection("Scripts", required: false)
+</body>
+</html>

@@ -1,0 +1,138 @@
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor HttpContextAccessor
+@{
+    ViewData["Title"] = "分镜管理";
+    Layout = "_Layout";
+    var projectId = ViewData["CurrentProjectId"]?.ToString() ?? "";
+    var episodeId = HttpContextAccessor.HttpContext?.Request?.Query["episodeId"].ToString() ?? "";
+}
+
+<script>
+window.shotEpisodeId = '@episodeId';
+</script>
+
+<div class="page-header">
+    <h1>分镜管理 <small style="font-weight:400;color:var(--text-light)">(@projectId / @episodeId)</small></h1>
+    <button class="btn btn-primary modal-trigger" data-target="#new-shot-modal">
+        <span>+</span> 新建分镜
+    </button>
+</div>
+
+<p style="color:var(--text-light);font-size:14px;margin-bottom:16px;">拖拽调整分镜顺序 | 点击缩略图可上传替换图片</p>
+
+<div id="shots-list" class="sortable-list" data-controller="shots">
+</div>
+
+<div class="modal-overlay" id="new-shot-modal">
+    <div class="modal">
+        <h2>新建分镜</h2>
+        <div class="form-group">
+            <label>首帧提示词</label>
+            <textarea id="shot-firstframe" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+            <label>台词</label>
+            <textarea id="shot-dialog" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+            <label>视频提示词</label>
+            <textarea id="shot-videoprompt" rows="3"></textarea>
+        </div>
+        <div class="form-actions">
+            <button class="btn" onclick="this.closest('.modal-overlay').classList.remove('active')">取消</button>
+            <button class="btn btn-primary" id="save-shot-btn">创建</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+$(function () {
+    var projectId = '@projectId';
+    var episodeId = window.shotEpisodeId || '';
+
+    function loadShots() {
+        if (!episodeId) {
+            $('#shots-list').html('<p style="color:var(--text-light);">请先在分集管理中选择一个分集</p>');
+            return;
+        }
+        $.get('/api/v1/episodes/' + episodeId + '/shots', function (res) {
+            var list = $('#shots-list');
+            list.empty();
+            if (!res.data || !res.data.length) {
+                list.html('<p style="color:var(--text-light);">暂无分镜，点击"新建分镜"添加</p>');
+                return;
+            }
+            res.data.forEach(function (shot, i) {
+                var html = '<div class="sortable-item" data-id="' + shot.id + '">' +
+                    '<span class="drag-handle">⋮⋮</span>' +
+                    '<div style="flex:1">';
+                html += '<div style="font-weight:500;margin-bottom:4px;">分镜 ' + (i+1) + '</div>';
+                if (shot.firstFramePrompt) html += '<div style="font-size:12px;color:var(--text-light);margin-bottom:2px;">' + shot.firstFramePrompt.substring(0, 60) + '...</div>';
+                if (shot.dialog) html += '<div style="font-size:12px;color:var(--primary);font-style:italic;margin-bottom:2px;">' + shot.dialog.substring(0, 40) + '</div>';
+                html += '</div>' +
+                    '<button class="btn btn-sm generate-btn" data-endpoint="shots/' + shot.id + '/generate-firstframe" data-id="' + shot.id + '" data-workflow-type="' + (shot.firstFrameWorkflowType || 'Img2Img') + '"><span class="spinner"></span>首帧</button>' +
+                    '<button class="btn btn-sm generate-btn" data-endpoint="shots/' + shot.id + '/generate-video" data-id="' + shot.id + '" data-workflow-type="' + (shot.videoWorkflowType || 'Img2Video') + '"><span class="spinner"></span>视频</button>' +
+                    '<button class="btn btn-sm btn-danger delete-btn" data-endpoint="shots" data-id="' + shot.id + '">删除</button>' +
+                    '</div>';
+                list.append(html);
+            });
+            list.sortable({
+                handle: '.drag-handle',
+                placeholder: 'sortable-placeholder',
+                update: function () {
+                    var ids = [];
+                    list.find('.sortable-item').each(function () {
+                        ids.push(parseInt($(this).data('id')));
+                    });
+                    if (ids.length === 0) return;
+                    $.ajax({
+                        url: '/api/v1/shots/reorder',
+                        type: 'PUT',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ shotIds: ids })
+                    });
+                }
+            }).disableSelection();
+        });
+    }
+
+    $('.asset-image').on('click', function () {
+        var $upload = $(this).find('input[type="file"]');
+        if ($upload.length === 0) {
+            $('<input type="file" class="file-upload-input" accept="image/*" />')
+                .data('entity-type', 'shots')
+                .data('id', $(this).closest('.sortable-item').data('id'))
+                .data('view-type', 'FirstFrame')
+                .appendTo(this);
+        }
+        $('.asset-image input[type="file"]').not(this).remove();
+        $(this).find('input[type="file"]').trigger('click');
+    });
+
+    $('#save-shot-btn').on('click', function () {
+        var data = {
+            firstFramePrompt: $('#shot-firstframe').val().trim(),
+            dialog: $('#shot-dialog').val().trim(),
+            videoPrompt: $('#shot-videoprompt').val().trim(),
+            firstFrameWorkflowType: 'Img2Img',
+            videoWorkflowType: 'Img2Video',
+            order: 0
+        };
+        $.ajax({
+            url: '/api/v1/episodes/' + episodeId + '/shots',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function (res) {
+                if (res.success) {
+                    $('#new-shot-modal').removeClass('active');
+                    loadShots();
+                }
+            }
+        });
+    });
+
+    loadShots();
+});
+</script>
+}

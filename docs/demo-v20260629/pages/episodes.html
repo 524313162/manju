@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分集分镜 — ManjuCraft</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-left">
+            <h1 class="logo">ManjuCraft</h1>
+            <span class="subtitle">漫剧开发工具</span>
+        </div>
+        <div class="nav-right">
+            <a href="../index.html" class="nav-link">首页</a>
+            <a href="projects.html" class="nav-link">项目管理</a>
+            <a href="actors.html" class="nav-link">演员管理</a>
+            <a href="episodes.html" class="nav-link active">分集分镜</a>
+            <a href="settings.html" class="nav-link">设置</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="page-header">
+            <div>
+                <h2>🎬 分集分镜 — 勇者传说</h2>
+                <p style="font-size:14px;color:var(--text3);margin-top:4px">按集组织管理镜头</p>
+                <select style="margin-top:8px;padding:6px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px" onchange="alert('切换分集')">
+                    <option>第一集 — 勇者的觉醒</option>
+                    <option>第二集 — 魔王的入侵</option>
+                    <option>第三集 — 最终决战</option>
+                </select>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-primary" onclick="showModal('addShotModal')">+ 添加分镜</button>
+                <button class="btn btn-warn" onclick="alert('FFmpeg 合并导出')">🎥 导出视频</button>
+            </div>
+        </div>
+
+        <div id="shotList"></div>
+
+        <div style="margin-top:32px;padding:28px;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-sm);border:1px solid var(--border)">
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:16px">视频导出进度</h3>
+            <div style="background:var(--border);border-radius:12px;height:8px;overflow:hidden">
+                <div style="height:100%;width:43%;background:linear-gradient(90deg,var(--primary),var(--sec));border-radius:12px"></div>
+            </div>
+            <p style="margin-top:10px;font-size:13px;color:var(--text3)">已生成 3/7 分镜视频</p>
+            <div style="margin-top:18px;display:flex;gap:10px;justify-content:center">
+                <button class="btn btn-info btn-sm" onclick="alert('批量生成剩余视频')">生成剩余视频</button>
+                <button class="btn btn-warn btn-sm" onclick="alert('FFmpeg 合并导出成品')">合并导出 FFmpeg</button>
+            </div>
+        </div>
+    </main>
+
+    <div class="modal-overlay" id="addShotModal">
+        <div class="modal">
+            <h3>添加分镜</h3>
+            <div class="form-group">
+                <label>首帧图提示词</label>
+                <textarea id="shotPrompt" rows="2" placeholder="镜头描述"></textarea>
+            </div>
+            <div class="form-group">
+                <label>台词描述</label>
+                <textarea id="shotDialog" rows="2" placeholder="角色台词"></textarea>
+            </div>
+            <div class="form-group">
+                <label>镜头视频提示词</label>
+                <textarea id="shotVideoPrompt" rows="2" placeholder="镜头移动描述"></textarea>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-ghost" onclick="hideModal('addShotModal')">取消</button>
+                <button class="btn btn-primary" onclick="saveShot()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/main.js"></script>
+    <script>
+        const mockShots = [
+            { id: 1, thumb: true, video: true, prompt: '勇者站在山顶俯瞰村庄', dialog: '我要拯救这个世界！', videoPrompt: '镜头推进，角色特写' },
+            { id: 2, thumb: true, video: true, prompt: '村庄全景', dialog: '村民们在忙碌着', videoPrompt: '全景横移' },
+            { id: 3, thumb: true, video: true, prompt: '勇者进入酒馆', dialog: '老板，来杯麦酒', videoPrompt: '跟随角色进入' },
+            { id: 4, thumb: true, video: false, prompt: '魔王现身', dialog: '渺小的人类', videoPrompt: '镜头旋转，暗色调' },
+            { id: 5, thumb: false, video: false, prompt: '双方对峙', dialog: '', videoPrompt: '' },
+            { id: 6, thumb: false, video: false, prompt: '最终对决', dialog: '圣剑对黑魔法', videoPrompt: '快速切换' },
+            { id: 7, thumb: false, video: false, prompt: '勇者胜利', dialog: '正义的力量', videoPrompt: '缓慢后拉，日落背景' },
+        ];
+        function renderShots() {
+            document.getElementById('shotList').innerHTML = mockShots.map(s => `
+                <div class="shot-card">
+                    <div class="shot-card-header">
+                        <div style="display:flex;align-items:center;gap:12px">
+                            <span class="shot-num">#${s.id}</span>
+                            <span class="badge badge-${s.video?'ok':'warn'}"><span class="badge-dot"></span>${s.video?'已完成':'待生成'}</span>
+                        </div>
+                        <div class="actions-bar">
+                            <button class="action" onclick="alert('生成首帧 #${s.id}')">📝 首帧</button>
+                            <button class="action action-ok" onclick="alert('生成视频 #${s.id}')">🎬 视频</button>
+                            <button class="action" onclick="alert('编辑 #${s.id}')">✏️ 编辑</button>
+                            <button class="action action-d" onclick="alert('删除 #${s.id}')">🗑️ 删除</button>
+                        </div>
+                    </div>
+                    <div class="shot-card-body">
+                        <div class="shot-card-preview">
+                            ${s.thumb
+                                ? '<div class="img-thumb ok"><span>🖼️</span></div>'
+                                : '<div class="img-thumb empty"><span>+</span></div>'}
+                        </div>
+                        <div class="shot-card-info">
+                            <p><strong>首帧：</strong>${s.prompt}</p>
+                            <p style="margin-top:4px"><strong>台词：</strong>${s.dialog || '无'}</p>
+                            <p style="margin-top:4px"><strong>镜头：</strong>${s.videoPrompt || '未填写'}</p>
+                            ${s.video
+                                ? '<p style="margin-top:6px;font-size:12px;color:var(--ok)">🎬 视频已生成</p>'
+                                : '<p style="margin-top:6px;font-size:12px;color:var(--warn)">📋 等待视频生成</p>'}
+                        </div>
+                    </div>
+                </div>`;
+        }
+        function saveShot() { hideModal('addShotModal'); }
+        setTimeout(renderShots, 200);
+    </script>
+</body>
+</html>

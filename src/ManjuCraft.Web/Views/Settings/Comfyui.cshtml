@@ -1,0 +1,154 @@
+@{
+    ViewData["Title"] = "设置";
+    Layout = "_Layout";
+    var _dbPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "manju.db");
+}
+
+<div class="page-header">
+    <div>
+        <h2>设置</h2>
+        <p style="font-size:14px;color:var(--text3);margin-top:4px">配置 ComfyUI API、FFmpeg 和数据库</p>
+    </div>
+</div>
+
+<div class="settings-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+        <h3 style="font-size:16px;font-weight:700;margin:0">🔌 ComfyUI API 配置</h3>
+        <span class="badge badge-warn" id="comfyui-status-badge"><span class="badge-dot"></span>未连接</span>
+    </div>
+
+    <div class="api-card">
+        <div class="api-card-header">
+            <div style="display:flex;align-items:center;gap:12px">
+                <span class="api-type-badge">ComfyUI</span>
+                <span style="font-weight:700;font-size:14px">ComfyUI API</span>
+            </div>
+        </div>
+        <div class="api-card-body">
+            <div class="api-field">
+                <label>API 地址</label>
+                <input type="text" id="comfyui-api" value="http://localhost:8188" placeholder="http://localhost:8188" />
+            </div>
+            <div class="api-field">
+                <label>WebSocket 地址</label>
+                <input type="text" id="comfyui-ws" value="ws://localhost:8188/ws" placeholder="ws://localhost:8188/ws" />
+            </div>
+            <div class="api-field">
+                <label>输出目录（可选）</label>
+                <input type="text" id="comfyui-output" placeholder="留空则使用 ComfyUI 默认输出目录" />
+            </div>
+            <div style="display:flex;gap:10px;margin-top:8px">
+                <button class="btn btn-primary btn-sm" id="save-settings-btn">保存</button>
+                <button class="btn btn-ghost btn-sm" id="test-connect-btn">测试连接</button>
+            </div>
+            <div id="connect-status" style="margin-top:12px;font-size:13px;"></div>
+        </div>
+    </div>
+</div>
+
+<div class="settings-card">
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:18px">🎥 FFmpeg 配置</h3>
+    <div class="form-group">
+        <label>FFmpeg 路径</label>
+        <input type="text" id="ffmpeg-path" placeholder="留空则使用 PATH 中的 ffmpeg" />
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+        <button class="btn btn-ghost btn-sm" id="check-ffmpeg-btn">检查 FFmpeg</button>
+        <span id="ffmpeg-status" style="font-size:13px;"></span>
+    </div>
+</div>
+
+<div class="settings-card">
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:18px">🗄️ 数据库</h3>
+    <p style="font-size:14px;color:var(--text2);line-height:1.7">
+        SQLite 数据库存储于项目目录下：
+        <code style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-size:12px;margin-left:6px">manju.db</code>
+    </p>
+        <div style="margin-top:18px;display:flex;gap:10px">
+            <button class="btn btn-ghost btn-sm" id="backup-btn">导出备份</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--danger)" id="reset-db-btn">重置数据库</button>
+        </div>
+</div>
+
+@section Scripts {
+<script>
+$(function () {
+    // Check FFmpeg
+    $('#check-ffmpeg-btn').on('click', function () {
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('检查中...');
+        $.get('/api/v1/settings/ffmpeg', function (res) {
+            $btn.prop('disabled', false).text('检查 FFmpeg');
+            if (res.data && res.data.available) {
+                $('#ffmpeg-status').html('<span style="color:var(--ok)">✅ FFmpeg 可用 (v' + (res.data.version || '?') + ')</span>');
+            } else {
+                $('#ffmpeg-status').html('<span style="color:var(--danger)">❌ FFmpeg 不可用</span>');
+            }
+        });
+    });
+
+    // Save settings
+    $('#save-settings-btn').on('click', function () {
+        var data = {
+            apiUrl: $('#comfyui-api').val().trim(),
+            wsUrl: $('#comfyui-ws').val().trim(),
+            outputDir: $('#comfyui-output').val().trim()
+        };
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('保存中...');
+        $.ajax({
+            url: '/api/v1/settings/comfyui',
+            type: 'PUT',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function (res) {
+                alert('设置已保存');
+                $btn.prop('disabled', false).text('保存');
+            },
+            error: function () {
+                alert('保存失败');
+                $btn.prop('disabled', false).text('保存');
+            }
+        });
+    });
+
+    // Test connection
+    $('#test-connect-btn').on('click', function () {
+        var $btn = $(this);
+        var apiUrl = $('#comfyui-api').val().trim() || 'http://localhost:8188';
+        $btn.prop('disabled', true).text('测试中...');
+        $.ajax({
+            url: '/api/v1/settings/comfyui/test',
+            data: { apiUrl: apiUrl },
+            success: function (res) {
+                $btn.prop('disabled', false).text('测试连接');
+                if (res.success) {
+                    $('#connect-status').html('<span style="color:var(--ok)">✅ 连接成功！</span>');
+                    $('#comfyui-status-badge').removeClass('badge-warn').addClass('badge-ok').html('<span class="badge-dot"></span>已连接');
+                } else {
+                    $('#connect-status').html('<span style="color:var(--danger)">❌ 连接失败: ' + (res.message || '未知错误') + '</span>');
+                    $('#comfyui-status-badge').removeClass('badge-ok').addClass('badge-warn').html('<span class="badge-dot"></span>未连接');
+                }
+            },
+            error: function () {
+                $btn.prop('disabled', false).text('测试连接');
+                $('#connect-status').html('<span style="color:var(--danger)">❌ 连接失败</span>');
+            }
+        });
+    });
+
+    // Reset database
+    $('#reset-db-btn').on('click', function () {
+        if (!confirm('确认重置数据库？此操作将删除所有数据且不可恢复！')) return;
+        if (!confirm('再次确认：真的要删除所有数据吗？')) return;
+        alert('重置功能请联系管理员执行');
+    });
+
+    // Backup
+    $('#backup-btn').on('click', function () {
+        var dbPath = '@_dbPath';
+        window.location.href = '/api/v1/settings/backup?path=' + encodeURIComponent(dbPath);
+    });
+});
+</script>
+}

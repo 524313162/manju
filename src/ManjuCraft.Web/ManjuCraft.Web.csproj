@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>ManjuCraft.Web</AssemblyName>
+    <RootNamespace>ManjuCraft.Web</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Application\ManjuCraft.Application.csproj" />
+    <ProjectReference Include="..\Domain\ManjuCraft.Domain.csproj" />
+    <ProjectReference Include="..\Infrastructure\ManjuCraft.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+  </ItemGroup>
+
+</Project>

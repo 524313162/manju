@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>演员管理 — ManjuCraft</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-left">
+            <h1 class="logo">ManjuCraft</h1>
+            <span class="subtitle">漫剧开发工具</span>
+        </div>
+        <div class="nav-right">
+            <a href="../index.html" class="nav-link">首页</a>
+            <a href="projects.html" class="nav-link">项目管理</a>
+            <a href="actors.html" class="nav-link active">演员管理</a>
+            <a href="episodes.html" class="nav-link">分集分镜</a>
+            <a href="settings.html" class="nav-link">设置</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="page-header">
+            <div>
+                <h2>🎭 演员管理 — 勇者传说</h2>
+                <p style="font-size:14px;color:var(--text3);margin-top:4px">管理角色设定与生成素材</p>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-primary btn-sm" onclick="showModal('createActorModal')">+ 添加</button>
+                <button class="btn btn-ghost btn-sm" onclick="generateAllPrompts()">✨ 批量生成提示词</button>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:40px">#</th>
+                        <th style="width:60px">预览</th>
+                        <th>名称</th>
+                        <th>描述</th>
+                        <th style="width:90px">工作流</th>
+                        <th style="width:80px">状态</th>
+                        <th style="width:180px">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="actorTable"></tbody>
+            </table>
+        </div>
+    </main>
+
+    <div class="modal-overlay" id="createActorModal">
+        <div class="modal">
+            <h3>添加演员</h3>
+            <div class="form-group">
+                <label>演员名称</label>
+                <input type="text" id="actorName" placeholder="如：勇者">
+            </div>
+            <div class="form-group">
+                <label>详细描述</label>
+                <textarea id="actorDesc" rows="3" placeholder="如：身穿银甲的年轻勇者，棕色短发，蓝色眼睛"></textarea>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-ghost" onclick="hideModal('createActorModal')">取消</button>
+                <button class="btn btn-primary btn-sm" onclick="saveActor()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/main.js"></script>
+    <script>
+        const mockActors = [
+            { id: 1, name: '勇者·莲', desc: '银甲棕发的年轻勇者', workflow: 'Txt2Img', hasImages: true },
+            { id: 2, name: '公主·艾尔', desc: '金色长发，紫色长裙的公主', workflow: 'Txt2Img', hasImages: true },
+            { id: 3, name: '魔王·萨格拉斯', desc: '黑色盔甲，红色眼睛的魔王', workflow: 'Txt2Img', hasImages: false },
+            { id: 4, name: '法师·米莉亚', desc: '蓝色长袍，手持法杖的女法师', workflow: 'Txt2Img', hasImages: false }
+        ];
+        const statusBadge = (ok) => {
+            const cls = ok ? 'ok' : 'blue';
+            const txt = ok ? '已生成' : '待生成';
+            return `<span class="badge badge-${cls}"><span class="badge-dot"></span> ${txt}</span>`;
+        };
+        const workflowBadge = (wf) => `<span class="badge badge-purple">${wf}</span>`;
+        const preview = (ok) => ok
+            ? '<div class="img-thumb ok"><span>🖼️</span></div>'
+            : '<div class="img-thumb empty"><span>+</span></div>';
+        function renderActors() {
+            document.getElementById('actorTable').innerHTML = mockActors.map((a, i) => `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${preview(a.hasImages)}</td>
+                    <td><strong>${a.name}</strong></td>
+                    <td style="color:var(--text3);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.desc}</td>
+                    <td>${workflowBadge(a.workflow)}</td>
+                    <td>${statusBadge(a.hasImages)}</td>
+                    <td>
+                        <div class="actions-bar">
+                            <button class="action" onclick="alert('生成提示词')">📝 提示词</button>
+                            <button class="action action-ok" onclick="alert('提交生成任务')">🎨 生成</button>
+                            <button class="action action-d" onclick="alert('删除')">🗑️ 删除</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        function saveActor() { hideModal('createActorModal'); renderActors(); }
+        function generateAllPrompts() { alert('批量生成所有演员的提示词...'); }
+        setTimeout(renderActors, 200);
+    </script>
+</body>
+</html>

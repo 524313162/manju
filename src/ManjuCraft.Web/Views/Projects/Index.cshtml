@@ -1,0 +1,128 @@
+@model ManjuCraft.Web.ViewModels.ProjectsIndexViewModel
+@{
+    ViewData["Title"] = "项目管理";
+    Layout = "_Layout";
+}
+
+<div class="page-header">
+    <div>
+        <h2>🗂️ 项目管理</h2>
+        <p style="font-size:14px;color:var(--text3);margin-top:4px">管理你的所有漫剧作品</p>
+    </div>
+    <button class="btn btn-primary modal-trigger" data-target="#createProjectModal">+ 新建项目</button>
+</div>
+
+@if (Model?.Projects != null && Model.Projects.Any())
+{
+    <div class="project-grid" id="projectList">
+        @foreach (var p in Model.Projects)
+        {
+            <div class="project-card" data-id="@p.Id">
+                <div class="project-top">
+                    <h3>@p.Name</h3>
+                    <span class="badge badge-ok"><span class="badge-dot"></span>活跃</span>
+                </div>
+                <p>项目ID: @p.Id</p>
+                <div class="project-meta">
+                    <span>📺 @(p.Episodes?.Count() ?? 0) 分集</span>
+                    <span>🎭 @(p.Actors?.Count() ?? 0) 演员</span>
+                    <span>📅 @DateTime.FromBinary(p.CreatedTime).ToString("yyyy-MM-dd")</span>
+                </div>
+                <div class="project-actions">
+                    <button class="btn btn-primary btn-sm enter-project-btn" data-id="@p.Id">进入项目</button>
+                    <button class="btn btn-ghost btn-sm action-d delete-project-btn" data-id="@p.Id">删除</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div style="text-align:center; padding:80px 0; color:var(--text3);">
+        <div style="font-size:48px;margin-bottom:16px">📁</div>
+        <p style="font-size:18px;font-weight:600;margin-bottom:8px">暂无项目</p>
+        <p style="font-size:14px">点击右上角"新建项目"开始创建第一个漫剧项目</p>
+    </div>
+}
+
+<div class="modal-overlay" id="createProjectModal">
+    <div class="modal">
+        <h3>新建项目</h3>
+        <div class="form-group">
+            <label>项目名称</label>
+            <input type="text" id="projectName" placeholder="输入项目名称" autocomplete="off" />
+        </div>
+        <div class="form-group">
+            <label>ComfyUI API 地址（可选）</label>
+            <input type="text" id="comfyuiUrl" value="http://localhost:8188" placeholder="http://localhost:8188" />
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-ghost modal-close">取消</button>
+            <button class="btn btn-primary" id="saveProjectBtn">创建</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+$(function () {
+    $(document).on('click', '.modal-overlay', function (e) {
+        if (e.target === this) $(this).removeClass('show active');
+    });
+
+    $('#saveProjectBtn').on('click', function () {
+        var name = $('#projectName').val().trim();
+        if (!name) { alert('请输入项目名称'); return; }
+        var comfyui = $('#comfyuiUrl').val().trim();
+        var data = { name: name };
+        if (comfyui && comfyui !== 'http://localhost:8188') {
+            data.comfyuiConfigJson = comfyui;
+        }
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('创建中...');
+        $.ajax({
+            url: '/api/v1/ApiProjects',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function (res) {
+                if (res.success) {
+                    window.location.href = '/Story/Index?projectId=' + res.data.id;
+                } else { alert(res.message || '创建失败'); $btn.prop('disabled', false).text('创建'); }
+            },
+            error: function (xhr) { alert('创建失败'); $btn.prop('disabled', false).text('创建'); }
+        });
+    });
+
+    $(document).on('click', '.enter-project-btn', function (e) {
+        e.stopPropagation();
+        var id = $(this).data('id');
+        window.location.href = '/Story/Index?projectId=' + id;
+    });
+
+    $(document).on('click', '.delete-project-btn', function (e) {
+        e.stopPropagation();
+        var id = $(this).data('id');
+        if (!confirm('确定要删除这个项目吗？此操作不可撤销')) return;
+        $.ajax({
+            url: '/api/v1/ApiProjects/' + id,
+            type: 'DELETE',
+            success: function (res) {
+                if (res.success) {
+                    $('.project-card[data-id="' + id + '"]').fadeOut(300, function () {
+                        $(this).remove();
+                        if ($('.project-card').length === 0) location.reload();
+                    });
+                }
+            },
+            error: function () { alert('删除失败'); }
+        });
+    });
+
+    $(document).on('click', '.project-card', function () {
+        var id = $(this).data('id');
+        window.location.href = '/Story/Index?projectId=' + id;
+    });
+});
+</script>
+}

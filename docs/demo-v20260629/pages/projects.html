@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目管理 — ManjuCraft</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-left">
+            <h1 class="logo">ManjuCraft</h1>
+            <span class="subtitle">漫剧开发工具</span>
+        </div>
+        <div class="nav-right">
+            <a href="../index.html" class="nav-link">首页</a>
+            <a href="projects.html" class="nav-link active">项目管理</a>
+            <a href="actors.html" class="nav-link">演员管理</a>
+            <a href="episodes.html" class="nav-link">分集分镜</a>
+            <a href="settings.html" class="nav-link">设置</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="page-header">
+            <div>
+                <h2>项目管理</h2>
+                <p style="font-size:14px;color:var(--text3);margin-top:4px">管理你的所有漫剧作品</p>
+            </div>
+            <button class="btn btn-primary" onclick="showModal('createProjectModal')">+ 新建项目</button>
+        </div>
+
+        <div class="project-grid" id="projectList"></div>
+    </main>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="createProjectModal">
+        <div class="modal">
+            <h3>新建项目</h3>
+            <div class="form-group">
+                <label>项目名称</label>
+                <input type="text" id="projectName" placeholder="输入项目名称">
+            </div>
+            <div class="form-group">
+                <label>ComfyUI API 地址（可选）</label>
+                <input type="text" id="comfyuiUrl" value="http://localhost:8188" placeholder="http://localhost:8188">
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-ghost" onclick="hideModal('createProjectModal')">取消</button>
+                <button class="btn btn-primary" onclick="saveProject()">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/main.js"></script>
+    <script>
+        const mockProjects = [
+            { id: 1, name: '勇者传说', description: '经典奇幻题材', episodes: 8, actors: 12, created: '2026-06-25', status: 'active' },
+            { id: 2, name: '都市风云', description: '现代都市题材', episodes: 3, actors: 6, created: '2026-06-20', status: 'active' },
+            { id: 3, name: '赛博朋克2099', description: '科幻题材', episodes: 0, actors: 0, created: '2026-06-15', status: 'draft' }
+        ];
+        function renderProjects() {
+            const el = document.getElementById('projectList');
+            el.innerHTML = mockProjects.map(p => `
+                <div class="project-card">
+                    <div class="project-top"><h3>${p.name}</h3><span class="badge badge-${p.status==='active'?'ok':'blue'}">${p.status==='active'?'活跃':'草稿'}</span></div>
+                    <p>${p.description}</p>
+                    <div class="project-meta">
+                        <span>📺 ${p.episodes} 分集</span>
+                        <span>🎭 ${p.actors} 演员</span>
+                        <span>📅 ${p.created}</span>
+                    </div>
+                    <div class="project-actions">
+                        <button class="btn btn-primary btn-sm" onclick="alert('进入项目')">进入</button>
+                        <button class="btn btn-ghost btn-sm action-d" onclick="alert('删除项目')">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        function saveProject() { hideModal('createProjectModal'); renderProjects(); }
+        setTimeout(renderProjects, 200);
+    </script>
+</body>
+</html>

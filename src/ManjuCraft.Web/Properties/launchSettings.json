@@ -1,0 +1,15 @@
+{
+  "profiles": {
+    "ManjuCraft.Web": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Comfyui__ApiUrl": "http://localhost:8188",
+        "Comfyui__WsUrl": "ws://localhost:8188/ws"
+      },
+      "applicationUrl": "http://localhost:8010"
+    }
+  }
+}

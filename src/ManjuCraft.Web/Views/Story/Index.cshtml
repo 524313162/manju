@@ -1,0 +1,93 @@
+@{
+    ViewData["Title"] = "故事管理";
+    Layout = "_Layout";
+}
+
+<div class="page-header" style="display:flex !important; align-items:center !important; justify-content:space-between !important; margin-bottom:24px">
+    <div>
+        <h2>📖 故事管理</h2>
+        <p style="font-size:14px;color:var(--text3);margin-top:4px">编写并拆分故事为分镜片段</p>
+    </div>
+    <button class="btn btn-primary" id="split-btn"><span class="spinner"></span> 拆分故事为分镜</button>
+</div>
+
+<div class="settings-card" style="max-width:900px">
+    <div class="form-group">
+        <label>故事内容</label>
+        <textarea id="story-content" rows="18" placeholder="在此编写你的漫剧故事内容..."></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px;justify-content:flex-end">
+        <button class="btn btn-primary btn-sm" id="save-btn">保存</button>
+        <button class="btn btn-ghost btn-sm" id="split-btn-secondary">拆分</button>
+    </div>
+</div>
+
+<div class="settings-card" id="split-content" style="display:none;margin-top:16px;max-width:900px">
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">✨ 拆分结果</h3>
+    <p style="font-size:14px;color:var(--text2);line-height:1.8;white-space:pre-wrap" id="split-text"></p>
+</div>
+
+@section Scripts {
+<script>
+$(function () {
+    var projectId = '@ViewData["CurrentProjectId"]';
+    if (!projectId) { alert('缺少项目ID'); return; }
+
+    $.get('/api/v1/projects/' + projectId + '/story', function (res) {
+        if (res.data) {
+            $('#story-content').val(res.data.content || '');
+            if (res.data.splitContent) {
+                $('#split-content').show().find('#split-text').text(res.data.splitContent);
+            }
+        }
+    });
+
+    $('#split-btn, #split-btn-secondary').on('click', function () {
+        var $btn = $(this);
+        $btn.prop('disabled', true).find('.spinner').show();
+        var content = $('#story-content').val();
+        $.ajax({
+            url: '/api/v1/projects/' + projectId + '/story/split',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ content: content }),
+            success: function (res) {
+                $btn.prop('disabled', false).find('.spinner').hide();
+                if (res.success && res.data?.splitContent) {
+                    $('#split-content').show().find('#split-text').text(res.data.splitContent);
+                } else {
+                    alert('拆分失败: ' + (res.message || '未知错误'));
+                }
+            },
+            error: function () { $btn.prop('disabled', false).find('.spinner').hide(); alert('请求失败'); }
+        });
+    });
+
+    var _autoSaveTimer;
+    $('#story-content').on('input', function () {
+        clearTimeout(_autoSaveTimer);
+        _autoSaveTimer = setTimeout(function () {
+            var val = $('#story-content').val();
+            $.ajax({
+                url: '/api/v1/projects/' + projectId + '/story',
+                type: 'PUT',
+                contentType: 'application/json',
+                data: JSON.stringify({ content: val })
+            });
+        }, 1500);
+    });
+
+    $('#save-btn').on('click', function () {
+        var val = $('#story-content').val();
+        $.ajax({
+            url: '/api/v1/projects/' + projectId + '/story',
+            type: 'PUT',
+            contentType: 'application/json',
+            data: JSON.stringify({ content: val }),
+            success: function (res) { alert('保存成功'); },
+            error: function () { alert('保存失败'); }
+        });
+    });
+});
+</script>
+}

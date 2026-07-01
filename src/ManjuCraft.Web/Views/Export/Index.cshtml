@@ -1,0 +1,103 @@
+@{
+    ViewData["Title"] = "视频导出";
+    Layout = "_Layout";
+}
+@{
+    var projectId = ViewData["CurrentProjectId"]?.ToString() ?? "";
+}
+
+<div class="page-header">
+    <h1>视频导出</h1>
+</div>
+
+<div class="export-section">
+    <h3>FFmpeg 状态</h3>
+    <div id="ffmpeg-status">
+        <span class="badge badge-warning">检测中...</span>
+    </div>
+</div>
+
+<div class="export-section">
+    <h3>合并导出</h3>
+    <p style="color:var(--text-light);font-size:14px;margin-bottom:16px;">将所有分镜视频按顺序合并为完整的漫剧视频</p>
+    <button class="btn btn-primary" id="merge-btn">开始合并</button>
+    
+    <div class="export-progress" id="export-progress" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span id="export-status">处理中...</span>
+            <span class="progress-text" id="export-percent">0%</span>
+        </div>
+        <div class="progress-bar">
+            <div class="fill" id="export-bar" style="width:0%"></div>
+        </div>
+        <div class="export-logs" id="export-logs"></div>
+    </div>
+    
+    <div id="export-result" style="margin-top:16px;display:none">
+        <p>合并完成！<a id="export-download" href="#" target="_blank">下载视频</a></p>
+    </div>
+</div>
+
+<div class="export-section">
+    <h3>分镜视频列表</h3>
+    <div id="shot-videos-list"></div>
+</div>
+
+@section Scripts {
+<script>
+$(function () {
+    var projectId = '@projectId';
+
+    // Check FFmpeg
+    $.get('/api/v1/export/ffmpeg-status', function (res) {
+        if (res.data.available) {
+            $('#ffmpeg-status').html('<span class="badge badge-success">FFmpeg 可用 (版本: ' + res.data.version + ')</span>');
+        } else {
+            $('#ffmpeg-status').html('<span class="badge badge-danger">FFmpeg 不可用，请先安装 FFmpeg</span>');
+        }
+    });
+
+    // Load shot videos
+    $.get('/api/v1/episodes/project/' + projectId, function (epRes) {
+        if (epRes.data) {
+            var $list = $('#shot-videos-list');
+            epRes.data.forEach(function (ep) {
+                $.get('/api/v1/episodes/' + ep.id, function (shotRes) {
+                    if (shotRes.data) {
+                        shotRes.data.forEach(function (shot) {
+                            $list.append('<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">' +
+                                '<span style="min-width:100px;font-size:13px;">分镜 ' + shot.id + '</span>' +
+                                shot.hasVideo ? '<span class="badge badge-success">有视频</span>' : '<span class="badge badge-danger">无视频</span>' +
+                                (shot.hasFirstFrame ? ' | <span class="badge badge-info">有首帧</span>' : '') +
+                                '</div>');
+                        });
+                    }
+                });
+            });
+        }
+    });
+
+    // Merge
+    $('#merge-btn').on('click', function () {
+        var $btn = $(this);
+        $btn.prop('disabled', true);
+        $('#export-progress').show();
+        $('#export-result').hide();
+
+        $.post('/api/v1/export/' + projectId + '/merge/run', function (res) {
+            if (res.success) {
+                $('#export-status').text('完成！');
+                $('#export-percent').text('100%');
+                $('#export-bar').css('width', '100%');
+                $('#export-download').attr('href', res.data.fileUrl);
+                $('#export-result').show();
+            } else {
+                $('#export-status').text('失败: ' + res.message);
+                $('#export-logs').text(res.message);
+            }
+            $btn.prop('disabled', false);
+        });
+    });
+});
+</script>
+}

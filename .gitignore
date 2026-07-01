@@ -1,0 +1,55 @@
+# Build results
+[Oo]bj/
+[Bb]in/
+[Bb]in*/
+[Oo]bj*/
+*.dll
+*.exe
+*.pdb
+*.zip
+*.deb
+*.msi
+*.tar.gz
+*.tgz
+*.nupkg
+
+# Visual Studio cache/options
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# MSTest/VSTest
+TestResults/
+coverage.*
+
+# Playwright
+playwright-report/
+test-reports/
+
+# SQLite
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+
+# NuGet
+nuget.config
+nuget.settings
+packages/
+*.nupkg
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

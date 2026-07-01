@@ -1,0 +1,106 @@
+@{
+    ViewData["Title"] = "分集管理";
+    Layout = "_Layout";
+}
+<div class="page-header">
+    <h1>分集管理</h1>
+    <button class="btn btn-primary modal-trigger" data-target="#new-episode-modal">
+        <span>+</span> 新建分集
+    </button>
+</div>
+
+<p style="color:var(--text-light);font-size:14px;margin-bottom:16px;">拖拽调整分集顺序</p>
+
+<div id="episodes-list" class="sortable-list" data-controller="episodes">
+</div>
+
+<div class="modal-overlay" id="new-episode-modal">
+    <div class="modal">
+        <h2>新建分集</h2>
+        <div class="form-group">
+            <label>分集名称</label>
+            <input type="text" id="episode-name" placeholder="第一集" />
+        </div>
+        <div class="form-group">
+            <label>时长（秒）</label>
+            <input type="number" id="episode-duration" value="300" />
+        </div>
+        <div class="form-actions">
+            <button class="btn" onclick="this.closest('.modal-overlay').classList.remove('active')">取消</button>
+            <button class="btn btn-primary" id="save-episode-btn">创建</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+$(function () {
+    var projectId = '@ViewData["CurrentProjectId"]';
+    
+    function loadEpisodes() {
+        $.get('/api/v1/episodes/project/' + projectId, function (res) {
+            var list = $('#episodes-list');
+            list.empty();
+            if (!res.data || !res.data.length) {
+                list.html('<p style="color:var(--text-light);">暂无分集，点击"新建分集"添加</p>');
+                return;
+            }
+            res.data.forEach(function (ep, i) {
+                list.append('<div class="sortable-item" data-id="' + ep.id + '">' +
+                    '<span class="drag-handle">⋮⋮</span>' +
+                    '<span style="flex:1">' + ep.name + '</span>' +
+                    '<span style="color:var(--text-light);font-size:12px;">' + ep.duration + 's</span>' +
+                    '<span style="color:var(--text-light);font-size:12px;">' + ep.shotCount + ' 分镜</span>' +
+                    '<a href="/Shots/Index?projectId=' + projectId + '&episodeId=' + ep.id + '" class="btn btn-sm">进入</a>' +
+                    '<button class="btn btn-sm btn-danger delete-btn" data-endpoint="episodes" data-id="' + ep.id + '">删除</button>' +
+                    '</div>');
+            });
+            initSortable(list);
+        });
+    }
+
+    function initSortable($list) {
+        $list.sortable({
+            handle: '.drag-handle',
+            placeholder: 'sortable-placeholder',
+            update: function (e, ui) {
+                var ids = [];
+                $list.find('.sortable-item').each(function () {
+                    ids.push(parseInt($(this).data('id')));
+                });
+                if (ids.length === 0) return;
+                $.ajax({
+                    url: '/api/v1/episodes/reorder',
+                    type: 'PUT',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ episodeIds: ids })
+                });
+            }
+        }).disableSelection();
+    }
+
+    $('#save-episode-btn').on('click', function () {
+        var name = $('#episode-name').val().trim();
+        if (!name) { alert('请输入分集名称'); return; }
+        $.ajax({
+            url: '/api/v1/episodes/project/' + projectId,
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                name: name,
+                duration: parseInt($('#episode-duration').val()) || 300,
+                order: 0
+            }),
+            success: function (res) {
+                if (res.success) {
+                    $('#new-episode-modal').removeClass('active');
+                    loadEpisodes();
+                }
+            }
+        });
+    });
+
+    loadEpisodes();
+});
+</script>
+}

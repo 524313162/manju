@@ -1,0 +1,72 @@
+@model ManjuCraft.Web.ViewModels.ProjectsIndexViewModel
+@{
+    ViewData["Title"] = "首页";
+    Layout = "_Layout";
+}
+
+<section class="hero">
+    <h2>一站式漫剧开发工具</h2>
+    <p class="hero-desc">从故事创意到视频导出，自动管理漫画全流程。对接 ComfyUI 生成素材，降低制作成本，提升创作效率。</p>
+    <div class="hero-actions">
+        <a asp-controller="Projects" asp-action="Index" class="btn btn-primary">创建新项目</a>
+        <a asp-controller="Actors" asp-action="Index" class="btn btn-outline">管理演员资产</a>
+    </div>
+</section>
+
+<section class="feature-grid">
+    <div class="feature-card">
+        <div class="feature-icon">📖</div>
+        <h3>故事管理</h3>
+        <p>创建、编辑故事，AI 自动拆分为分镜片段</p>
+    </div>
+    <div class="feature-card">
+        <div class="feature-icon">🎭</div>
+        <h3>演员资产</h3>
+        <p>管理角色信息，自动生成四视图提示词，对接 ComfyUI 生成角色立绘</p>
+    </div>
+    <div class="feature-card">
+        <div class="feature-icon">🏞️</div>
+        <h3>场景道具</h3>
+        <p>管理场景、道具、技能、BGM，AI 生成对应素材</p>
+    </div>
+    <div class="feature-card">
+        <div class="feature-icon">🎬</div>
+        <h3>分集分镜</h3>
+        <p>按集组织分镜，拖拽排序，首帧图+提示词生成视频</p>
+    </div>
+    <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>ComfyUI 对接</h3>
+        <p>配置本地或远程 ComfyUI，AI 批量生成图片/视频/BGM</p>
+    </div>
+    <div class="feature-card">
+        <div class="feature-icon">🎥</div>
+        <h3>视频导出</h3>
+        <p>FFmpeg 自动合并所有镜头视频为完整成品</p>
+    </div>
+</section>
+
+@if (Model.Projects.Any())
+{
+    <section class="quick-stats">
+        <h3>当前项目概览</h3>
+        <div class="stat-cards">
+            <div class="stat-card">
+                <span class="stat-value">@Model.Projects.Count</span>
+                <span class="stat-label">活跃项目</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">@Model.Projects.Sum(p => 0)</span>
+                <span class="stat-label">演员</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">0</span>
+                <span class="stat-label">分集</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">0</span>
+                <span class="stat-label">分镜</span>
+            </div>
+        </div>
+    </section>
+}
