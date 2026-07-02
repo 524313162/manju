@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漫剧创作 — ManjuCraft</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        .shot-row { display:flex; align-items:center; gap:8px; padding:10px 14px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:6px; transition:.15s; }
+        .shot-row:hover { box-shadow:var(--shadow-sm); border-color:var(--primary); }
+        .shot-infos { flex:1; min-width:0; font-size:12px; color:var(--text2); line-height:1.7; }
+        .shot-infos .label { color:var(--text3); font-size:11px; }
+        .shot-thumb { width:100px; height:60px; flex-shrink:0; border-radius:4px; background:#f1f5f9; border:1.5px dashed var(--border); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:.15s; color:var(--text3); font-size:10px; gap:3px; flex-direction:column; }
+        .shot-thumb:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-bg); }
+        .shot-thumb.has { border-color:var(--ok); background:var(--ok-bg); color:var(--ok); border-style:solid; }
+        .shot-thumb .ti { font-size:20px; }
+        .shot-vid { width:100px; height:60px; flex-shrink:0; border-radius:4px; background:#1e293b; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; color:#64748b; font-size:10px; gap:3px; }
+        .shot-vid .vi { font-size:20px; }
+        .shot-vid.has { background:linear-gradient(135deg,#1e1b4b,#312e81); }
+        .shot-vid:hover { opacity:.85; }
+        .shot-acts { display:flex; flex-direction:column; gap:4px; width:90px; flex-shrink:0; }
+        .no-content { text-align:center; padding:60px 20px; color:var(--text3); }
+        .no-content .icon { font-size:40px; margin-bottom:12px; }
+        .no-content { text-align:center; padding:60px 20px; color:var(--text3); }
+        .no-content .icon { font-size:40px; margin-bottom:12px; }
+        .bound-item { display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--bg); border-radius:6px; border:1px solid var(--border); margin-bottom:6px; }
+        .bound-icon { width:32px; height:32px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+        .asset-check-item { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:6px; cursor:pointer; transition:.1s; }
+        .asset-check-item:hover { background:var(--bg); }
+        .asset-check-item input[type=checkbox] { width:16px; height:16px; accent-color:var(--primary); }
+        .extracted-item { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--bg); border-radius:6px; margin-bottom:4px; border:1px solid var(--border); }
+        .extracted-item .name { font-weight:600; font-size:13px; }
+        .extracted-item .desc { font-size:11px; color:var(--text3); }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-left"><h1 class="logo">ManjuCraft</h1><span class="subtitle">漫剧开发工具</span></div>
+        <div class="nav-right">
+            <a href="../index.html" class="nav-link">首页</a>
+            <a href="projects.html" class="nav-link">项目管理</a>
+            <a href="story.html" class="nav-link">剧本创作</a>
+            <a href="actors.html" class="nav-link">角色管理</a>
+            <a href="assets.html" class="nav-link">资产管理</a>
+        </div>
+    </nav>
+
+    <div class="prod-layout">
+        <div class="episode-sidebar">
+            <div class="episode-sidebar-header">
+                <a href="projects.html" class="back-link">&laquo; 返回项目</a>
+                <h3 id="pName"></h3>
+                <p id="pStatus"></p>
+            </div>
+            <div class="episode-list" id="epList"></div>
+            <div class="episode-sidebar-footer">
+                <button class="btn btn-primary btn-sm" style="width:100%;" onclick="extractAllAssets()">&#129302; 一键提取资产</button>
+                <a id="editScriptLink" href="#" class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px;color:#a78bfa;display:block;text-align:center;">&#128214; 编辑剧本</a>
+            </div>
+        </div>
+
+        <div class="prod-main">
+            <div class="prod-toolbar">
+                <h2 id="mainTitle">漫剧创作</h2>
+                <div class="prod-tabs">
+                    <div class="prod-tab active" data-tab="shots" onclick="switchTab('shots')">提取分镜</div>
+                    <div class="prod-tab" data-tab="assets" onclick="switchTab('assets')">资产绑定</div>
+                    <div class="prod-tab" data-tab="content" onclick="switchTab('content')">内容</div>
+                </div>
+            </div>
+            <div class="prod-content" style="padding:16px 24px;">
+                <div id="tab-shots" class="tab-panel"><div id="storyboardArea"></div></div>
+                <div id="tab-assets" class="tab-panel hidden"><div id="assetBindArea"></div></div>
+                <div id="tab-content" class="tab-panel hidden"><div id="contentArea"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="previewModal">
+        <div class="modal" style="width:800px;text-align:center;">
+            <h3 id="previewTitle">预览</h3>
+            <div id="previewBody" style="min-height:200px;display:flex;align-items:center;justify-content:center;background:#f1f5f9;border-radius:8px;font-size:14px;color:var(--text3);">加载中...</div>
+            <div class="form-actions"><button class="btn btn-ghost" onclick="hideModal('previewModal')">关闭</button></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="assetBindModal">
+        <div class="modal" style="width:600px;">
+            <h3 id="bindModalTitle">选择资产绑定</h3>
+            <div style="display:flex;gap:8px;margin-bottom:14px;">
+                <button class="btn btn-sm" style="background:var(--primary-bg);color:var(--primary);font-weight:600;border:1.5px solid var(--primary);" onclick="showBindType('actor')">角色</button>
+                <button class="btn btn-sm btn-ghost" onclick="showBindType('scene')">场景</button>
+                <button class="btn btn-sm btn-ghost" onclick="showBindType('prop')">道具</button>
+            </div>
+            <div id="bindAssetList" style="max-height:40vh;overflow-y:auto;"></div>
+            <div class="form-actions">
+                <button class="btn btn-ghost" onclick="hideModal('assetBindModal')">取消</button>
+                <button class="btn btn-primary" onclick="confirmAssetBind()">确认绑定</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="extractConfirmModal">
+        <div class="modal" style="width:640px;">
+            <h3>&#129302; 资产提取确认</h3>
+            <p style="font-size:13px;color:var(--text2);margin-bottom:14px;">AI 从剧本内容中提取到以下资产，请勾选需要入库的：</p>
+            <div id="extractConfirmBody" style="max-height:45vh;overflow-y:auto;"></div>
+            <div class="form-actions">
+                <button class="btn btn-ghost" onclick="hideModal('extractConfirmModal')">取消</button>
+                <button class="btn btn-primary" onclick="confirmExtractAssets()">确认入库</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/main.js"></script>
+    <script>
+    var pid = null, pName = '';
+    var chapters = [], episodes = [];
+    var currentEpIdx = -1, currentShotIdx = -1;
+    var currentTab = 'shots';
+    var bindTempType = 'actor', bindTempSelected = [];
+
+    (function(){
+        var p = new URLSearchParams(window.location.search);
+        pid = parseInt(p.get('projectId')) || null;
+        if (!pid) { alert('请选择一个项目'); location.href = 'projects.html'; return; }
+        var ps = JSON.parse(localStorage.getItem('mc_projects') || '[]');
+        for (var i = 0; i < ps.length; i++) { if (ps[i].id === pid) { pName = ps[i].name; break; } }
+        document.getElementById('pName').textContent = pName;
+        document.getElementById('editScriptLink').href = 'story.html?projectId=' + pid;
+        loadData();
+    })();
+
+    function loadData() {
+        var stories = JSON.parse(localStorage.getItem('mc_stories') || '[]');
+        var storyId = null;
+        for (var i = 0; i < stories.length; i++) { if (stories[i].projectId === pid) { storyId = stories[i].id; break; } }
+        if (!storyId) {
+            var nf = '暂无剧本';
+            document.getElementById('pStatus').textContent = nf;
+            document.getElementById('epList').innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">暂无剧本<br><br><a href="story.html?projectId=' + pid + '" class="btn btn-outline btn-sm">去创作剧本</a></div>';
+            document.getElementById('storyboardArea').innerHTML = '<div class="no-content"><div class="icon">&#128196;</div><p>请先创建剧本</p></div>';
+            document.getElementById('assetBindArea').innerHTML = '<div class="no-content"><div class="icon">&#128196;</div><p>请先创建剧本</p></div>';
+            document.getElementById('contentArea').innerHTML = '<div class="no-content"><div class="icon">&#128196;</div><p>请先创建剧本</p></div>';
+            return;
+        }
+        var allChapters = JSON.parse(localStorage.getItem('mc_chapters') || '[]');
+        chapters = allChapters.filter(function(c){ return c.storyId === storyId; }).sort(function(a,b){ return a.order - b.order; });
+        document.getElementById('pStatus').textContent = chapters.length + ' 章节';
+        var allEps = JSON.parse(localStorage.getItem('mc_episodes') || '[]');
+        episodes = allEps.filter(function(e){ return e.projectId === pid; }).sort(function(a,b){ return a.order - b.order; });
+        if (episodes.length === 0 && chapters.length > 0) {
+            var maxId = 0;
+            for (var j = 0; j < allEps.length; j++) { if (allEps[j].id > maxId) maxId = allEps[j].id; }
+            episodes = chapters.map(function(ch, i) {
+                return { id: maxId + i + 1, projectId: pid, chapterNumber: ch.chapterNumber, chapterName: ch.chapterName, name: ch.chapterName, content: ch.content, order: i };
+            });
+            var merged = JSON.parse(localStorage.getItem('mc_episodes') || '[]').filter(function(e){ return e.projectId !== pid; });
+            episodes.forEach(function(e){ merged.push(e); });
+            localStorage.setItem('mc_episodes', JSON.stringify(merged));
+        }
+        renderEpSidebar();
+        if (episodes.length) { if (currentEpIdx < 0) currentEpIdx = 0; setEp(currentEpIdx); }
+        else { renderShotTab(); renderAssetTab(); renderContentTab(); }
+    }
+
+    function renderEpSidebar() {
+        if (chapters.length === 0) {
+            document.getElementById('epList').innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">暂无剧本<br><br><a href="story.html?projectId=' + pid + '" class="btn btn-outline btn-sm">去创作剧本</a></div>';
+            return;
+        }
+        var h = '<div class="episode-item' + (currentEpIdx === -1 ? ' active' : '') + '" onclick="setEp(-1)">'
+            + '<span class="episode-num">ALL</span><div class="episode-info"><div class="episode-name">全部分集</div>'
+            + '<div class="episode-meta">' + episodes.length + ' 集</div></div></div>';
+        episodes.forEach(function(ep, i) {
+            h += '<div class="episode-item' + (i === currentEpIdx ? ' active' : '') + '" onclick="setEp(' + i + ')">'
+                + '<span class="episode-num">' + (ep.chapterNumber || 'E' + (i+1)) + '</span>'
+                + '<div class="episode-info"><div class="episode-name">' + ep.name + '</div>'
+                + '<div class="episode-meta">' + (getShots(ep.id).length) + ' 分镜</div></div></div>';
+        });
+        document.getElementById('epList').innerHTML = h;
+    }
+
+    function setEp(idx) {
+        currentEpIdx = idx; currentShotIdx = -1;
+        renderEpSidebar();
+        document.getElementById('mainTitle').textContent = idx === -1 ? '全部分集' : episodes[idx].chapterNumber + ' — ' + episodes[idx].name;
+        renderShotTab(); renderAssetTab(); renderContentTab();
+        if (currentTab === 'shots') renderShotTab();
+        else if (currentTab === 'assets') renderAssetTab();
+        else renderContentTab();
+    }
+
+    function switchTab(tab) {
+        currentTab = tab;
+        document.querySelectorAll('.prod-tab').forEach(function(t){ t.classList.remove('active'); if (t.dataset.tab === tab) t.classList.add('active'); });
+        document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.add('hidden'); });
+        document.getElementById('tab-' + tab).classList.remove('hidden');
+        if (tab === 'shots') renderShotTab();
+        else if (tab === 'assets') renderAssetTab();
+        else renderContentTab();
+    }
+
+    // ==================== DATA HELPERS ====================
+
+    function getShots(eid) {
+        return (JSON.parse(localStorage.getItem('mc_shots') || '[]')).filter(function(s){ return s.episodeId === eid; }).sort(function(a,b){ return a.order - b.order; });
+    }
+    function getAllShots() {
+        var all = JSON.parse(localStorage.getItem('mc_shots') || '[]');
+        if (currentEpIdx === -1) { var eids = {}; episodes.forEach(function(e){ eids[e.id] = true; }); return all.filter(function(s){ return eids[s.episodeId]; }).sort(function(a,b){ return a.order - b.order; }); }
+        return all.filter(function(s){ return s.episodeId === episodes[currentEpIdx].id; }).sort(function(a,b){ return a.order - b.order; });
+    }
+    function saveShots(list) {
+        var eid = currentEpIdx >= 0 ? episodes[currentEpIdx].id : null;
+        var all = JSON.parse(localStorage.getItem('mc_shots') || '[]');
+        if (eid) { all = all.filter(function(s){ return s.episodeId !== eid; }); }
+        else { var eids = {}; episodes.forEach(function(e){ eids[e.id] = true; }); all = all.filter(function(s){ return !eids[s.episodeId]; }); }
+        list.forEach(function(s){ all.push(s); }); localStorage.setItem('mc_shots', JSON.stringify(all));
+    }
+    function updateShot(id, updates) {
+        var all = JSON.parse(localStorage.getItem('mc_shots') || '[]');
+        for (var i = 0; i < all.length; i++) { if (all[i].id === id) { Object.keys(updates).forEach(function(k){ all[i][k] = updates[k]; }); break; } }
+        localStorage.setItem('mc_shots', JSON.stringify(all));
+    }
+    function getBoundAssets(eid) {
+        var all = JSON.parse(localStorage.getItem('mc_ep_assets') || '{}');
+        return all[eid] || { actor: [], scene: [], prop: [] };
+    }
+    function saveBoundAssets(eid, data) {
+        var all = JSON.parse(localStorage.getItem('mc_ep_assets') || '{}');
+        all[eid] = data; localStorage.setItem('mc_ep_assets', JSON.stringify(all));
+    }
+
+    // ==================== TAB 1: SHOTS ====================
+
+    function renderShotTab() {
+        var shots = getAllShots();
+        if (shots.length === 0) {
+            document.getElementById('storyboardArea').innerHTML = '<div class="no-content"><div class="icon">&#127916;</div><p>暂无镜头</p><p style="font-size:12px;color:var(--text3);margin-top:8px;">点击「重新提取分镜」一键生成</p></div>';
+            return;
+        }
+        var allAct = JSON.parse(localStorage.getItem('mc_asset_Actor') || '[]');
+        var allScn = JSON.parse(localStorage.getItem('mc_asset_Scene') || '[]');
+        var allPrp = JSON.parse(localStorage.getItem('mc_asset_Prop') || '[]');
+
+        // header
+        var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:0 4px;">'
+            + '<span style="font-size:14px;color:var(--text3);">共 ' + shots.length + ' 个镜头</span>'
+            + '<div style="display:flex;gap:8px;">'
+            + '<button class="btn btn-primary btn-sm" onclick="regenerateAll()">&#129302; 重新提取</button>'
+            + '<button class="btn btn-info btn-sm" onclick="generateAllShots()">&#127912; 一键生成</button>'
+            + '</div></div>';
+
+        // column headers
+        html += '<div style="display:flex;gap:8px;padding:6px 14px;font-size:11px;color:var(--text3);font-weight:600;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;">'
+            + '<span style="flex:1;">镜头信息</span>'
+            + '<span style="width:100px;text-align:center;">首帧图</span>'
+            + '<span style="width:100px;text-align:center;">视频</span>'
+            + '<span style="width:90px;text-align:center;">操作</span>'
+            + '</div>';
+
+        shots.forEach(function(s, i) {
+            var refs = tryJson(s.assetRefs, {});
+            var actorN = []; refs.actor && refs.actor.forEach(function(id){ for (var k = 0; k < allAct.length; k++) { if (allAct[k].id === id) { actorN.push(allAct[k].name); break; } } });
+            var sceneN = []; refs.scene && refs.scene.forEach(function(id){ for (var k = 0; k < allScn.length; k++) { if (allScn[k].id === id) { sceneN.push(allScn[k].name); break; } } });
+            var propN = []; refs.prop && refs.prop.forEach(function(id){ for (var k = 0; k < allPrp.length; k++) { if (allPrp[k].id === id) { propN.push(allPrp[k].name); break; } } });
+
+            var hasFirst = s.hasFirstFrame || false;
+            var hasVid = s.hasVideo || false;
+            var hl = s.highlight || '';
+
+            html += '<div class="shot-row">';
+
+            // info text
+            var infoParts = [];
+            infoParts.push('<strong style="color:var(--primary);font-size:13px;">' + (s.shotNumber || '#' + (i+1)) + '</strong>');
+            infoParts.push(' <span style="color:var(--text3);">0s~' + (s.duration || '?') + 's</span>');
+            infoParts.push(' <span class="badge badge-blue" style="font-size:10px;padding:0 6px;">景别:' + (s.shotSize || '-') + '</span>');
+            infoParts.push(' <span style="color:var(--text2);font-size:11px;">运镜:' + (s.cameraMovement || '-') + '</span>');
+
+            var secondLine = '';
+            if (s.shotAnalysis) secondLine += '<span class="label">镜头分析：</span>' + s.shotAnalysis + '　';
+            if (hl) secondLine += '<span class="label">爽点特写：</span>' + hl + '　';
+            secondLine += '<span class="label">描述：</span>' + (s.firstFrameDescription || s.description || '');
+
+            html += '<div class="shot-infos">'
+                + '<div>' + infoParts.join('') + '</div>'
+                + '<div>' + secondLine + '</div>'
+                + '</div>';
+
+            // thumbnail
+            html += '<div class="shot-thumb' + (hasFirst ? ' has' : '') + '" onclick="' + (hasFirst ? 'previewImage(' + s.id + ')' : 'genFirstFrame(' + s.id + ')') + '" title="' + (hasFirst ? '点击预览' : '点击生成') + '">'
+                + '<span class="ti">' + (hasFirst ? '&#128247;' : '&#127912;') + '</span>'
+                + '<span>' + (hasFirst ? '已生成' : '生成首帧') + '</span>'
+                + '</div>';
+
+            // video
+            html += '<div class="shot-vid' + (hasVid ? ' has' : '') + '" onclick="' + (hasVid ? 'playVideo(' + s.id + ')' : 'genVideo(' + s.id + ')') + '" title="' + (hasVid ? '点击播放' : '点击生成') + '">'
+                + '<span class="vi">' + (hasVid ? '&#9654;' : '&#127909;') + '</span>'
+                + '<span>' + (hasVid ? '播放' : '生成视频') + '</span>'
+                + '</div>';
+
+            // buttons
+            html += '<div class="shot-acts">'
+                + '<button class="btn btn-xs ' + (hasFirst ? 'btn-ghost' : 'btn-primary') + '" onclick="genFirstFrame(' + s.id + ')">' + (hasFirst ? '重制首帧' : '生成首帧') + '</button>'
+                + '<button class="btn btn-xs ' + (hasVid ? 'btn-ghost' : 'btn-info') + '" onclick="genVideo(' + s.id + ')">' + (hasVid ? '重制视频' : '生成视频') + '</button>'
+                + '</div>';
+
+            html += '</div>';
+        });
+
+        document.getElementById('storyboardArea').innerHTML = html;
+    }
+
+    function genFirstFrame(shotId) {
+        showToast('正在调用 ComfyUI 生成首帧图片...', 'info');
+        setTimeout(function() {
+            updateShot(shotId, { hasFirstFrame: true });
+            renderShotTab();
+            showToast('首帧图片已生成', 'success');
+        }, 1500);
+    }
+
+    function genVideo(shotId) {
+        showToast('正在调用 ComfyUI 生成镜头视频...', 'info');
+        setTimeout(function() {
+            updateShot(shotId, { hasVideo: true });
+            renderShotTab();
+            showToast('视频已生成', 'success');
+        }, 2500);
+    }
+
+    function generateAllShots() {
+        showToast('正在批量生成所有镜头...', 'info');
+        var shots = getAllShots();
+        var done = 0;
+        shots.forEach(function(s, i) {
+            setTimeout(function() {
+                updateShot(s.id, { hasFirstFrame: true, hasVideo: true });
+                done++;
+                if (done === shots.length) { renderShotTab(); showToast('全部镜头生成完成！共 ' + shots.length + ' 个', 'success'); }
+            }, 800 + i * 600);
+        });
+    }
+
+    function previewImage(shotId) {
+        var all = JSON.parse(localStorage.getItem('mc_shots') || '[]');
+        var s = null;
+        for (var i = 0; i < all.length; i++) { if (all[i].id === shotId) { s = all[i]; break; } }
+        if (!s) return;
+        document.getElementById('previewTitle').textContent = (s.shotNumber || '#' + shotId) + ' 首帧预览';
+        document.getElementById('previewBody').innerHTML = '<div style="width:100%;min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;">'
+            + '<div style="width:100%;max-width:640px;aspect-ratio:16/9;background:var(--ok-bg);border:2px solid var(--ok);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--ok);">&#128247;</div>'
+            + '<div style="font-size:14px;color:var(--text2);">' + (s.firstFrameDescription || s.description || '') + '</div>'
+            + '<div style="font-size:12px;color:var(--text3);">' + (s.shotSize || '-') + ' · ' + (s.cameraMovement || '-') + ' · ' + (s.duration || '-') + 's</div>'
+            + '</div>';
+        showModal('previewModal');
+    }
+
+    function playVideo(shotId) {
+        var all = JSON.parse(localStorage.getItem('mc_shots') || '[]');
+        var s = null;
+        for (var i = 0; i < all.length; i++) { if (all[i].id === shotId) { s = all[i]; break; } }
+        if (!s) return;
+        document.getElementById('previewTitle').textContent = (s.shotNumber || '#' + shotId) + ' 视频播放';
+        document.getElementById('previewBody').innerHTML = '<div style="width:100%;min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;background:#0f172a;">'
+            + '<div style="width:100%;max-width:640px;aspect-ratio:16/9;background:#1e1b4b;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#94a3b8;border:1px solid rgba(255,255,255,.1);">'
+            + '<span style="font-size:48px;">&#9654;</span>'
+            + '<span style="font-size:14px;">视频播放区域（模拟）</span>'
+            + '<span style="font-size:12px;">' + (s.duration || '-') + 's · ' + (s.shotSize || '-') + '</span>'
+            + '</div>'
+            + '<div style="font-size:13px;color:#94a3b8;">' + (s.firstFrameDescription || s.description || '') + '</div>'
+            + '</div>';
+        showModal('previewModal');
+    }
+
+    function genFirstFrame(shotId) {
+        showToast('正在调用 ComfyUI 生成首帧图片...', 'info');
+        setTimeout(function() {
+            updateShot(shotId, { hasFirstFrame: true });
+            renderShotTab();
+            showToast('首帧图片已生成', 'success');
+        }, 2000);
+    }
+
+    function genVideo(shotId) {
+        showToast('正在调用 ComfyUI 生成镜头视频...', 'info');
+        setTimeout(function() {
+            updateShot(shotId, { hasVideo: true });
+            renderShotTab();
+            showToast('视频已生成', 'success');
+        }, 3000);
+    }
+
+    function generateAllShots() {
+        showToast('正在批量生成所有镜头...', 'info');
+        var shots = getAllShots();
+        var done = 0;
+        shots.forEach(function(s, i) {
+            setTimeout(function() {
+                updateShot(s.id, { hasFirstFrame: true, hasVideo: true });
+                done++;
+                if (done === shots.length) { renderShotTab(); showToast('全部镜头生成完成！共 ' + shots.length + ' 个', 'success'); }
+            }, 1000 + i * 800);
+        });
+    }
+
+    function regenerateAll() {
+        var allActors = JSON.parse(localStorage.getItem('mc_asset_Actor') || '[]');
+        var allProps = JSON.parse(localStorage.getItem('mc_asset_Prop') || '[]');
+        var allScenes = JSON.parse(localStorage.getItem('mc_asset_Scene') || '[]');
+        var templates = [
+            { desc: '全景展示环境氛围，建立时空背景', size: '全景', cam: '固定', analysis: '开场交代环境，奠定基调', hl: '晨光洒落村庄，氛围宁静', a:0, s:0, p:-1 },
+            { desc: '中景，主要角色入场展示状态', size: '中景', cam: '固定', analysis: '角色登场亮相，展示外貌姿态', hl: '主角英姿勃发，目光坚定', a:0, s:0, p:-1 },
+            { desc: '近景特写，角色面部表情变化', size: '近景', cam: '前推', analysis: '捕捉情绪变化，强调内心活动', hl: '眼神中的犹豫与决心交织', a:0, s:-1, p:-1 },
+            { desc: '过肩镜头，角色交流互动', size: '中景', cam: '跟随', analysis: '对话镜头，过肩正反打', hl: '对话中的微妙表情变化', a:0, s:0, p:-1 },
+            { desc: '特写推镜，强调关键道具', size: '特写', cam: '前推', analysis: '聚焦道具，暗示剧情作用', hl: '宝物光芒流转，引人注目', a:-1, s:-1, p:0 },
+            { desc: '全景场景，角色在场景中移动', size: '全景', cam: '平移', analysis: '展示角色行动轨迹', hl: '角色穿梭于场景之中', a:0, s:0, p:-1 },
+            { desc: '远景拉远，场景转换过渡', size: '远景', cam: '拉远', analysis: '收束场景，为下一场铺垫', hl: '画幅渐远，意犹未尽', a:-1, s:0, p:-1 }
+        ];
+        var targetEps = currentEpIdx === -1 ? episodes : [episodes[currentEpIdx]];
+        var allShots = JSON.parse(localStorage.getItem('mc_shots') || '[]');
+        var maxShotId = 0; for (var i = 0; i < allShots.length; i++) { if (allShots[i].id > maxShotId) maxShotId = allShots[i].id; }
+        var sid = maxShotId + 1;
+        var ns = [];
+        targetEps.forEach(function(ep) {
+            var cnt = Math.max(1, Math.min(7, Math.ceil((ep.content || '').length / 90)));
+            for (var i = 0; i < cnt; i++) {
+                var t = templates[i % templates.length];
+                var aIds = [], sIds = [], pIds = [];
+                if (t.a >= 0 && allActors[t.a]) aIds.push(allActors[t.a].id);
+                if (t.s >= 0 && allScenes[t.s]) sIds.push(allScenes[t.s].id);
+                if (t.p >= 0 && allProps[t.p]) pIds.push(allProps[t.p].id);
+                ns.push({
+                    id: sid, episodeId: ep.id, description: t.desc,
+                    shotNumber: 'SH' + String(i+1).padStart(3, '0'),
+                    shotSize: t.size, cameraMovement: t.cam, shotAnalysis: t.analysis,
+                    highlight: t.hl,
+                    duration: 5 + Math.floor(Math.random()*8),
+                    resourceTags: (aIds.length?'角色':'')+(sIds.length?'&场景':'')+(pIds.length?'&道具':''),
+                    firstFrameDescription: '首帧画面：' + t.desc + '，镜头' + t.cam + '，' + (aIds.length && allActors[0] ? '角色「' + allActors[0].name + '」' : '场景') + '为主体',
+                    assetRefs: JSON.stringify({actor:aIds,scene:sIds,prop:pIds}),
+                    hasFirstFrame: false, hasVideo: false, order: i
+                });
+                sid++;
+            }
+        });
+        saveShots(ns);
+        renderEpSidebar(); renderShotTab();
+        showToast('分镜提取完成，共 ' + ns.length + ' 个', 'success');
+    }
+
+    // ==================== TAB 2: ASSET BINDING ====================
+
+    function renderAssetTab() {
+        if (currentEpIdx < 0) {
+            document.getElementById('assetBindArea').innerHTML = '<div class="no-content"><div class="icon">&#127992;</div><p>请先选择一个分集</p></div>';
+            return;
+        }
+        var ep = episodes[currentEpIdx];
+        var bound = getBoundAssets(ep.id);
+        var allAct = JSON.parse(localStorage.getItem('mc_asset_Actor') || '[]');
+        var allScn = JSON.parse(localStorage.getItem('mc_asset_Scene') || '[]');
+        var allPrp = JSON.parse(localStorage.getItem('mc_asset_Prop') || '[]');
+
+        var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">'
+            + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'
+            + '<h3 style="font-size:16px;font-weight:700;">' + ep.chapterNumber + ' — ' + ep.name + ' 资产绑定</h3>'
+            + '<button class="btn btn-primary btn-sm" onclick="openBindModal()">+ 添加资产</button></div>';
+
+        var sections = [
+            { key: 'actor', icon: '&#127916;', name: '角色', color: '#4338ca', bg: '#e0e7ff', list: bound.actor, all: allAct },
+            { key: 'scene', icon: '&#127969;', name: '场景', color: '#15803d', bg: '#d1fae5', list: bound.scene, all: allScn },
+            { key: 'prop', icon: '&#128736;', name: '道具', color: '#7e22ce', bg: '#f3e8ff', list: bound.prop, all: allPrp }
+        ];
+        sections.forEach(function(sec) {
+            var items = [];
+            bound[sec.key].forEach(function(id) {
+                for (var k = 0; k < sec.all.length; k++) { if (sec.all[k].id === id) { items.push(sec.all[k]); break; } }
+            });
+            html += '<div style="margin-bottom:14px;"><h4 style="font-size:13px;font-weight:600;color:var(--text3);margin-bottom:6px;">' + sec.icon + ' ' + sec.name + ' (' + items.length + ')</h4>';
+            if (items.length === 0) {
+                html += '<p style="font-size:12px;color:var(--text3);padding:8px 0;">暂无绑定，点击「添加资产」选择</p>';
+            } else {
+                items.forEach(function(item) {
+                    html += '<div class="bound-item" style="border-left:3px solid ' + sec.color + ';">'
+                        + '<div class="bound-icon" style="background:' + sec.bg + ';color:' + sec.color + ';">' + sec.icon + '</div>'
+                        + '<div style="flex:1;"><div style="font-size:13px;font-weight:600;">' + item.name + '</div><div style="font-size:11px;color:var(--text3);">' + (item.desc || '') + '</div></div>'
+                        + '<button class="btn-action danger" style="font-size:10px;padding:2px 8px;" onclick="unbindAsset(\'' + sec.key + '\',' + item.id + ')">解除</button>'
+                        + '</div>';
+                });
+            }
+            html += '</div>';
+        });
+        html += '</div>';
+        document.getElementById('assetBindArea').innerHTML = html;
+    }
+
+    function openBindModal() {
+        if (currentEpIdx < 0) return;
+        bindTempType = 'actor'; bindTempSelected = [];
+        showBindType('actor');
+        showModal('assetBindModal');
+    }
+
+    function showBindType(type) {
+        bindTempType = type;
+        document.querySelectorAll('#assetBindModal .btn').forEach(function(b){ b.className = 'btn btn-sm btn-ghost'; });
+        document.querySelectorAll('#assetBindModal .btn')[['actor','scene','prop'].indexOf(type)].className = 'btn btn-sm';
+        document.querySelectorAll('#assetBindModal .btn')[['actor','scene','prop'].indexOf(type)].style.cssText = 'background:var(--primary-bg);color:var(--primary);font-weight:600;border:1.5px solid var(--primary);';
+        var allItems = JSON.parse(localStorage.getItem('mc_asset_' + (type === 'actor' ? 'Actor' : type === 'scene' ? 'Scene' : 'Prop')) || '[]');
+        var bound = currentEpIdx >= 0 ? getBoundAssets(episodes[currentEpIdx].id)[type] : [];
+        var html = '';
+        if (allItems.length === 0) { html = '<p style="text-align:center;color:var(--text3);padding:20px;font-size:13px;">暂无' + {actor:'角色',scene:'场景',prop:'道具'}[type] + '数据</p>'; }
+        else {
+            allItems.forEach(function(item) {
+                var checked = bindTempSelected.indexOf(item.id) >= 0 || bound.indexOf(item.id) >= 0;
+                html += '<label class="asset-check-item" style="opacity:' + (bound.indexOf(item.id) >= 0 ? '0.5' : '1') + ';">'
+                    + '<input type="checkbox" ' + (checked ? 'checked' : '') + (bound.indexOf(item.id) >= 0 ? ' disabled' : '') + ' onchange="toggleBindSelect(' + item.id + ',this.checked)">'
+                    + '<div style="flex:1;"><div class="name">' + item.name + '</div><div class="desc">' + (item.desc || '') + '</div></div>'
+                    + (bound.indexOf(item.id) >= 0 ? '<span style="font-size:10px;color:var(--ok);">已绑定</span>' : '')
+                    + '</label>';
+            });
+        }
+        document.getElementById('bindAssetList').innerHTML = html;
+    }
+
+    function toggleBindSelect(id, checked) {
+        if (checked && bindTempSelected.indexOf(id) < 0) bindTempSelected.push(id);
+        else if (!checked) bindTempSelected = bindTempSelected.filter(function(i){ return i !== id; });
+    }
+
+    function confirmAssetBind() {
+        if (currentEpIdx < 0) return;
+        var ep = episodes[currentEpIdx];
+        var bound = getBoundAssets(ep.id);
+        if (bindTempSelected.length) {
+            if (!bound[bindTempType]) bound[bindTempType] = [];
+            bindTempSelected.forEach(function(id) {
+                if (bound[bindTempType].indexOf(id) < 0) bound[bindTempType].push(id);
+            });
+            saveBoundAssets(ep.id, bound);
+        }
+        hideModal('assetBindModal');
+        renderAssetTab();
+        showToast('资产绑定已更新', 'success');
+    }
+
+    function unbindAsset(type, id) {
+        if (currentEpIdx < 0) return;
+        var ep = episodes[currentEpIdx];
+        var bound = getBoundAssets(ep.id);
+        bound[type] = bound[type].filter(function(i){ return i !== id; });
+        saveBoundAssets(ep.id, bound);
+        renderAssetTab();
+    }
+
+    // ==================== TAB 3: CONTENT ====================
+
+    function renderContentTab() {
+        if (currentEpIdx < 0) {
+            document.getElementById('contentArea').innerHTML = '<div class="no-content"><div class="icon">&#128214;</div><p>请先选择一个分集</p></div>';
+            return;
+        }
+        var ep = episodes[currentEpIdx];
+        var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;">'
+            + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'
+            + '<h3 style="font-size:16px;font-weight:700;">' + ep.chapterNumber + ' — ' + ep.name + '</h3>'
+            + '<button class="btn btn-primary btn-sm" onclick="extractFromContent()">&#129302; 提取资产</button></div>'
+            + '<div style="font-size:14px;line-height:1.8;white-space:pre-wrap;">' + escHtml(ep.content || '（暂无内容）') + '</div>'
+            + '</div>';
+        document.getElementById('contentArea').innerHTML = html;
+    }
+
+    function extractFromContent() {
+        if (currentEpIdx < 0) return;
+        showToast('AI 正在分析剧本内容提取资产...', 'info');
+        setTimeout(function() {
+            var extracted = {
+                Actor: [
+                    { name: '凯恩', desc: '年轻勇敢的骑士主角' },
+                    { name: '莉娜', desc: '精灵弓箭手，善用自然魔法' }
+                ],
+                Prop: [
+                    { name: '银剑', desc: '凯恩的佩剑' },
+                    { name: '失落之宝', desc: '金色神器宝石' }
+                ],
+                Scene: [
+                    { name: '宁静村庄', desc: '群山环绕的起点村落' },
+                    { name: '黑暗森林', desc: '神秘危险的古老森林' }
+                ],
+                Bgm: [
+                    { name: '冒险启程', desc: '激昂冒险主题音乐' }
+                ]
+            };
+            var existing = { Actor: JSON.parse(localStorage.getItem('mc_asset_Actor') || '[]'), Prop: JSON.parse(localStorage.getItem('mc_asset_Prop') || '[]'), Scene: JSON.parse(localStorage.getItem('mc_asset_Scene') || '[]'), Bgm: JSON.parse(localStorage.getItem('mc_asset_Bgm') || '[]') };
+            var body = '';
+            ['Actor','Prop','Scene','Bgm'].forEach(function(k) {
+                body += '<div style="margin-bottom:12px;"><h4 style="font-size:13px;font-weight:600;color:var(--text3);margin-bottom:6px;">' + {Actor:'角色',Prop:'道具',Scene:'场景',Bgm:'BGM'}[k] + '</h4>';
+                extracted[k].forEach(function(item, idx) {
+                    var dup = false;
+                    for (var i = 0; i < existing[k].length; i++) { if (existing[k][i].name === item.name) { dup = true; break; } }
+                    body += '<div class="extracted-item" style="opacity:' + (dup ? '0.5' : '1') + ';">'
+                        + '<div><div class="name">' + item.name + '</div><div class="desc">' + item.desc + '</div></div>'
+                        + '<label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="ext_' + k + '_' + idx + '" ' + (dup ? 'checked disabled' : 'checked') + '>'
+                        + (dup ? '已存在' : '新发现') + '</label>'
+                        + '</div>';
+                });
+                body += '</div>';
+            });
+            document.getElementById('extractConfirmBody').innerHTML = body;
+            showModal('extractConfirmModal');
+            window._extractedData = extracted;
+        }, 1200);
+    }
+
+    function confirmExtractAssets() {
+        var extracted = window._extractedData || {};
+        ['Actor','Prop','Scene','Bgm'].forEach(function(k) {
+            var existing = JSON.parse(localStorage.getItem('mc_asset_' + k) || '[]');
+            extracted[k].forEach(function(item, idx) {
+                var cb = document.getElementById('ext_' + k + '_' + idx);
+                if (cb && cb.checked) {
+                    var dup = false;
+                    for (var i = 0; i < existing.length; i++) { if (existing[i].name === item.name) { dup = true; break; } }
+                    if (!dup) existing.push({ id: Date.now() + Math.random(), name: item.name, desc: item.desc });
+                }
+            });
+            localStorage.setItem('mc_asset_' + k, JSON.stringify(existing));
+        });
+        hideModal('extractConfirmModal');
+        showToast('资产已入库', 'success');
+        renderAssetTab();
+    }
+
+    function extractAllAssets() {
+        if (chapters.length === 0) { alert('请先创建剧本'); return; }
+        showToast('AI 正在分析剧本提取资产...', 'info');
+        setTimeout(function() {
+            var s = {
+                Actor: [{name:'英雄',desc:'勇敢正义的主人公'},{name:'精灵射手',desc:'金发尖耳精灵'},{name:'智者',desc:'白发老法师'},{name:'暗影魔王',desc:'邪恶领主'}],
+                Prop: [{name:'失落神器',desc:'金色宝石'},{name:'符文剑',desc:'传奇宝剑'}],
+                Scene: [{name:'边陲村落',desc:'宁静村庄'},{name:'幽暗密林',desc:'古老森林'},{name:'水晶圣殿',desc:'地下宫殿'}],
+                Bgm: [{name:'征途',desc:'激昂管弦乐'},{name:'暗潮',desc:'悬疑低沉音乐'}]
+            };
+            ['Actor','Prop','Scene','Bgm'].forEach(function(k) {
+                var ex = JSON.parse(localStorage.getItem('mc_asset_' + k) || '[]');
+                s[k].forEach(function(item) {
+                    var dup = false; for (var i = 0; i < ex.length; i++) { if (ex[i].name === item.name) { dup = true; break; } }
+                    if (!dup) ex.push({ id: Date.now() + Math.random(), name: item.name, desc: item.desc });
+                });
+                localStorage.setItem('mc_asset_' + k, JSON.stringify(ex));
+            });
+            showToast('资产提取完成！', 'success');
+        }, 1500);
+    }
+
+    function tryJson(s, d) { if (!s) return d; try { return JSON.parse(s); } catch(e) { return d; } }
+    function escHtml(t) { if (!t) return ''; return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
+    </script>
+</body>
+</html>

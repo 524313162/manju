@@ -8,83 +8,177 @@
 </head>
 <body>
     <nav class="navbar">
-        <div class="nav-left">
-            <h1 class="logo">ManjuCraft</h1>
-            <span class="subtitle">漫剧开发工具</span>
-        </div>
+        <div class="nav-left"><h1 class="logo">ManjuCraft</h1><span class="subtitle">漫剧开发工具</span></div>
         <div class="nav-right">
             <a href="../index.html" class="nav-link">首页</a>
             <a href="projects.html" class="nav-link">项目管理</a>
-            <a href="actors.html" class="nav-link">演员管理</a>
-            <a href="episodes.html" class="nav-link">分集分镜</a>
             <a href="settings.html" class="nav-link active">设置</a>
         </div>
     </nav>
 
-    <main class="container" style="max-width:800px">
-        <h2 style="margin-bottom:24px;font-weight:700">⚙️ 设置</h2>
-
-        <div class="settings-card">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-                <h3 style="font-size:16px;font-weight:700;margin:0">🔌 ComfyUI API 配置</h3>
+    <div class="prod-layout">
+        <div class="chapter-nav">
+            <div class="chapter-nav-header">
+                <a href="../index.html" class="back-link">&laquo; 返回首页</a>
+                <h3>设置</h3>
+                <p>系统配置与管理</p>
             </div>
+            <div class="chapter-list">
+                <div class="chapter-list-item active" onclick="selectSetting(this, 'comfyui')"><span class="chapter-list-num">T</span><div class="chapter-list-info"><div class="chapter-list-name">ComfyUI</div></div></div>
+                <div class="chapter-list-item" onclick="selectSetting(this, 'ffmpeg')"><span class="chapter-list-num">F</span><div class="chapter-list-info"><div class="chapter-list-name">FFmpeg</div></div></div>
+                <div class="chapter-list-item" onclick="selectSetting(this, 'db')"><span class="chapter-list-num">D</span><div class="chapter-list-info"><div class="chapter-list-name">数据库</div></div></div>
+                <div class="chapter-list-item" onclick="selectSetting(this, 'templates')"><span class="chapter-list-num">P</span><div class="chapter-list-info"><div class="chapter-list-name">模板管理</div></div></div>
+            </div>
+        </div>
 
-            <div class="api-card">
-                <div class="api-card-header">
-                    <div style="display:flex;align-items:center;gap:12px">
-                        <span class="api-type-badge">ComfyUI</span>
-                        <span style="font-weight:700;font-size:14px">ComfyUI API</span>
-                    </div>
-                    <span class="badge badge-ok"><span class="badge-dot"></span>已连接</span>
-                </div>
-                <div class="api-card-body">
-                    <div class="api-field">
-                        <label>API 地址</label>
-                        <input type="text" value="http://localhost:8188" placeholder="http://localhost:8188">
-                    </div>
-                    <div class="api-field">
-                        <label>WebSocket 地址</label>
-                        <input type="text" value="ws://localhost:8188/ws" placeholder="ws://localhost:8188/ws">
-                    </div>
-                    <div class="api-field">
-                        <label>输出目录（可选）</label>
-                        <input type="text" value="D:/output/" placeholder="留空则使用 ComfyUI 默认输出目录">
-                    </div>
-                    <div style="display:flex;gap:10px;margin-top:8px">
-                        <button class="btn btn-primary btn-sm" onclick="alert('设置已保存')">保存</button>
-                        <button class="btn btn-ghost btn-sm" style="color:var(--ok)" onclick="alert('✅ 连接成功！版本：0.2.x')">测试连接</button>
-                    </div>
+        <div class="prod-main">
+            <div class="prod-toolbar">
+                <h2 id="settingsTitle">⚙️ ComfyUI 配置</h2>
+                <div class="prod-tabs">
+                    <div class="prod-tab active" data-tab="config" onclick="switchTab('config')">配置</div>
+                    <div class="prod-tab" data-tab="providers" onclick="switchTab('providers')">API 管理</div>
                 </div>
             </div>
-        </div>
 
-        <div class="settings-card">
-            <h3 style="font-size:16px;font-weight:700;margin-bottom:18px">🎥 FFmpeg 配置</h3>
-            <div class="form-group">
-                <label>FFmpeg 路径</label>
-                <input type="text" placeholder="留空则使用 PATH 中的 ffmpeg">
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
-                <button class="btn btn-ghost btn-sm" style="color:var(--info)" onclick="alert('✅ FFmpeg 可用\n版本：6.1')">检查 FFmpeg</button>
-                <span style="font-size:13px;color:var(--ok)">✅ FFmpeg 可用 (v6.1)</span>
+            <div class="prod-content">
+                <!-- ComfyUI 配置 -->
+                <div id="tab-config-comfyui" class="tab-panel settings-panel">
+                    <div class="settings-card">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <span class="api-type-badge">ComfyUI</span>
+                                <h3 style="font-size:16px;font-weight:700;margin:0;">ComfyUI API</h3>
+                            </div>
+                            <span class="badge badge-ok"><span class="badge-dot"></span>已连接</span>
+                        </div>
+                        <div class="api-card">
+                            <div class="api-card-body">
+                                <div class="api-field"><label>API 地址</label><input type="text" value="http://localhost:8188"></div>
+                                <div class="api-field"><label>WebSocket 地址</label><input type="text" value="ws://localhost:8188/ws"></div>
+                                <div class="api-field"><label>输出目录（可选）</label><input type="text" value="D:/output/" placeholder="留空则使用 ComfyUI 默认输出"></div>
+                                <div style="display:flex;gap:10px;margin-top:8px;">
+                                    <button class="btn btn-primary btn-sm" onclick="alert('设置已保存')">保存</button>
+                                    <button class="btn btn-ghost btn-sm" style="color:var(--ok);" onclick="alert('✅ 连接成功！')">测试连接</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FFmpeg 配置 -->
+                <div id="tab-config-ffmpeg" class="tab-panel settings-panel hidden">
+                    <div class="settings-card">
+                        <h3 style="font-size:16px;font-weight:700;margin-bottom:18px;">🎥 FFmpeg 配置</h3>
+                        <div class="api-field"><label>FFmpeg 路径</label><input type="text" placeholder="留空则使用 PATH 中的 ffmpeg"></div>
+                        <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+                            <button class="btn btn-ghost btn-sm" style="color:var(--info);" onclick="alert('✅ FFmpeg 可用')">检查 FFmpeg</button>
+                            <span style="font-size:13px;color:var(--ok);">✅ FFmpeg 可用 (v6.1)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 数据库 -->
+                <div id="tab-config-db" class="tab-panel settings-panel hidden">
+                    <div class="settings-card">
+                        <h3 style="font-size:16px;font-weight:700;margin-bottom:18px;">🗄️ 数据库</h3>
+                        <p style="font-size:14px;color:var(--text2);line-height:1.7;margin-bottom:14px;">SQLite 数据库存储于项目目录下：<code style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-size:12px;">manju.db</code></p>
+                        <div style="display:flex;gap:10px;">
+                            <button class="btn btn-ghost btn-sm" onclick="alert('导出成功')">导出备份</button>
+                            <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="if(confirm('确认重置？')) alert('已重置')">重置数据库</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 模板管理 -->
+                <div id="tab-config-templates" class="tab-panel settings-panel hidden">
+                    <div class="settings-card">
+                        <h3 style="font-size:16px;font-weight:700;margin-bottom:14px;">📝 提示词模板</h3>
+                        <div class="table-wrap">
+                            <table>
+                                <thead><tr><th>模板名称</th><th>类型</th><th>默认</th><th>操作</th></tr></thead>
+                                <tbody>
+                                    <tr><td>人物档案默认</td><td><span class="badge badge-purple">CharacterProfile</span></td><td><span style="color:var(--ok);">✓</span></td><td><button class="action">编辑</button></td></tr>
+                                    <tr><td>人物档案-v2</td><td><span class="badge badge-purple">CharacterProfile</span></td><td></td><td><button class="action">编辑</button></td></tr>
+                                    <tr><td>道具档案</td><td><span class="badge badge-purple">PropProfile</span></td><td><span style="color:var(--ok);">✓</span></td><td><button class="action">编辑</button></td></tr>
+                                    <tr><td>场景档案</td><td><span class="badge badge-purple">SceneProfile</span></td><td><span style="color:var(--ok);">✓</span></td><td><button class="action">编辑</button></td></tr>
+                                    <tr><td>BGM档案</td><td><span class="badge badge-purple">BgmProfile</span></td><td><span style="color:var(--ok);">✓</span></td><td><button class="action">编辑</button></td></tr>
+                                    <tr><td>剧本创作</td><td><span class="badge badge-blue">StoryGeneration</span></td><td><span style="color:var(--ok);">✓</span></td><td><button class="action">编辑</button></td></tr>
+                                    <tr><td>漫剧清单</td><td><span class="badge badge-blue">EpisodeBreakdown</span></td><td><span style="color:var(--ok);">✓</span></td><td><button class="action">编辑</button></td></tr>
+                                    <tr><td>镜头清单</td><td><span class="badge badge-blue">ShotPlanning</span></td><td><span style="color:var(--ok);">✓</span></td><td><button class="action">编辑</button></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style="margin-top:14px;"><button class="btn btn-primary btn-sm">+ 添加模板</button></div>
+                    </div>
+                </div>
+
+                <!-- API 管理 Tab -->
+                <div id="tab-providers" class="tab-panel settings-panel hidden">
+                    <div class="settings-card">
+                        <h3 style="font-size:16px;font-weight:700;margin-bottom:14px;">🔌 API 提供商管理</h3>
+                        <p style="font-size:13px;color:var(--text2);margin-bottom:14px;">统一管理所有 API 接口，包括 LLM 和 ComfyUI 工作流。</p>
+                        <div class="table-wrap">
+                            <table>
+                                <thead><tr><th>名称</th><th>类型</th><th>地址</th><th>状态</th><th>操作</th></tr></thead>
+                                <tbody>
+                                    <tr><td>DeepSeek主接口</td><td><span class="badge badge-purple">LLM</span></td><td style="font-size:12px;color:var(--text3);">https://api.deepseek.com</td><td><span class="badge badge-ok">启用</span></td><td><div class="actions-bar"><button class="action">编辑</button></div></td></tr>
+                                    <tr><td>角色四视图生成</td><td><span class="badge badge-purple">ComfyUI</span></td><td style="font-size:12px;color:var(--text3);">http://localhost:8188</td><td><span class="badge badge-ok">启用</span></td><td><div class="actions-bar"><button class="action">编辑</button></div></td></tr>
+                                    <tr><td>场景主图生成</td><td><span class="badge badge-purple">ComfyUI</span></td><td style="font-size:12px;color:var(--text3);">http://localhost:8188</td><td><span class="badge badge-ok">启用</span></td><td><div class="actions-bar"><button class="action">编辑</button></div></td></tr>
+                                    <tr><td>图片转视频</td><td><span class="badge badge-purple">ComfyUI</span></td><td style="font-size:12px;color:var(--text3);">http://localhost:8188</td><td><span class="badge badge-ok">启用</span></td><td><div class="actions-bar"><button class="action">编辑</button></div></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style="margin-top:14px;"><button class="btn btn-primary btn-sm">+ 添加 API</button></div>
+                    </div>
+                </div>
             </div>
         </div>
+    </div>
 
-        <div class="settings-card">
-            <h3 style="font-size:16px;font-weight:700;margin-bottom:18px">🗄️ 数据库</h3>
-            <p style="font-size:14px;color:var(--text2);line-height:1.7">SQLite 数据库存储于项目目录下：
-                <code style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-size:12px;margin-left:6px">manju.db</code></p>
-            <div style="margin-top:18px;display:flex;gap:10px">
-                <button class="btn btn-ghost btn-sm" onclick="alert('导出成功')">导出备份</button>
-                <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="if(confirm('确认重置？')) alert('已重置')">重置数据库</button>
-            </div>
-        </div>
-    </main>
-
-    <footer class="footer">
+    <footer class="footer" style="margin-top:40px;">
         <p>ManjuCraft v1.0 — Blazor Server + .NET 8 + ComfyUI</p>
     </footer>
 
     <script src="../js/main.js"></script>
+    <script>
+        if (!Array.from) { Array.from = function(a){ return Array.prototype.slice.call(a); }; }
+        var currentSection = 'comfyui';
+        var currentTab = 'config';
+
+        var titles = { comfyui: '⚙️ ComfyUI 配置', ffmpeg: '🎥 FFmpeg 配置', db: '🗄️ 数据库配置', templates: '📝 提示词模板' };
+
+        function selectSetting(el, section) {
+            var items = document.querySelectorAll('.chapter-list-item');
+            for (var i = 0; i < items.length; i++) items[i].classList.remove('active');
+            el.classList.add('active');
+            currentSection = section;
+            document.getElementById('settingsTitle').textContent = titles[section] || '设置';
+            hideAllPanels();
+            var panel = document.getElementById('tab-config-' + section);
+            if (panel) panel.classList.remove('hidden');
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            var panels = document.querySelectorAll('.tab-panel.settings-panel');
+            for (var i = 0; i < panels.length; i++) panels[i].classList.add('hidden');
+            var tabs = document.querySelectorAll('.prod-tab');
+            for (var i = 0; i < tabs.length; i++) { tabs[i].classList.remove('active'); if (tabs[i].getAttribute('data-tab') === tab) tabs[i].classList.add('active'); }
+            if (tab === 'config') {
+                var panel = document.getElementById('tab-config-' + currentSection);
+                if (panel) panel.classList.remove('hidden');
+            } else if (tab === 'providers') {
+                document.getElementById('tab-providers').classList.remove('hidden');
+            }
+        }
+
+        function hideAllPanels() {
+            var panels = document.querySelectorAll('.tab-panel.settings-panel');
+            for (var i = 0; i < panels.length; i++) panels[i].classList.add('hidden');
+        }
+
+        // 初始化
+        selectSetting(document.querySelector('.chapter-list-item'), 'comfyui');
+    </script>
 </body>
 </html>

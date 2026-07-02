@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>资产管理 — ManjuCraft</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        .res-tabs { display:flex; gap:8px; margin-bottom:20px; }
+        .res-tab { padding:10px 22px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; border:1.5px solid var(--border); background:var(--surface); color:var(--text2); transition:.15s; }
+        .res-tab:hover { background:var(--bg); }
+        .res-tab.active { border-color:var(--primary); background:var(--primary-bg); color:var(--primary); }
+        .res-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px 20px; margin-bottom:10px; display:flex; align-items:center; gap:14px; }
+        .res-icon { width:48px; height:48px; border-radius:var(--radius-sm); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; background:#f1f5f9; border:1.5px dashed var(--border); cursor:pointer; }
+        .res-icon.has { background:var(--ok-bg); border-color:var(--ok); color:var(--ok); }
+        .res-icon:hover { border-color:var(--primary); }
+        .res-info { flex:1; min-width:0; }
+        .res-info h4 { font-size:14px; font-weight:600; margin-bottom:2px; }
+        .res-info p { font-size:12px; color:var(--text3); }
+        .res-actions { display:flex; gap:8px; flex-shrink:0; flex-wrap:wrap; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-left"><h1 class="logo">ManjuCraft</h1><span class="subtitle">漫剧开发工具</span></div>
+        <div class="nav-right">
+            <a href="../index.html" class="nav-link">首页</a>
+            <a href="projects.html" class="nav-link">项目管理</a>
+            <a href="story.html" class="nav-link">剧本创作</a>
+            <a href="actors.html" class="nav-link">角色管理</a>
+            <a href="assets.html" class="nav-link active">资产管理</a>
+        </div>
+    </nav>
+
+    <div class="container" style="max-width:1100px;">
+        <div class="page-header">
+            <h2>资产管理</h2>
+            <button class="btn btn-primary btn-sm" onclick="showAddModal()">+ 添加资产</button>
+        </div>
+
+        <div class="res-tabs" id="assetTabs"></div>
+        <div id="assetList"></div>
+    </div>
+
+    <div class="modal-overlay" id="assetModal">
+        <div class="modal">
+            <h3 id="assetModalTitle">添加资产</h3>
+            <input type="hidden" id="editAssetIdx">
+            <div class="form-group"><label>名称 *</label><input type="text" id="assetName" placeholder="输入资产名称"></div>
+            <div class="form-group"><label>描述</label><textarea id="assetDesc" rows="4" placeholder="详细描述..."></textarea></div>
+            <div class="form-actions">
+                <button class="btn btn-ghost" onclick="hideModal('assetModal')">取消</button>
+                <button class="btn btn-primary" onclick="saveAsset()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/main.js"></script>
+    <script>
+    var types = [
+        { key: 'Prop', name: '道具', icon: '&#128736;', color: '#7e22ce', bg: '#f3e8ff' },
+        { key: 'Scene', name: '场景', icon: '&#127969;', color: '#15803d', bg: '#d1fae5' },
+        { key: 'Bgm', name: 'BGM', icon: '&#127925;', color: '#a16207', bg: '#fef3c7' }
+    ];
+    var currentType = 'Prop';
+    var items = [];
+    var pid = null;
+
+    (function(){
+        var p = new URLSearchParams(window.location.search);
+        pid = parseInt(p.get('projectId')) || null;
+        renderTabs();
+        loadItems();
+        render();
+    })();
+
+    function renderTabs() {
+        var html = '<div class="res-tab" onclick="switchType(\'Prop\')">&#128736; 道具</div>'
+            + '<div class="res-tab" onclick="switchType(\'Scene\')">&#127969; 场景</div>'
+            + '<div class="res-tab" onclick="switchType(\'Bgm\')">&#127925; BGM</div>';
+        document.getElementById('assetTabs').innerHTML = html;
+        updateTabActive();
+    }
+
+    function updateTabActive() {
+        var tabs = document.querySelectorAll('.res-tab');
+        var keys = ['Prop', 'Scene', 'Bgm'];
+        tabs.forEach(function(t, i) {
+            t.classList.toggle('active', keys[i] === currentType);
+        });
+    }
+
+    function switchType(type) {
+        currentType = type;
+        updateTabActive();
+        loadItems();
+        render();
+    }
+
+    function loadItems() {
+        items = JSON.parse(localStorage.getItem('mc_asset_' + currentType) || '[]');
+    }
+
+    function saveItems() {
+        localStorage.setItem('mc_asset_' + currentType, JSON.stringify(items));
+    }
+
+    function render() {
+        var cur = null;
+        for (var i = 0; i < types.length; i++) { if (types[i].key === currentType) { cur = types[i]; break; } }
+        if (!cur) return;
+
+        var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px;">'
+            + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'
+            + '<h3 style="font-size:16px;font-weight:700;">' + cur.icon + ' ' + cur.name + '（' + items.length + '）</h3>'
+            + '<button class="btn btn-primary btn-sm" onclick="showAddModal()">+ 添加' + cur.name + '</button>'
+            + '</div>';
+
+        if (items.length === 0) {
+            html += '<div class="empty-state"><div class="empty-state-icon">' + cur.icon + '</div><p>暂无' + cur.name + '，点击「添加」创建</p></div>';
+        } else {
+            items.forEach(function(a, i) {
+                var hasRes = a._hasRes || false;
+                html += '<div class="res-item">'
+                    + '<div class="res-icon ' + (hasRes ? 'has' : '') + '" onclick="generateRes(' + i + ')" title="点击生成资源">' + (hasRes ? '&#10003;' : cur.icon) + '</div>'
+                    + '<div class="res-info"><h4>' + a.name + '</h4><p>' + (a.desc || '暂无描述') + '</p></div>'
+                    + '<div class="res-actions">'
+                    + '<button class="btn btn-info btn-sm" onclick="generateRes(' + i + ')">&#127912; 生成</button>'
+                    + '<button class="btn btn-ghost btn-sm" onclick="showEditModal(' + i + ')">&#9998; 编辑</button>'
+                    + '<button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="deleteRes(' + i + ')">&#128465; 删除</button>'
+                    + '</div></div>';
+            });
+        }
+
+        html += '</div>';
+
+        if (pid) {
+            html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">'
+                + '<button class="btn btn-primary btn-sm" onclick="batchGenerate()">&#129302; AI 批量生成提示词</button>'
+                + '<p style="font-size:12px;color:var(--text3);margin-top:8px;">将使用描述 + 提示词模板生成 ComfyUI 调用提示词</p>'
+                + '</div>';
+        }
+
+        document.getElementById('assetList').innerHTML = html;
+    }
+
+    function showAddModal() {
+        document.getElementById('editAssetIdx').value = '-1';
+        document.getElementById('assetModalTitle').textContent = '添加' + getName();
+        document.getElementById('assetName').value = '';
+        document.getElementById('assetDesc').value = '';
+        showModal('assetModal');
+    }
+
+    function showEditModal(idx) {
+        document.getElementById('editAssetIdx').value = idx;
+        document.getElementById('assetModalTitle').textContent = '编辑' + getName();
+        document.getElementById('assetName').value = items[idx].name;
+        document.getElementById('assetDesc').value = items[idx].desc || '';
+        showModal('assetModal');
+    }
+
+    function saveAsset() {
+        var idx = parseInt(document.getElementById('editAssetIdx').value);
+        var name = document.getElementById('assetName').value.trim();
+        var desc = document.getElementById('assetDesc').value.trim();
+        if (!name) { alert('请输入名称'); return; }
+
+        if (idx >= 0) {
+            items[idx].name = name;
+            items[idx].desc = desc;
+        } else {
+            var maxId = 0;
+            for (var i = 0; i < items.length; i++) { if (items[i].id > maxId) maxId = items[i].id; }
+            items.push({ id: maxId + 1, name: name, desc: desc, _hasRes: false });
+        }
+        saveItems();
+        hideModal('assetModal');
+        showToast('已保存', 'success');
+        render();
+    }
+
+    function deleteRes(idx) {
+        if (!confirm('确认删除「' + items[idx].name + '」？')) return;
+        items.splice(idx, 1);
+        saveItems();
+        render();
+    }
+
+    function generateRes(idx) {
+        var a = items[idx];
+        showToast('正在调用 ComfyUI 生成「' + a.name + '」资源...', 'info');
+        setTimeout(function() {
+            a._hasRes = true;
+            saveItems();
+            render();
+            showToast('资源生成完成！', 'success');
+        }, 2000);
+    }
+
+    function batchGenerate() {
+        var names = items.map(function(a){ return a.name; }).join('、');
+        showToast('AI 正在为「' + names + '」批量生成提示词...', 'info');
+        setTimeout(function() {
+            items.forEach(function(a) { a._promptGenerated = true; });
+            saveItems();
+            showToast('批量提示词生成完成！', 'success');
+        }, 2000);
+    }
+
+    function getName() {
+        for (var i = 0; i < types.length; i++) { if (types[i].key === currentType) return types[i].name; }
+        return '';
+    }
+    </script>
+</body>
+</html>

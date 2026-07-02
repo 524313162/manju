@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>剧本创作 — ManjuCraft</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        .chapter-item { padding:12px 16px; cursor:pointer; display:flex; align-items:center; gap:8px; transition:.12s; border-left:3px solid transparent; }
+        .chapter-item:hover { background:rgba(255,255,255,.06); }
+        .chapter-item.active { background:rgba(255,255,255,.1); border-left-color:#a78bfa; }
+        .chapter-num { background:rgba(255,255,255,.15); border-radius:6px; padding:2px 8px; font-size:11px; font-weight:700; flex-shrink:0; }
+        .chapter-item.active .chapter-num { background:rgba(167,139,250,.5); }
+        .chapter-info { flex:1; min-width:0; }
+        .chapter-name { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .chapter-meta { font-size:11px; color:#64748b; margin-top:2px; }
+        .empty-chapter { padding:20px; text-align:center; color:#94a3b8; font-size:13px; }
+        .gen-result-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px 18px; margin-bottom:10px; }
+        .gen-result-item h5 { font-size:13px; font-weight:700; color:var(--primary); margin-bottom:4px; }
+        .gen-result-item p { font-size:12px; color:var(--text2); line-height:1.5; white-space:pre-wrap; }
+        .char-tag { display:inline-flex; padding:4px 12px; border-radius:6px; font-size:12px; font-weight:600; background:var(--primary-bg); color:var(--primary); margin:3px; }
+        .content-body { font-size:14px; line-height:1.8; white-space:pre-wrap; }
+        .story-sidebar { width:240px; flex-shrink:0; background:#1e1b4b; color:#fff; display:flex; flex-direction:column; overflow:hidden; }
+        .story-sidebar-header { padding:18px 16px 14px; border-bottom:1px solid rgba(255,255,255,.1); }
+        .story-sidebar-header h3 { font-size:14px; font-weight:700; margin-bottom:4px; }
+        .story-sidebar-header p { font-size:11px; color:#94a3b8; margin-bottom:10px; }
+        .story-sidebar-header .back-link { display:inline-flex; align-items:center; gap:4px; font-size:12px; color:#a78bfa; margin-bottom:8px; padding:4px 0; }
+        .story-sidebar-header .back-link:hover { color:#fff; }
+        .story-list { flex:1; overflow-y:auto; padding:8px 0; }
+        .story-sidebar-footer { padding:12px 16px; border-top:1px solid rgba(255,255,255,.1); }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-left"><h1 class="logo">ManjuCraft</h1><span class="subtitle">漫剧开发工具</span></div>
+        <div class="nav-right">
+            <a href="../index.html" class="nav-link">首页</a>
+            <a href="projects.html" class="nav-link">项目管理</a>
+            <a href="story.html" class="nav-link active">剧本创作</a>
+        </div>
+    </nav>
+
+    <div class="prod-layout">
+        <div class="story-sidebar">
+            <div class="story-sidebar-header">
+                <a href="projects.html" class="back-link">&laquo; 返回项目</a>
+                <h3 id="pName"></h3>
+                <p id="pCount">0 章节</p>
+            </div>
+            <div class="story-list" id="chapterList"></div>
+            <div class="story-sidebar-footer"></div>
+        </div>
+
+        <div class="prod-main">
+            <div class="prod-toolbar">
+                <h2 id="title">剧本创作</h2>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn btn-info btn-sm" id="aiBtn" onclick="showGenModal()">&#129302; AI 创作</button>
+                    <button class="btn btn-ghost btn-sm" onclick="showChapterModal(-1)">+ 添加章节</button>
+                </div>
+            </div>
+            <div class="prod-content">
+                <div id="area"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="genModal">
+        <div class="modal" style="width:680px;">
+            <h3>&#129302; AI 一键创作剧本</h3>
+            <div class="form-group">
+                <label>剧本标题</label>
+                <input type="text" id="storyTitle" placeholder="如：勇者传说">
+            </div>
+            <div class="form-group">
+                <label>故事内容 / 主题描述</label>
+                <textarea id="storyPrompt" rows="8" placeholder="输入你的故事主题或完整故事内容，AI 将自动生成剧本分集和角色清单...&#10;&#10;示例：一个年轻骑士踏上寻找失落宝物的冒险之旅，在途中他结识了精灵法师和矮人战士，一起对抗黑暗势力。最终骑士领悟了勇气的真谛，拯救了整个世界。"></textarea>
+            </div>
+            <div id="genResult" style="display:none;"></div>
+            <div class="form-actions">
+                <button class="btn btn-ghost" onclick="hideModal('genModal')">取消</button>
+                <button class="btn btn-primary" id="genGoBtn" onclick="doAI()">开始生成</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="chapterModal">
+        <div class="modal" style="width:600px;">
+            <h3 id="chapterModalTitle">添加章节</h3>
+            <input type="hidden" id="editChapterIdx">
+            <div class="form-group"><label>章节名称</label><input type="text" id="chName" placeholder="如：雨夜决战"></div>
+            <div class="form-group"><label>章节内容</label><textarea id="chContent" rows="10" placeholder="输入本章节内容..."></textarea></div>
+            <div class="form-actions">
+                <button class="btn btn-ghost" onclick="hideModal('chapterModal')">取消</button>
+                <button class="btn btn-primary" onclick="saveChapter()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/main.js"></script>
+    <script>
+    var pid = null, pName = '';
+    var chapters = [], ci = 0;
+    var storyId = null;
+
+    (function(){
+        var p = new URLSearchParams(window.location.search);
+        pid = parseInt(p.get('projectId')) || null;
+        if (!pid) { alert('请选择一个项目'); location.href = 'projects.html'; return; }
+        var ps = JSON.parse(localStorage.getItem('mc_projects') || '[]');
+        for (var i = 0; i < ps.length; i++) { if (ps[i].id === pid) { pName = ps[i].name; break; } }
+        if (!pName) { alert('项目不存在'); location.href = 'projects.html'; return; }
+
+        var stories = JSON.parse(localStorage.getItem('mc_stories') || '[]');
+        for (var i = 0; i < stories.length; i++) {
+            if (stories[i].projectId === pid) { storyId = stories[i].id; break; }
+        }
+        if (!storyId) {
+            var maxId = 0;
+            for (var i = 0; i < stories.length; i++) { if (stories[i].id > maxId) maxId = stories[i].id; }
+            storyId = maxId + 1;
+            stories.push({ id: storyId, projectId: pid, title: pName + '剧本', created: Date.now() });
+            localStorage.setItem('mc_stories', JSON.stringify(stories));
+        }
+
+        document.getElementById('pName').textContent = pName;
+        loadChapters();
+        render();
+    })();
+
+    function loadChapters() {
+        var all = JSON.parse(localStorage.getItem('mc_chapters') || '[]');
+        chapters = all.filter(function(c){ return c.storyId === storyId; }).sort(function(a,b){ return a.order - b.order; });
+    }
+
+    function saveChapters() {
+        var all = JSON.parse(localStorage.getItem('mc_chapters') || '[]');
+        all = all.filter(function(c){ return c.storyId !== storyId; });
+        chapters.forEach(function(c){ all.push(c); });
+        localStorage.setItem('mc_chapters', JSON.stringify(all));
+    }
+
+    function render() {
+        document.getElementById('pCount').textContent = chapters.length + ' 章节';
+        if (chapters.length === 0) {
+            document.getElementById('chapterList').innerHTML = '<div class="empty-chapter">暂无章节</div>';
+            document.getElementById('area').innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128214;</div><p>点击右上角「AI 创作」或「添加章节」创建剧本</p><p style="font-size:12px;color:var(--text3);margin-top:8px;">AI 创作会同时生成章节内容及角色清单</p></div>';
+            document.getElementById('title').textContent = '剧本创作';
+            return;
+        }
+        var h = '';
+        chapters.forEach(function(c, i) {
+            h += '<div class="chapter-item' + (i === ci ? ' active' : '') + '" onclick="sel(' + i + ')">'
+                + '<span class="chapter-num">' + (c.chapterNumber || '第' + (i+1) + '章') + '</span>'
+                + '<div class="chapter-info"><div class="chapter-name">' + c.chapterName + '</div>'
+                + '<div class="chapter-meta">' + (c.content || '').length + ' 字</div></div></div>';
+        });
+        document.getElementById('chapterList').innerHTML = h;
+        if (ci < 0 || ci >= chapters.length) ci = 0;
+        var c = chapters[ci];
+        document.getElementById('title').textContent = c.chapterName || '';
+        var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;">'
+            + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">'
+            + '<h3 style="font-size:16px;font-weight:700;">' + (c.chapterNumber || '第' + (ci+1) + '章') + ' — ' + c.chapterName + '</h3>'
+            + '<div style="display:flex;gap:6px;">'
+            + '<button class="btn btn-ghost btn-sm" onclick="showChapterModal(' + ci + ')">&#9998; 编辑</button>'
+            + '<button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="delChapter(' + ci + ')">&#128465; 删除</button>'
+            + '</div></div>'
+            + '<div class="content-body">' + fmt(c.content || '') + '</div>'
+            + '</div>';
+        document.getElementById('area').innerHTML = html;
+    }
+
+    function fmt(text) {
+        if (!text) return '(暂无)';
+        return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+            .replace(/^# (.*$)/gm,'<h1 style="font-size:15px;font-weight:700;margin:10px 0 6px;">$1</h1>')
+            .replace(/## (.*$)/gm,'<h2 style="font-size:13px;font-weight:700;margin:8px 0 4px;">$1</h2>')
+            .replace(/\n/g,'<br>');
+    }
+
+    function sel(i) { ci = i; render(); }
+
+    function showGenModal() {
+        document.getElementById('storyTitle').value = pName;
+        document.getElementById('storyPrompt').value = '';
+        document.getElementById('genResult').style.display = 'none';
+        document.getElementById('genGoBtn').disabled = false;
+        document.getElementById('genGoBtn').textContent = '开始生成';
+        showModal('genModal');
+    }
+
+    function doAI() {
+        var title = document.getElementById('storyTitle').value.trim();
+        var prompt = document.getElementById('storyPrompt').value.trim();
+        if (!title) { alert('请输入剧本标题'); return; }
+        if (!prompt) { alert('请输入故事内容'); return; }
+
+        document.getElementById('genGoBtn').disabled = true;
+        document.getElementById('genGoBtn').textContent = '生成中...';
+
+        setTimeout(function() {
+            var result = generateSampleScript(title, prompt);
+            chapters = [];
+            var maxOrder = 0;
+            result.chapters.forEach(function(ch, i) {
+                var maxId = 0;
+                var all = JSON.parse(localStorage.getItem('mc_chapters') || '[]');
+                for (var j = 0; j < all.length; j++) { if (all[j].id > maxId) maxId = all[j].id; }
+                chapters.push({
+                    id: maxId + i + 1,
+                    storyId: storyId,
+                    chapterNumber: ch.chapterNumber,
+                    chapterName: ch.chapterName,
+                    content: ch.content,
+                    order: maxOrder + i
+                });
+            });
+            saveChapters();
+
+            mergeAssets('mc_asset_Actor', result.characters);
+            mergeAssets('mc_asset_Prop', result.props);
+            mergeAssets('mc_asset_Scene', result.scenes);
+            mergeAssets('mc_asset_Bgm', result.bgms);
+
+            ci = 0;
+            render();
+
+            var assetHtml = '';
+            var allTypes = [
+                { key: 'characters', name: '角色', items: result.characters },
+                { key: 'props', name: '道具', items: result.props },
+                { key: 'scenes', name: '场景', items: result.scenes },
+                { key: 'bgms', name: 'BGM', items: result.bgms }
+            ];
+            allTypes.forEach(function(t) {
+                if (t.items && t.items.length > 0) {
+                    assetHtml += '<div style="margin-top:8px;"><strong style="font-size:12px;color:var(--text3);">' + t.name + '：</strong>'
+                        + t.items.map(function(i){ return '<span class="char-tag">' + i.name + '</span>'; }).join('')
+                        + '</div>';
+                }
+            });
+
+            document.getElementById('genResult').style.display = 'block';
+            document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--ok-bg);border-radius:8px;margin-top:12px;">'
+                + '<p style="font-size:13px;font-weight:700;color:var(--ok);">&#10003; 生成完成！' + result.chapters.length + ' 个章节</p>'
+                + assetHtml
+                + '</div>';
+            document.getElementById('genGoBtn').disabled = false;
+            document.getElementById('genGoBtn').textContent = '重新生成';
+        }, 1500);
+    }
+
+    function mergeAssets(storageKey, newItems) {
+        if (!newItems || newItems.length === 0) return;
+        var existing = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        newItems.forEach(function(item) {
+            var found = false;
+            for (var i = 0; i < existing.length; i++) {
+                if (existing[i].name === item.name) { found = true; break; }
+            }
+            if (!found) existing.push({ id: Date.now() + Math.random(), name: item.name, desc: item.desc || '' });
+        });
+        localStorage.setItem(storageKey, JSON.stringify(existing));
+    }
+
+    function generateSampleScript(title, prompt) {
+        var sampleChapters = [
+            { chapterNumber: '第一章', chapterName: '命运的召唤', content: '在一个偏远的小村庄里，年轻人' + (title || '主角') + '过着平凡的生活。他从小就梦想成为一名英雄，保卫这片大陆。\n\n一天，村里来了一位神秘的老者，告诉' + (title || '主角') + '关于失落宝物的传说——那是一件拥有改变世界力量的神器。同时，邪恶的暗黑领主也在寻找这件宝物。\n\n老者告诉' + (title || '主角') + '，只有集齐勇气、智慧和仁爱三种品质的人才能找到宝物。' + (title || '主角') + '决定踏上旅程，去寻找传说中的神器。\n\n出发的那天，村民们纷纷前来送行。' + (title || '主角') + '背上行囊，踏上了前往未知世界的道路。' },
+            { chapterNumber: '第二章', chapterName: '暗影森林的试炼', content: (title || '主角') + '在穿越黑暗森林时，遇到了一位被怪物追击的精灵弓箭手莉娜。' + (title || '主角') + '挺身而出，用银剑击退了怪物。\n\n莉娜被' + (title || '主角') + '的勇气所感动，决定加入冒险之旅。两人一起继续前行，向着传说中水晶洞窟的方向前进。\n\n在森林深处，他们发现了暗影领主留下的黑暗符文。符文散发着邪恶的力量，似乎在警告着闯入者。莉娜用精灵魔法暂时封印了符文，但他们知道，更大的危险还在前方。' },
+            { chapterNumber: '第三章', chapterName: '水晶洞窟的入口', content: (title || '主角') + '和莉娜来到了水晶洞窟入口处。巨大的石门上刻满了古老的符文，散发着幽蓝色的光芒。\n\n莫格莱德老者通过魔法解读了符文——这是一道考验，只有解开符文谜题才能进入洞窟。在解谜的过程中，暗影领主的爪牙突然出现，企图阻止他们。\n\n一场激烈的战斗在洞窟入口展开。莉娜凭借精湛的弓箭术击退了大部分敌人，而' + (title || '主角') + '则负责保护莫格莱德解读符文。最终' + (title || '主角') + '成功解开了符文谜题，洞口轰然打开。' },
+            { chapterNumber: '第四章', chapterName: '最终决战', content: (title || '主角') + '进入了洞窟深处，终于找到了失落之宝——一颗散发着金色光芒的宝石，被封印在古老的祭坛中央。\n\n正当' + (title || '主角') + '伸手去拿宝物时，暗影领主突然出现在祭坛另一端。一场惊天动地的战斗爆发了。\n\n莫格莱德告诉' + (title || '主角') + '，失落之宝只能由内心纯粹的人来使用。' + (title || '主角') + '放下了对力量的渴望，心中只有保护世界的信念。\n\n失落之宝发出耀眼的金光，暗影领主因为内心的黑暗被光芒吞噬。' + (title || '主角') + '成功守护了世界，成为了真正的英雄。' }
+        ];
+
+        return {
+            chapters: sampleChapters,
+            characters: [
+                { name: title || '主角', desc: '勇敢正义的年轻英雄，棕发碧眼，身穿银色护甲' },
+                { name: '莉娜', desc: '精灵弓箭手，尖耳朵金发，身穿绿色长袍，善用自然魔法' },
+                { name: '莫格莱德', desc: '神秘老者法师，白发长须，手持金色法杖，精通古代魔法' },
+                { name: '暗影领主', desc: '邪恶的反派，全身笼罩在黑色斗篷中，眼中闪烁着红光' }
+            ],
+            props: [
+                { name: '失落之宝', desc: '传说中的金色宝石，拥有改变世界的力量' },
+                { name: '银剑', desc: '主角的佩剑，北方矿山最坚硬的银钢打造' },
+                { name: '金色法杖', desc: '莫格莱德的法杖，顶端镶嵌金色水晶' }
+            ],
+            scenes: [
+                { name: '宁静村庄', desc: '被群山环绕的田园村庄，清澈小溪流过' },
+                { name: '黑暗森林', desc: '阴暗茂密的古老森林，高耸入云，充满未知' },
+                { name: '水晶洞窟', desc: '地下洞穴，墙壁镶嵌闪烁水晶，如宫殿般璀璨' }
+            ],
+            bgms: [
+                { name: '冒险启程', desc: '激昂的管弦乐冒险主题音乐' },
+                { name: '暗影逼近', desc: '低沉悬疑的紧张背景音乐，危机四伏' },
+                { name: '胜利凯歌', desc: '史诗般的高潮决战配乐' }
+            ]
+        };
+    }
+
+    function showChapterModal(idx) {
+        document.getElementById('editChapterIdx').value = idx;
+        if (idx >= 0) {
+            var c = chapters[idx];
+            document.getElementById('chapterModalTitle').textContent = '编辑章节';
+            document.getElementById('chName').value = c.chapterName || '';
+            document.getElementById('chContent').value = c.content || '';
+        } else {
+            document.getElementById('chapterModalTitle').textContent = '添加章节';
+            document.getElementById('chName').value = '';
+            document.getElementById('chContent').value = '';
+        }
+        showModal('chapterModal');
+    }
+
+    function saveChapter() {
+        var idx = parseInt(document.getElementById('editChapterIdx').value);
+        var name = document.getElementById('chName').value.trim();
+        var content = document.getElementById('chContent').value.trim();
+        if (!name) { alert('请输入章节名称'); return; }
+        if (!content) { alert('请输入章节内容'); return; }
+
+        if (idx >= 0) {
+            chapters[idx].chapterName = name;
+            chapters[idx].content = content;
+        } else {
+            var maxOrder = chapters.length > 0 ? Math.max.apply(null, chapters.map(function(c){ return c.order; })) : -1;
+            var maxId = 0;
+            var all = JSON.parse(localStorage.getItem('mc_chapters') || '[]');
+            for (var i = 0; i < all.length; i++) { if (all[i].id > maxId) maxId = all[i].id; }
+            chapters.push({
+                id: maxId + 1,
+                storyId: storyId,
+                chapterNumber: '第' + (chapters.length + 1) + '章',
+                chapterName: name,
+                content: content,
+                order: maxOrder + 1
+            });
+        }
+        saveChapters();
+        hideModal('chapterModal');
+        render();
+    }
+
+    function delChapter(idx) {
+        if (!confirm('确认删除「' + chapters[idx].chapterName + '」？')) return;
+        chapters.splice(idx, 1);
+        if (chapters.length === 0) ci = -1;
+        else ci = Math.min(ci, chapters.length - 1);
+        saveChapters();
+        render();
+    }
+    </script>
+</body>
+</html>

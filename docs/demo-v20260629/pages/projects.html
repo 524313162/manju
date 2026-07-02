@@ -8,77 +8,264 @@
 </head>
 <body>
     <nav class="navbar">
-        <div class="nav-left">
-            <h1 class="logo">ManjuCraft</h1>
-            <span class="subtitle">漫剧开发工具</span>
-        </div>
+        <div class="nav-left"><h1 class="logo">ManjuCraft</h1><span class="subtitle">漫剧开发工具</span></div>
         <div class="nav-right">
             <a href="../index.html" class="nav-link">首页</a>
             <a href="projects.html" class="nav-link active">项目管理</a>
-            <a href="actors.html" class="nav-link">演员管理</a>
-            <a href="episodes.html" class="nav-link">分集分镜</a>
-            <a href="settings.html" class="nav-link">设置</a>
         </div>
     </nav>
 
-    <main class="container">
+    <div class="container">
         <div class="page-header">
             <div>
                 <h2>项目管理</h2>
-                <p style="font-size:14px;color:var(--text3);margin-top:4px">管理你的所有漫剧作品</p>
+                <p style="font-size:14px;color:var(--text3);margin-top:4px;">管理你的漫剧项目，创建剧本、编排漫剧</p>
             </div>
-            <button class="btn btn-primary" onclick="showModal('createProjectModal')">+ 新建项目</button>
+            <button class="btn btn-primary" onclick="showCreateModal()">+ 新建项目</button>
         </div>
 
-        <div class="project-grid" id="projectList"></div>
-    </main>
+        <div class="project-grid" id="projectGrid"></div>
+        <div id="emptyList" class="empty-state" style="display:none;">
+            <div class="empty-state-icon">&#128193;</div>
+            <p>暂无项目，点击「新建项目」创建</p>
+        </div>
+    </div>
 
-    <!-- Modal -->
-    <div class="modal-overlay" id="createProjectModal">
+    <div class="modal-overlay" id="projectModal">
         <div class="modal">
-            <h3>新建项目</h3>
-            <div class="form-group">
-                <label>项目名称</label>
-                <input type="text" id="projectName" placeholder="输入项目名称">
-            </div>
-            <div class="form-group">
-                <label>ComfyUI API 地址（可选）</label>
-                <input type="text" id="comfyuiUrl" value="http://localhost:8188" placeholder="http://localhost:8188">
-            </div>
+            <h3 id="projectModalTitle">新建项目</h3>
+            <input type="hidden" id="editProjectId">
+            <div class="form-group"><label>项目名称 *</label><input type="text" id="projName" placeholder="输入项目名称"></div>
             <div class="form-actions">
-                <button class="btn btn-ghost" onclick="hideModal('createProjectModal')">取消</button>
-                <button class="btn btn-primary" onclick="saveProject()">创建</button>
+                <button class="btn btn-ghost" onclick="hideModal('projectModal')">取消</button>
+                <button class="btn btn-primary" onclick="saveProject()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="deleteModal">
+        <div class="modal">
+            <h3 style="color:var(--danger);">&#9888; 确认删除</h3>
+            <p style="font-size:14px;color:var(--text2);margin-bottom:12px;" id="deleteMessage"></p>
+            <div class="form-actions">
+                <button class="btn btn-ghost" onclick="hideModal('deleteModal')">取消</button>
+                <button class="btn btn-danger" onclick="confirmDelete()">确认删除</button>
             </div>
         </div>
     </div>
 
     <script src="../js/main.js"></script>
     <script>
-        const mockProjects = [
-            { id: 1, name: '勇者传说', description: '经典奇幻题材', episodes: 8, actors: 12, created: '2026-06-25', status: 'active' },
-            { id: 2, name: '都市风云', description: '现代都市题材', episodes: 3, actors: 6, created: '2026-06-20', status: 'active' },
-            { id: 3, name: '赛博朋克2099', description: '科幻题材', episodes: 0, actors: 0, created: '2026-06-15', status: 'draft' }
-        ];
-        function renderProjects() {
-            const el = document.getElementById('projectList');
-            el.innerHTML = mockProjects.map(p => `
-                <div class="project-card">
-                    <div class="project-top"><h3>${p.name}</h3><span class="badge badge-${p.status==='active'?'ok':'blue'}">${p.status==='active'?'活跃':'草稿'}</span></div>
-                    <p>${p.description}</p>
-                    <div class="project-meta">
-                        <span>📺 ${p.episodes} 分集</span>
-                        <span>🎭 ${p.actors} 演员</span>
-                        <span>📅 ${p.created}</span>
-                    </div>
-                    <div class="project-actions">
-                        <button class="btn btn-primary btn-sm" onclick="alert('进入项目')">进入</button>
-                        <button class="btn btn-ghost btn-sm action-d" onclick="alert('删除项目')">删除</button>
-                    </div>
-                </div>
-            `).join('');
+    var deleteTargetId = null;
+
+    function loadProjects() {
+        var data = localStorage.getItem('mc_projects');
+        if (!data) seedSampleData();
+        return JSON.parse(localStorage.getItem('mc_projects') || '[]');
+    }
+
+    function seedSampleData() {
+        localStorage.setItem('mc_projects', JSON.stringify([
+            { id: 1, name: '勇者传说', created: Date.now() - 86400000 * 3 },
+            { id: 2, name: '都市风云', created: Date.now() - 86400000 * 2 },
+            { id: 3, name: '赛博朋克2099', created: Date.now() - 86400000 }
+        ]));
+
+        localStorage.setItem('mc_stories', JSON.stringify([
+            { id: 1, projectId: 1, title: '勇者传说剧本', created: Date.now() - 86400000 * 2 }
+        ]));
+
+        localStorage.setItem('mc_chapters', JSON.stringify([
+            { id: 1, storyId: 1, chapterNumber: '第一章', chapterName: '命运的召唤', content: '在一个偏远的小村庄里，年轻人凯恩过着平凡的生活。他从小就梦想成为一名英雄，保卫这片大陆。\n\n一天，村里来了一位神秘的老者莫格莱德，告诉凯恩关于失落之宝的传说——那是一件拥有改变世界力量的神器。同时，邪恶的暗黑领主也在寻找这件宝物。\n\n老者告诉凯恩，只有集齐勇气、智慧和仁爱三种品质的人才能找到宝物。凯恩决定踏上旅程，去寻找传说中的神器。\n\n出发的那天，村民们纷纷前来送行。凯恩背上行囊，踏上了前往未知世界的道路。', order: 0 },
+            { id: 2, storyId: 1, chapterNumber: '第二章', chapterName: '暗影森林的试炼', content: '凯恩在穿越黑暗森林时，遇到了一位被怪物追击的精灵弓箭手莉娜。凯恩挺身而出，用银剑击退了怪物。\n\n莉娜被凯恩的勇气所感动，决定加入冒险之旅。两人一起继续前行，向着传说中水晶洞窟的方向前进。\n\n在森林深处，他们发现了暗影领主留下的黑暗符文。符文散发着邪恶的力量，似乎在警告着闯入者。莉娜用精灵魔法暂时封印了符文，但他们知道，更大的危险还在前方。', order: 1 },
+            { id: 3, storyId: 1, chapterNumber: '第三章', chapterName: '水晶洞窟的入口', content: '凯恩和莉娜来到了水晶洞窟入口处。巨大的石门上刻满了古老的符文，散发着幽蓝色的光芒。\n\n莫格莱德老者通过魔法解读了符文——这是一道考验，只有解开符文谜题才能进入洞窟。在解谜的过程中，暗影领主的爪牙突然出现，企图阻止他们。\n\n一场激烈的战斗在洞窟入口展开。莉娜凭借精湛的弓箭术击退了大部分敌人，而凯恩则负责保护莫格莱德解读符文。最终凯恩成功解开了符文谜题，洞口轰然打开。', order: 2 },
+            { id: 4, storyId: 1, chapterNumber: '第四章', chapterName: '最终决战', content: '凯恩进入了洞窟深处，终于找到了失落之宝——一颗散发着金色光芒的宝石，被封印在古老的祭坛中央。\n\n正当凯恩伸手去拿宝物时，暗影领主突然出现在祭坛另一端。一场惊天动地的战斗爆发了。\n\n莫格莱德告诉凯恩，失落之宝只能由内心纯粹的人来使用。凯恩放下了对力量的渴望，心中只有保护世界的信念。\n\n失落之宝发出耀眼的金光，暗影领主因为内心的黑暗被光芒吞噬。凯恩成功守护了世界，成为了真正的英雄。', order: 3 }
+        ]));
+
+        localStorage.setItem('mc_episodes', JSON.stringify([
+            { id: 1, projectId: 1, chapterNumber: '第一章', chapterName: '命运的召唤', name: '命运的召唤', content: '在一个偏远的小村庄里，年轻人凯恩过着平凡的生活。他从小就梦想成为一名英雄。\n\n一天，村里来了一位神秘的老者莫格莱德，告诉凯恩关于失落之宝的传说。凯恩决定踏上旅程，去寻找传说中的神器。', order: 0 },
+            { id: 2, projectId: 1, chapterNumber: '第二章', chapterName: '暗影森林的试炼', name: '暗影森林的试炼', content: '凯恩在穿越黑暗森林时，遇到了一位被怪物追击的精灵弓箭手莉娜。凯恩挺身而出，用银剑击退了怪物。莉娜决定加入冒险之旅。', order: 1 }
+        ]));
+
+        localStorage.setItem('mc_shots', JSON.stringify([
+            { id: 1, episodeId: 1, description: '全景展示宁静村庄，晨光洒在屋顶', shotNumber: 'SH001', shotSize: '全景', cameraMovement: '固定', shotAnalysis: '开场环境交代，宁静祥和的晨景', duration: 8, resourceTags: '场景', firstFrameDescription: '高空俯瞰村庄全景，炊烟袅袅升起，晨光洒满屋顶，宁静祥和', assetRefs: '{"actor":[],"scene":[1],"prop":[]}', hasFirstFrame: true, hasVideo: true, order: 0 },
+            { id: 2, episodeId: 1, description: '中景，凯恩从屋内走出迎接新的一天', shotNumber: 'SH002', shotSize: '中景', cameraMovement: '固定', shotAnalysis: '主角首次登场，展示日常状态', duration: 6, resourceTags: '角色&场景', firstFrameDescription: '凯恩推开木门，阳光照进屋内形成光柱，他伸了个懒腰', assetRefs: '{"actor":[1],"scene":[1],"prop":[]}', hasFirstFrame: true, hasVideo: false, order: 1 },
+            { id: 3, episodeId: 1, description: '近景，莫格莱德出现在村口', shotNumber: 'SH003', shotSize: '近景', cameraMovement: '前推', shotAnalysis: '神秘角色登场，营造悬疑氛围', duration: 7, resourceTags: '角色&场景', firstFrameDescription: '莫格莱德从村口走来，兜帽遮面，步伐稳健，目光深邃', assetRefs: '{"actor":[3],"scene":[1],"prop":[]}', hasFirstFrame: false, hasVideo: false, order: 2 },
+            { id: 4, episodeId: 2, description: '全景，黑暗森林中光线昏暗', shotNumber: 'SH004', shotSize: '全景', cameraMovement: '平移', shotAnalysis: '场景转换，从村庄进入黑暗森林', duration: 10, resourceTags: '场景', firstFrameDescription: '森林全景，树木高耸入云遮天蔽日，地面布满苔藓和枯叶', assetRefs: '{"actor":[],"scene":[2],"prop":[]}', hasFirstFrame: true, hasVideo: true, order: 0 },
+            { id: 5, episodeId: 2, description: '中景，凯恩拔剑与怪物激烈战斗', shotNumber: 'SH005', shotSize: '中景', cameraMovement: '摇晃', shotAnalysis: '战斗场面，展示主角战斗能力', duration: 12, resourceTags: '角色&场景&道具', firstFrameDescription: '凯恩拔出银剑，剑刃在幽暗森林中反射出寒光，怪物从暗处扑出', assetRefs: '{"actor":[1],"scene":[2],"prop":[2]}', hasFirstFrame: false, hasVideo: false, order: 1 }
+        ]));
+
+        localStorage.setItem('mc_asset_Actor', JSON.stringify([
+            { id: 1, name: '凯恩', desc: '年轻骑士主角，棕发碧眼，身穿银色护甲，性格勇敢正义' },
+            { id: 2, name: '莉娜', desc: '精灵弓箭手，尖耳朵金发，身穿绿色长袍，善用自然魔法' },
+            { id: 3, name: '莫格莱德', desc: '神秘老者法师，白发长须，手持金色法杖，精通古代魔法' },
+            { id: 4, name: '暗影领主', desc: '邪恶反派，全身笼罩在黑色斗篷中，眼中闪烁着红光' }
+        ]));
+
+        localStorage.setItem('mc_asset_Prop', JSON.stringify([
+            { id: 1, name: '失落之宝', desc: '传说中的金色宝石，拥有改变世界的力量' },
+            { id: 2, name: '银剑', desc: '凯恩的佩剑，北方矿山最坚硬的银钢打造' },
+            { id: 3, name: '精灵弓', desc: '莉娜的专属装备，千年精灵木打造' }
+        ]));
+
+        localStorage.setItem('mc_asset_Scene', JSON.stringify([
+            { id: 1, name: '宁静村庄', desc: '被群山环绕的田园村庄，清澈小溪流过' },
+            { id: 2, name: '黑暗森林', desc: '阴暗茂密的神秘森林，高耸入云' },
+            { id: 3, name: '水晶洞窟', desc: '地下洞穴，墙壁镶嵌闪烁水晶，如宫殿般璀璨' }
+        ]));
+
+        localStorage.setItem('mc_asset_Bgm', JSON.stringify([
+            { id: 1, name: '冒险启程', desc: '激昂的管弦乐冒险主题音乐' },
+            { id: 2, name: '暗影逼近', desc: '低沉悬疑的紧张背景音乐' }
+        ]));
+    }
+
+    function saveProjects(list) {
+        localStorage.setItem('mc_projects', JSON.stringify(list));
+    }
+
+    function hasStory(projectId) {
+        var stories = JSON.parse(localStorage.getItem('mc_stories') || '[]');
+        for (var i = 0; i < stories.length; i++) {
+            if (stories[i].projectId === projectId) return stories[i];
         }
-        function saveProject() { hideModal('createProjectModal'); renderProjects(); }
-        setTimeout(renderProjects, 200);
+        return null;
+    }
+
+    function countChapters(storyId) {
+        var chapters = JSON.parse(localStorage.getItem('mc_chapters') || '[]');
+        var count = 0;
+        for (var i = 0; i < chapters.length; i++) {
+            if (chapters[i].storyId === storyId) count++;
+        }
+        return count;
+    }
+
+    function deleteAllProjectData(projectId) {
+        var stories = JSON.parse(localStorage.getItem('mc_stories') || '[]');
+        var storyIds = [];
+        stories = stories.filter(function(s) {
+            if (s.projectId === projectId) { storyIds.push(s.id); return false; }
+            return true;
+        });
+        localStorage.setItem('mc_stories', JSON.stringify(stories));
+
+        var chapters = JSON.parse(localStorage.getItem('mc_chapters') || '[]');
+        chapters = chapters.filter(function(c) { return storyIds.indexOf(c.storyId) < 0; });
+        localStorage.setItem('mc_chapters', JSON.stringify(chapters));
+
+        var episodes = JSON.parse(localStorage.getItem('mc_episodes') || '[]');
+        var episodeIds = [];
+        episodes = episodes.filter(function(e) {
+            if (e.projectId === projectId) { episodeIds.push(e.id); return false; }
+            return true;
+        });
+        localStorage.setItem('mc_episodes', JSON.stringify(episodes));
+
+        var shots = JSON.parse(localStorage.getItem('mc_shots') || '[]');
+        shots = shots.filter(function(s) { return episodeIds.indexOf(s.episodeId) < 0; });
+        localStorage.setItem('mc_shots', JSON.stringify(shots));
+    }
+
+    function renderList() {
+        var projects = loadProjects();
+        var gridHtml = '';
+        var hasAny = false;
+
+        projects.forEach(function(p) {
+            var story = hasStory(p.id);
+            var chapterCount = story ? countChapters(story.id) : 0;
+            var hasScript = story !== null && chapterCount > 0;
+            hasAny = true;
+
+            var date = new Date(p.created).toLocaleDateString('zh-CN');
+
+            gridHtml += '<div class="project-card">'
+                + '<div class="project-top"><h3>' + p.name + '</h3></div>'
+                + '<p style="font-size:13px;color:var(--text3);margin-bottom:16px;">创建于 ' + date + ' | ' + (hasScript ? chapterCount + ' 章节' : '暂无剧本') + '</p>'
+                + '<div class="project-actions">'
+                + '<button class="btn btn-primary btn-sm" onclick="goScript(' + p.id + ')" style="flex:1;">&#128214; 剧本创作</button>'
+                + (hasScript
+                    ? '<a class="btn btn-info btn-sm" href="production.html?projectId=' + p.id + '" style="flex:1;text-align:center;">&#9654; 漫剧创作</a>'
+                    : '<button class="btn btn-sm" style="flex:1;background:var(--border);color:var(--text3);cursor:not-allowed;" disabled>&#9654; 漫剧创作</button>')
+                + '<button class="btn btn-ghost btn-sm" onclick="showEdit(' + p.id + ')">&#9998;</button>'
+                + '<button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="showDelete(' + p.id + ')">&#128465;</button>'
+                + '</div></div>';
+        });
+
+        document.getElementById('projectGrid').innerHTML = gridHtml;
+        document.getElementById('emptyList').style.display = hasAny ? 'none' : 'block';
+    }
+
+    function goScript(projectId) {
+        window.location.href = 'story.html?projectId=' + projectId;
+    }
+
+    function showCreateModal() {
+        document.getElementById('projectModalTitle').textContent = '新建项目';
+        document.getElementById('editProjectId').value = '';
+        document.getElementById('projName').value = '';
+        showModal('projectModal');
+        setTimeout(function(){ document.getElementById('projName').focus(); }, 100);
+    }
+
+    function showEdit(id) {
+        var projects = loadProjects();
+        for (var i = 0; i < projects.length; i++) {
+            if (projects[i].id === id) {
+                document.getElementById('projectModalTitle').textContent = '编辑项目';
+                document.getElementById('editProjectId').value = id;
+                document.getElementById('projName').value = projects[i].name;
+                showModal('projectModal');
+                return;
+            }
+        }
+    }
+
+    function saveProject() {
+        var editId = document.getElementById('editProjectId').value;
+        var name = document.getElementById('projName').value.trim();
+        if (!name) { alert('请输入项目名称'); return; }
+
+        var projects = loadProjects();
+        if (editId) {
+            for (var i = 0; i < projects.length; i++) {
+                if (projects[i].id == editId) { projects[i].name = name; break; }
+            }
+        } else {
+            var maxId = projects.length > 0 ? Math.max.apply(null, projects.map(function(p){ return p.id; })) : 0;
+            projects.push({ id: maxId + 1, name: name, created: Date.now() });
+        }
+        saveProjects(projects);
+        hideModal('projectModal');
+        showToast('已保存', 'success');
+        renderList();
+    }
+
+    function showDelete(id) {
+        var projects = loadProjects();
+        for (var i = 0; i < projects.length; i++) {
+            if (projects[i].id === id) {
+                deleteTargetId = id;
+                document.getElementById('deleteMessage').textContent = '确认删除项目「' + projects[i].name + '」及其所有关联数据？';
+                showModal('deleteModal');
+                return;
+            }
+        }
+    }
+
+    function confirmDelete() {
+        if (!deleteTargetId) return;
+        deleteAllProjectData(deleteTargetId);
+        var projects = loadProjects().filter(function(p){ return p.id !== deleteTargetId; });
+        saveProjects(projects);
+        deleteTargetId = null;
+        hideModal('deleteModal');
+        showToast('已删除', 'success');
+        renderList();
+    }
+
+    renderList();
     </script>
 </body>
 </html>

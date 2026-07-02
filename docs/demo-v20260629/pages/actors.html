@@ -3,111 +3,195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>演员管理 — ManjuCraft</title>
+    <title>角色管理 — ManjuCraft</title>
     <link rel="stylesheet" href="../css/style.css">
+    <style>
+        .actor-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px; margin-bottom:12px; display:flex; align-items:center; gap:16px; }
+        .actor-avatar { width:56px; height:56px; border-radius:var(--radius-sm); display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0; background:var(--primary-bg); color:var(--primary); border:2px dashed var(--border); cursor:pointer; }
+        .actor-avatar.has-img { border:2px solid var(--ok); background:var(--ok-bg); color:var(--ok); }
+        .actor-info { flex:1; min-width:0; }
+        .actor-info h4 { font-size:14px; font-weight:600; margin-bottom:2px; }
+        .actor-info p { font-size:12px; color:var(--text3); }
+        .actor-actions { display:flex; gap:8px; flex-shrink:0; flex-wrap:wrap; }
+        .actor-sub { margin-left:72px; margin-top:-8px; margin-bottom:12px; }
+        .actor-sub-item { display:flex; align-items:center; gap:10px; padding:8px 14px; background:var(--bg); border-radius:6px; margin-bottom:4px; font-size:12px; border-left:3px solid var(--accent); }
+        .img-placeholder { width:40px; height:40px; background:#f1f5f9; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--text3); cursor:pointer; border:1.5px dashed var(--border); }
+        .img-placeholder:hover { border-color:var(--primary); }
+        .img-placeholder.has { background:var(--ok-bg); border-color:var(--ok); color:var(--ok); }
+    </style>
 </head>
 <body>
     <nav class="navbar">
-        <div class="nav-left">
-            <h1 class="logo">ManjuCraft</h1>
-            <span class="subtitle">漫剧开发工具</span>
-        </div>
+        <div class="nav-left"><h1 class="logo">ManjuCraft</h1><span class="subtitle">漫剧开发工具</span></div>
         <div class="nav-right">
             <a href="../index.html" class="nav-link">首页</a>
             <a href="projects.html" class="nav-link">项目管理</a>
-            <a href="actors.html" class="nav-link active">演员管理</a>
-            <a href="episodes.html" class="nav-link">分集分镜</a>
-            <a href="settings.html" class="nav-link">设置</a>
+            <a href="story.html" class="nav-link">剧本创作</a>
+            <a href="actors.html" class="nav-link active">角色管理</a>
+            <a href="assets.html" class="nav-link">资产管理</a>
         </div>
     </nav>
 
-    <main class="container">
-        <div class="page-header">
-            <div>
-                <h2>🎭 演员管理 — 勇者传说</h2>
-                <p style="font-size:14px;color:var(--text3);margin-top:4px">管理角色设定与生成素材</p>
+    <div class="prod-layout">
+        <div class="episode-sidebar">
+            <div class="episode-sidebar-header">
+                <a href="projects.html" class="back-link">&laquo; 返回项目</a>
+                <h3>角色管理</h3>
+                <p id="actorCount">0 个角色</p>
             </div>
-            <div style="display:flex;gap:8px">
-                <button class="btn btn-primary btn-sm" onclick="showModal('createActorModal')">+ 添加</button>
-                <button class="btn btn-ghost btn-sm" onclick="generateAllPrompts()">✨ 批量生成提示词</button>
+            <div class="episode-list" id="actorSidebarList"></div>
+            <div class="episode-sidebar-footer">
+                <button class="btn btn-primary btn-sm" style="width:100%;" onclick="showActorModal(-1)">+ 添加角色</button>
             </div>
         </div>
 
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width:40px">#</th>
-                        <th style="width:60px">预览</th>
-                        <th>名称</th>
-                        <th>描述</th>
-                        <th style="width:90px">工作流</th>
-                        <th style="width:80px">状态</th>
-                        <th style="width:180px">操作</th>
-                    </tr>
-                </thead>
-                <tbody id="actorTable"></tbody>
-            </table>
+        <div class="prod-main">
+            <div class="prod-toolbar">
+                <h2 id="mainTitle">角色管理</h2>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn btn-primary btn-sm" onclick="showActorModal(-1)">+ 添加角色</button>
+                </div>
+            </div>
+            <div class="prod-content">
+                <div id="actorList"></div>
+            </div>
         </div>
-    </main>
+    </div>
 
-    <div class="modal-overlay" id="createActorModal">
+    <div class="modal-overlay" id="actorModal">
         <div class="modal">
-            <h3>添加演员</h3>
-            <div class="form-group">
-                <label>演员名称</label>
-                <input type="text" id="actorName" placeholder="如：勇者">
-            </div>
-            <div class="form-group">
-                <label>详细描述</label>
-                <textarea id="actorDesc" rows="3" placeholder="如：身穿银甲的年轻勇者，棕色短发，蓝色眼睛"></textarea>
-            </div>
+            <h3 id="actorModalTitle">添加角色</h3>
+            <input type="hidden" id="editActorIdx">
+            <div class="form-group"><label>角色名称 *</label><input type="text" id="actorName" placeholder="如：勇者·莲"></div>
+            <div class="form-group"><label>角色描述</label><textarea id="actorDesc" rows="4" placeholder="角色的外貌特征、性格、背景故事等详细描述..."></textarea></div>
+            <div class="form-group"><label>所属项目</label><select id="actorProject"></select></div>
             <div class="form-actions">
-                <button class="btn btn-ghost" onclick="hideModal('createActorModal')">取消</button>
-                <button class="btn btn-primary btn-sm" onclick="saveActor()">保存</button>
+                <button class="btn btn-ghost" onclick="hideModal('actorModal')">取消</button>
+                <button class="btn btn-primary" onclick="saveActor()">保存</button>
             </div>
         </div>
     </div>
 
     <script src="../js/main.js"></script>
     <script>
-        const mockActors = [
-            { id: 1, name: '勇者·莲', desc: '银甲棕发的年轻勇者', workflow: 'Txt2Img', hasImages: true },
-            { id: 2, name: '公主·艾尔', desc: '金色长发，紫色长裙的公主', workflow: 'Txt2Img', hasImages: true },
-            { id: 3, name: '魔王·萨格拉斯', desc: '黑色盔甲，红色眼睛的魔王', workflow: 'Txt2Img', hasImages: false },
-            { id: 4, name: '法师·米莉亚', desc: '蓝色长袍，手持法杖的女法师', workflow: 'Txt2Img', hasImages: false }
-        ];
-        const statusBadge = (ok) => {
-            const cls = ok ? 'ok' : 'blue';
-            const txt = ok ? '已生成' : '待生成';
-            return `<span class="badge badge-${cls}"><span class="badge-dot"></span> ${txt}</span>`;
-        };
-        const workflowBadge = (wf) => `<span class="badge badge-purple">${wf}</span>`;
-        const preview = (ok) => ok
-            ? '<div class="img-thumb ok"><span>🖼️</span></div>'
-            : '<div class="img-thumb empty"><span>+</span></div>';
-        function renderActors() {
-            document.getElementById('actorTable').innerHTML = mockActors.map((a, i) => `
-                <tr>
-                    <td>${i + 1}</td>
-                    <td>${preview(a.hasImages)}</td>
-                    <td><strong>${a.name}</strong></td>
-                    <td style="color:var(--text3);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.desc}</td>
-                    <td>${workflowBadge(a.workflow)}</td>
-                    <td>${statusBadge(a.hasImages)}</td>
-                    <td>
-                        <div class="actions-bar">
-                            <button class="action" onclick="alert('生成提示词')">📝 提示词</button>
-                            <button class="action action-ok" onclick="alert('提交生成任务')">🎨 生成</button>
-                            <button class="action action-d" onclick="alert('删除')">🗑️ 删除</button>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
+    var actors = [];
+    var currentIdx = -1;
+    var pid = null;
+
+    (function(){
+        var p = new URLSearchParams(window.location.search);
+        pid = parseInt(p.get('projectId')) || null;
+        loadActors();
+        render();
+    })();
+
+    function loadActors() {
+        actors = JSON.parse(localStorage.getItem('mc_asset_Actor') || '[]');
+    }
+
+    function saveActors() {
+        localStorage.setItem('mc_asset_Actor', JSON.stringify(actors));
+    }
+
+    function render() {
+        document.getElementById('actorCount').textContent = actors.length + ' 个角色';
+
+        var sidebarHtml = '';
+        if (actors.length === 0) {
+            sidebarHtml = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">暂无角色</div>';
+        } else {
+            actors.forEach(function(a, i) {
+                sidebarHtml += '<div class="episode-item' + (i === currentIdx ? ' active' : '') + '" onclick="currentIdx=' + i + ';render();">'
+                    + '<span class="episode-num">&#127916;</span>'
+                    + '<div class="episode-info"><div class="episode-name">' + a.name + '</div></div></div>';
+            });
         }
-        function saveActor() { hideModal('createActorModal'); renderActors(); }
-        function generateAllPrompts() { alert('批量生成所有演员的提示词...'); }
-        setTimeout(renderActors, 200);
+        document.getElementById('actorSidebarList').innerHTML = sidebarHtml;
+
+        var html = '';
+        if (actors.length === 0) {
+            html = '<div class="empty-state"><div class="empty-state-icon">&#127916;</div><p>暂无角色，点击「添加角色」创建</p></div>';
+        } else {
+            actors.forEach(function(a, i) {
+                var hasImage = a._hasImage || false;
+                html += '<div class="actor-item">'
+                    + '<div class="actor-avatar ' + (hasImage ? 'has-img' : '') + '" onclick="generateImage(' + i + ')" title="点击生成/替换图片">' + (hasImage ? '&#128247;' : '+') + '</div>'
+                    + '<div class="actor-info"><h4>' + a.name + '</h4><p>' + (a.desc || '暂无描述') + '</p></div>'
+                    + '<div class="actor-actions">'
+                    + '<button class="btn btn-info btn-sm" onclick="generateImage(' + i + ')">&#127912; 生图</button>'
+                    + '<button class="btn btn-ghost btn-sm" onclick="showActorModal(' + i + ')">&#9998; 编辑</button>'
+                    + '<button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="deleteActor(' + i + ')">&#128465; 删除</button>'
+                    + '</div></div>';
+            });
+        }
+        document.getElementById('actorList').innerHTML = html;
+        if (currentIdx >= 0 && currentIdx < actors.length) {
+            document.getElementById('mainTitle').textContent = actors[currentIdx].name;
+        } else {
+            document.getElementById('mainTitle').textContent = '角色管理';
+        }
+    }
+
+    function showActorModal(idx) {
+        document.getElementById('editActorIdx').value = idx;
+        var projSelect = document.getElementById('actorProject');
+        projSelect.innerHTML = '<option value="">不关联项目（全局角色）</option>';
+        var projects = JSON.parse(localStorage.getItem('mc_projects') || '[]');
+        projects.forEach(function(p) {
+            projSelect.innerHTML += '<option value="' + p.id + '"' + (pid === p.id ? ' selected' : '') + '>' + p.name + '</option>';
+        });
+
+        if (idx >= 0) {
+            document.getElementById('actorModalTitle').textContent = '编辑角色';
+            document.getElementById('actorName').value = actors[idx].name;
+            document.getElementById('actorDesc').value = actors[idx].desc || '';
+        } else {
+            document.getElementById('actorModalTitle').textContent = '添加角色';
+            document.getElementById('actorName').value = '';
+            document.getElementById('actorDesc').value = '';
+        }
+        showModal('actorModal');
+    }
+
+    function saveActor() {
+        var idx = parseInt(document.getElementById('editActorIdx').value);
+        var name = document.getElementById('actorName').value.trim();
+        var desc = document.getElementById('actorDesc').value.trim();
+        if (!name) { alert('请输入角色名称'); return; }
+
+        if (idx >= 0) {
+            actors[idx].name = name;
+            actors[idx].desc = desc;
+        } else {
+            var maxId = 0;
+            for (var i = 0; i < actors.length; i++) { if (actors[i].id > maxId) maxId = actors[i].id; }
+            actors.push({ id: maxId + 1, name: name, desc: desc, _hasImage: false });
+        }
+        saveActors();
+        hideModal('actorModal');
+        showToast('角色已保存', 'success');
+        if (idx < 0) currentIdx = actors.length - 1;
+        render();
+    }
+
+    function deleteActor(idx) {
+        if (!confirm('确认删除「' + actors[idx].name + '」？')) return;
+        actors.splice(idx, 1);
+        if (currentIdx >= actors.length) currentIdx = actors.length - 1;
+        saveActors();
+        render();
+    }
+
+    function generateImage(idx) {
+        var a = actors[idx];
+        showToast('正在调用 ComfyUI 生成「' + a.name + '」角色图片...', 'info');
+        setTimeout(function() {
+            a._hasImage = true;
+            saveActors();
+            render();
+            showToast('角色图片生成完成！', 'success');
+        }, 2000);
+    }
     </script>
 </body>
 </html>
