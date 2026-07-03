@@ -47,15 +47,15 @@ public class ComfyuiProxyService
             var result = await _client.SubmitPromptAsync(_comfyuiBaseUrl, workflowJson);
 
             if (result == null || !result.ContainsKey("prompt_id"))
-                return (null, "ComfyUI 返回无效响应");
-
-            var promptId = result["prompt_id"]?.ToString();
+                return (string.Empty, "ComfyUI 返回无效响应");
+            
+            var promptId = result["prompt_id"]?.ToString() ?? string.Empty;
             return (promptId, null);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "提交任务失败");
-            return (null, ex.Message);
+            return (string.Empty, ex.Message);
         }
     }
 

@@ -1,11 +1,11 @@
 // @name:         IFileStorageService
 // @author:       AI Assistant
-// @namespace:    ManjuCraft.Infrastructure.Service
+// @namespace:    ManjuCraft.Application.Service
 // @description:  文件存储服务接口
 // @version:      1.0
 // @date:         2026-06-30
 
-namespace ManjuCraft.Infrastructure.Service
+namespace ManjuCraft.Application.Service
 {
     /// <summary>
     /// 文件存储服务接口

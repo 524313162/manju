@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.0.0
+# Visual Studio Version 18
+VisualStudioVersion = 18.7.11925.98 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ManjuCraft.Domain", "src\Domain\ManjuCraft.Domain.csproj", "{A1B2C3D1-0001-0001-0001-000000000001}"
 EndProject
@@ -11,6 +11,16 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ManjuCraft.Web", "src\Web\ManjuCraft.Web\ManjuCraft.Web.csproj", "{A1B2C3D4-0004-0004-0004-000000000004}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ComfyuiProxy.Web", "src\Web\ComfyuiProxy.Web\ComfyuiProxy.Web.csproj", "{A1B2C3D5-0005-0005-0005-000000000005}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{D9832811-4C0F-4FAC-AACA-4E0539B38252}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Web", "Web", "{58069179-4803-4F53-8AD9-CE715632967E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Infrastructure", "Infrastructure", "{46B430DD-A989-4EAE-A812-469B728952BB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Domain", "Domain", "{3E46A709-8F04-4AF1-9BE3-3E98F668B4DF}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Application", "Application", "{E495A424-8CCE-4F92-ADB2-7A274BF6685C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -41,5 +51,16 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{A1B2C3D1-0001-0001-0001-000000000001} = {3E46A709-8F04-4AF1-9BE3-3E98F668B4DF}
+		{A1B2C3D2-0002-0002-0002-000000000002} = {46B430DD-A989-4EAE-A812-469B728952BB}
+		{A1B2C3D3-0003-0003-0003-000000000003} = {E495A424-8CCE-4F92-ADB2-7A274BF6685C}
+		{A1B2C3D4-0004-0004-0004-000000000004} = {58069179-4803-4F53-8AD9-CE715632967E}
+		{A1B2C3D5-0005-0005-0005-000000000005} = {58069179-4803-4F53-8AD9-CE715632967E}
+		{58069179-4803-4F53-8AD9-CE715632967E} = {D9832811-4C0F-4FAC-AACA-4E0539B38252}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {019A0E94-3C35-4991-B5A2-FEF29CCE34A6}
 	EndGlobalSection
 EndGlobal
