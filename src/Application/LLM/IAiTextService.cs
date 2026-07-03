@@ -1,4 +1,4 @@
-namespace ManjuCraft.Application.Service;
+namespace ManjuCraft.Application.LLM;
 
 public interface IAiTextService
 {
