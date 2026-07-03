@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using ManjuCraft.Infrastructure;
 using ManjuCraft.Infrastructure.Service;
 using ManjuCraft.Application.Service;
+using ManjuCraft.Web.Services;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -39,6 +40,9 @@ builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();
 builder.Services.AddHttpClient();
 builder.Services.Configure<DeepSeekOptions>(builder.Configuration.GetSection(DeepSeekOptions.SectionName));
 builder.Services.AddScoped<IDeepSeekService, DeepSeekService>();
+
+builder.Services.AddScoped<IAiTextService, MockAiTextService>();
+builder.Services.AddScoped<IAiMediaService, MockAiMediaService>();
 
 builder.Services.AddControllersWithViews();
 builder.Services.AddHttpContextAccessor();
