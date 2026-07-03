@@ -15,7 +15,5 @@ namespace ManjuCraft.Domain.Models
         public ICollection<Episode> Episodes { get; set; }
 
         public ICollection<ShotFrame> ShotFrames { get; set; }
-
-        public ICollection<Workflow> Workflows { get; set; }
     }
 }

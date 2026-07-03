@@ -17,7 +17,6 @@ namespace ManjuCraft.Infrastructure
         public DbSet<Episode> Episodes => Set<Episode>();
         public DbSet<Shot> Shots => Set<Shot>();
         public DbSet<ShotFrame> ShotFrames => Set<ShotFrame>();
-        public DbSet<Workflow> Workflows => Set<Workflow>();
         public DbSet<PromptTemplate> PromptTemplates => Set<PromptTemplate>();
         public DbSet<ApiProvider> ApiProviders => Set<ApiProvider>();
 
@@ -47,12 +46,6 @@ namespace ManjuCraft.Infrastructure
                 .WithOne(sf => sf.Project)
                 .HasForeignKey(sf => sf.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
-
-            modelBuilder.Entity<Project>()
-                .HasMany(p => p.Workflows)
-                .WithOne(w => w.Project)
-                .HasForeignKey(w => w.ProjectId)
-                .OnDelete(DeleteBehavior.SetNull);
 
             // Story -> StoryChapter
             modelBuilder.Entity<Story>()
@@ -156,14 +149,6 @@ namespace ManjuCraft.Infrastructure
             modelBuilder.Entity<Episode>()
                 .Property(e => e.Name)
                 .HasMaxLength(256);
-
-            modelBuilder.Entity<Workflow>()
-                .Property(w => w.Name)
-                .HasMaxLength(256);
-
-            modelBuilder.Entity<Workflow>()
-                .Property(w => w.WorkflowType)
-                .HasMaxLength(50);
 
             modelBuilder.Entity<PromptTemplate>()
                 .Property(pt => pt.Name)

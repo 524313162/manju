@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using ManjuCraft.Application.LLM;
+using ManjuCraft.Application.AI;
 
 namespace ManjuCraft.Web.Controllers.Api;
 
@@ -17,46 +17,46 @@ public class AiController : ControllerBase
     }
 
     [HttpPost("story/generate")]
-    public async Task<IActionResult> GenerateStory([FromForm] string title, [FromForm] string prompt)
-        => Ok(new { success = true, data = await _text.GenerateStoryAsync(title, prompt) });
+    public async Task<IActionResult> GenerateStory([FromForm] string title, [FromForm] string prompt, [FromForm] long? projectId = null)
+        => Ok(new { success = true, data = await _text.GenerateStoryAsync(title, prompt, projectId) });
 
     [HttpPost("story/rewrite")]
-    public async Task<IActionResult> RewriteStory([FromForm] string prompt, [FromForm] string originalStory)
-        => Ok(new { success = true, data = await _text.RewriteStoryAsync(prompt, originalStory) });
+    public async Task<IActionResult> RewriteStory([FromForm] string prompt, [FromForm] string originalStory, [FromForm] long? projectId = null)
+        => Ok(new { success = true, data = await _text.RewriteStoryAsync(prompt, originalStory, projectId) });
 
     [HttpPost("assets/extract")]
-    public async Task<IActionResult> ExtractAssets([FromForm] string story)
-        => Ok(new { success = true, data = await _text.ExtractAssetsAsync(story) });
+    public async Task<IActionResult> ExtractAssets([FromForm] string story, [FromForm] long? projectId = null)
+        => Ok(new { success = true, data = await _text.ExtractAssetsAsync(story, projectId) });
 
     [HttpPost("character/profile")]
-    public async Task<IActionResult> CreateCharacterProfile([FromForm] string description)
-        => Ok(new { success = true, data = await _text.CreateCharacterProfileAsync(description) });
+    public async Task<IActionResult> CreateCharacterProfile([FromForm] string description, [FromForm] long? projectId = null)
+        => Ok(new { success = true, data = await _text.CreateCharacterProfileAsync(description, projectId) });
 
     [HttpPost("scene/profile")]
-    public async Task<IActionResult> CreateSceneProfile([FromForm] string description)
-        => Ok(new { success = true, data = await _text.CreateSceneProfileAsync(description) });
+    public async Task<IActionResult> CreateSceneProfile([FromForm] string description, [FromForm] long? projectId = null)
+        => Ok(new { success = true, data = await _text.CreateSceneProfileAsync(description, projectId) });
 
     [HttpPost("prop/profile")]
-    public async Task<IActionResult> CreatePropProfile([FromForm] string description)
-        => Ok(new { success = true, data = await _text.CreatePropProfileAsync(description) });
+    public async Task<IActionResult> CreatePropProfile([FromForm] string description, [FromForm] long? projectId = null)
+        => Ok(new { success = true, data = await _text.CreatePropProfileAsync(description, projectId) });
 
     [HttpPost("skill/profile")]
-    public async Task<IActionResult> CreateSkillProfile([FromForm] string description)
-        => Ok(new { success = true, data = await _text.CreateSkillProfileAsync(description) });
+    public async Task<IActionResult> CreateSkillProfile([FromForm] string description, [FromForm] long? projectId = null)
+        => Ok(new { success = true, data = await _text.CreateSkillProfileAsync(description, projectId) });
 
     [HttpPost("bgm/generate")]
-    public async Task<IActionResult> CreateBgm([FromForm] string description)
-        => Ok(new { success = true, data = await _text.CreateBgmPromptAsync(description) });
+    public async Task<IActionResult> CreateBgm([FromForm] string description, [FromForm] long? projectId = null)
+        => Ok(new { success = true, data = await _text.CreateBgmPromptAsync(description, projectId) });
 
     [HttpPost("video/generate")]
-    public async Task<IActionResult> CreateVideo([FromForm] string description, [FromForm] string? referenceImages = null)
-        => Ok(new { success = true, data = await _text.CreateVideoPromptAsync(description, referenceImages?.Split(',').ToList()) });
+    public async Task<IActionResult> CreateVideo([FromForm] string description, [FromForm] string? referenceImages = null, [FromForm] long? projectId = null)
+        => Ok(new { success = true, data = await _text.CreateVideoPromptAsync(description, referenceImages?.Split(',').ToList(), projectId) });
 
     [HttpPost("image/txt2img")]
-    public async Task<IActionResult> TextToImage([FromForm] string prompt)
-        => Ok(new { success = true, data = await _media.TextToImageAsync(prompt) });
+    public async Task<IActionResult> TextToImage([FromForm] string prompt, [FromForm] long? projectId = null)
+        => Ok(new { success = true, data = await _media.TextToImageAsync(prompt, projectId) });
 
     [HttpPost("image/generate")]
-    public async Task<IActionResult> GenerateImage([FromForm] string profile, [FromForm] string assetType)
-        => Ok(new { success = true, data = await _media.GenerateImageAsync(profile, assetType) });
+    public async Task<IActionResult> GenerateImage([FromForm] string profile, [FromForm] string assetType, [FromForm] long? projectId = null)
+        => Ok(new { success = true, data = await _media.GenerateImageAsync(profile, assetType, projectId) });
 }

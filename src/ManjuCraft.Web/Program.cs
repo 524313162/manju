@@ -5,10 +5,10 @@ using Microsoft.EntityFrameworkCore;
 using ManjuCraft.Infrastructure;
 using ManjuCraft.Infrastructure.Service;
 using ManjuCraft.Application.Service;
-using ManjuCraft.Application.LLM;
-using ManjuCraft.Application.LLM.Providers;
-using ManjuCraft.Web.LLM;
+using ManjuCraft.Application.AI;
+
 using ManjuCraft.Domain.Models;
+using ManjuCraft.Web.Services;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -37,17 +37,13 @@ builder.Services.AddScoped<IEpisodeService, EpisodeService>();
 builder.Services.AddScoped<IShotService, ShotService>();
 builder.Services.AddScoped<IAssetService, AssetService>();
 builder.Services.AddScoped<IShotFrameService, ShotFrameService>();
-builder.Services.AddScoped<IWorkflowService, WorkflowService>();
 builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();
 
 builder.Services.AddHttpClient();
-builder.Services.Configure<DeepSeekOptions>(builder.Configuration.GetSection(DeepSeekOptions.SectionName));
-builder.Services.AddScoped<IDeepSeekService, DeepSeekService>();
+builder.Services.AddHttpClient("ComfyuiProxy");
 
-builder.Services.AddScoped<ILLMClient, MockLLMClient>();
-// 生产环境切换: builder.Services.AddScoped<ILLMClient, DeepSeekClient>();
-// 或其他:        builder.Services.AddScoped<ILLMClient, NvidiaClient>();
-//                builder.Services.AddScoped<ILLMClient, OllamaClient>();
+builder.Services.AddScoped<ComfyuiProxyApi>();
+builder.Services.AddScoped<IAiClientRegistry, AiClientRegistry>();
 
 builder.Services.AddScoped<IAiTextService, AiTextService>();
 builder.Services.AddScoped<IAiMediaService, AiMediaService>();
@@ -88,24 +84,25 @@ app.Run();
 
 static void SeedTemplates(ProjectDbContext db)
 {
-    if (db.PromptTemplates.Any()) return;
-
     var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-    db.PromptTemplates.AddRange(
-        new PromptTemplate { Name = "剧本创作默认", TemplateType = "StoryGeneration", IsDefault = true,
-            Content = "你是一个专业的剧本创作助手。根据用户提供的标题和故事主题，生成包含3-4章的完整剧本大纲。每章需要包含：章节编号、章节名称、详细的场景描写和对话内容。请以JSON格式返回。", CreatedTime = now, UpdatedTime = now },
-        new PromptTemplate { Name = "漫剧清单默认", TemplateType = "EpisodeBreakdown", IsDefault = true,
-            Content = "你是一个剧本分析专家。从给定的故事内容中提取所有角色、道具、场景和BGM。每个资产需要名称和详细描述。以JSON格式返回。", CreatedTime = now, UpdatedTime = now },
-        new PromptTemplate { Name = "镜头清单默认", TemplateType = "ShotPlanning", IsDefault = true,
-            Content = "你是一个视频导演。根据动态描述生成视频生成提示词，包括运镜、氛围、画质要求。以JSON格式返回。", CreatedTime = now, UpdatedTime = now },
-        new PromptTemplate { Name = "人物档案默认", TemplateType = "CharacterProfile", IsDefault = true,
-            Content = "你是一个角色设计师。根据角色描述，生成完整的角色档案，包括外貌特征、性格特点、背景故事和英文生图提示词。以JSON格式返回。", CreatedTime = now, UpdatedTime = now },
-        new PromptTemplate { Name = "场景档案默认", TemplateType = "SceneProfile", IsDefault = true,
-            Content = "你是一个场景设计师。根据场景描述，生成详细的场景档案和英文生图提示词。以JSON格式返回。", CreatedTime = now, UpdatedTime = now },
-        new PromptTemplate { Name = "道具档案默认", TemplateType = "PropProfile", IsDefault = true,
-            Content = "你是一个道具设计师。根据道具描述，生成详细的道具档案和英文生图提示词。以JSON格式返回。", CreatedTime = now, UpdatedTime = now },
-        new PromptTemplate { Name = "BGM档案默认", TemplateType = "BgmProfile", IsDefault = true,
-            Content = "你是一个音乐制作人。根据BGM描述，生成详细的音乐风格说明和英文音频生成提示词。以JSON格式返回。", CreatedTime = now, UpdatedTime = now }
-    );
+
+    var templates = new[]
+    {
+        ("剧本创作默认", "StoryGeneration", "你是一个专业的剧本创作助手。根据用户提供的标题和故事主题，生成包含3-4章的完整剧本大纲。每章需要包含：章节编号、章节名称、详细的场景描写和对话内容。请以JSON格式返回。"),
+        ("漫剧清单默认", "EpisodeBreakdown", "你是一个剧本分析专家。从给定的故事内容中提取所有角色、道具、场景和BGM。每个资产需要名称和详细描述。以JSON格式返回。"),
+        ("镜头清单默认", "ShotPlanning", "你是一个视频导演。根据动态描述生成视频生成提示词，包括运镜、氛围、画质要求。以JSON格式返回。"),
+        ("人物档案默认", "CharacterProfile", "你是一个角色设计师。根据角色描述，生成完整的角色档案，包括外貌特征、性格特点、背景故事和英文生图提示词。以JSON格式返回。"),
+        ("场景档案默认", "SceneProfile", "你是一个场景设计师。根据场景描述，生成详细的场景档案和英文生图提示词。以JSON格式返回。"),
+        ("道具档案默认", "PropProfile", "你是一个道具设计师。根据道具描述，生成详细的道具档案和英文生图提示词。以JSON格式返回。"),
+        ("BGM档案默认", "BgmProfile", "你是一个音乐制作人。根据BGM描述，生成详细的音乐风格说明和英文音频生成提示词。以JSON格式返回。")
+    };
+
+    foreach (var (name, type, content) in templates)
+    {
+        if (!db.PromptTemplates.Any(t => t.TemplateType == type))
+        {
+            db.PromptTemplates.Add(new PromptTemplate { Name = name, TemplateType = type, IsDefault = true, Content = content, CreatedTime = now, UpdatedTime = now });
+        }
+    }
     db.SaveChanges();
 }

@@ -13,7 +13,6 @@ namespace ManjuCraft.Infrastructure
         DbSet<Episode> Episodes { get; }
         DbSet<Shot> Shots { get; }
         DbSet<ShotFrame> ShotFrames { get; }
-        DbSet<Workflow> Workflows { get; }
         DbSet<PromptTemplate> PromptTemplates { get; }
         DbSet<ApiProvider> ApiProviders { get; }
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
