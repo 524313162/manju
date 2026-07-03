@@ -25,9 +25,9 @@
             @if (ViewData["CurrentProjectId"] != null)
             {
                 var projectId = ViewData["CurrentProjectId"];
-                <a asp-controller="Actors" asp-action="Index" asp-route-projectId="@projectId" class="nav-link @(currentController == "actors" ? "active" : "")">演员管理</a>
+                <a asp-controller="Assets" asp-action="Index" asp-route-projectId="@projectId" class="nav-link @(currentController == "assets" ? "active" : "")">素材管理</a>
                 <a asp-controller="Episodes" asp-action="Index" asp-route-projectId="@projectId" class="nav-link @(currentController == "episodes" ? "active" : "")">分集分镜</a>
-                <a asp-controller="Settings" asp-action="Comfyui" class="nav-link @(currentController == "settings" ? "active" : "")">设置</a>
+                <a asp-controller="Settings" asp-action="Index" class="nav-link @(currentController == "settings" ? "active" : "")">设置</a>
             }
         </div>
     </nav>

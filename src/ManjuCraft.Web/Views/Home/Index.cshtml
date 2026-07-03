@@ -9,7 +9,7 @@
     <p class="hero-desc">从故事创意到视频导出，自动管理漫画全流程。对接 ComfyUI 生成素材，降低制作成本，提升创作效率。</p>
     <div class="hero-actions">
         <a asp-controller="Projects" asp-action="Index" class="btn btn-primary">创建新项目</a>
-        <a asp-controller="Actors" asp-action="Index" class="btn btn-outline">管理演员资产</a>
+        <a asp-controller="Assets" asp-action="Index" class="btn btn-outline">管理素材资产</a>
     </div>
 </section>
 
@@ -17,7 +17,7 @@
     <div class="feature-card">
         <div class="feature-icon">📖</div>
         <h3>故事管理</h3>
-        <p>创建、编辑故事，AI 自动拆分为分镜片段</p>
+        <p>创建、编辑剧本，AI 逐章自动生成章节内容</p>
     </div>
     <div class="feature-card">
         <div class="feature-icon">🎭</div>
@@ -27,7 +27,7 @@
     <div class="feature-card">
         <div class="feature-icon">🏞️</div>
         <h3>场景道具</h3>
-        <p>管理场景、道具、技能、BGM，AI 生成对应素材</p>
+        <p>管理角色、道具、场景、BGM 素材，AI 生成对应图片</p>
     </div>
     <div class="feature-card">
         <div class="feature-icon">🎬</div>
@@ -56,8 +56,8 @@
                 <span class="stat-label">活跃项目</span>
             </div>
             <div class="stat-card">
-                <span class="stat-value">@Model.Projects.Sum(p => 0)</span>
-                <span class="stat-label">演员</span>
+                <span class="stat-value">@Model.Projects.Sum(p => p.Assets?.Count ?? 0)</span>
+                <span class="stat-label">素材</span>
             </div>
             <div class="stat-card">
                 <span class="stat-value">0</span>

@@ -10,7 +10,7 @@
         .shot-row:hover { box-shadow:var(--shadow-sm); border-color:var(--primary); }
         .shot-infos { flex:1; min-width:0; font-size:12px; color:var(--text2); line-height:1.7; }
         .shot-infos .label { color:var(--text3); font-size:11px; }
-        .shot-thumb { width:100px; height:60px; flex-shrink:0; border-radius:4px; background:#f1f5f9; border:1.5px dashed var(--border); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:.15s; color:var(--text3); font-size:10px; gap:3px; flex-direction:column; }
+        .shot-thumb { width:100px; height:60px; flex-shrink:0; border-radius:4px; background:#f1f5f9; border:1.5px dashed var(--border); box-sizing:border-box; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:.15s; color:var(--text3); font-size:10px; gap:3px; flex-direction:column; }
         .shot-thumb:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-bg); }
         .shot-thumb.has { border-color:var(--ok); background:var(--ok-bg); color:var(--ok); border-style:solid; }
         .shot-thumb .ti { font-size:20px; }
@@ -29,6 +29,22 @@
         .asset-check-item:hover { background:var(--bg); }
         .asset-check-item input[type=checkbox] { width:16px; height:16px; accent-color:var(--primary); }
         .extracted-item { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--bg); border-radius:6px; margin-bottom:4px; border:1px solid var(--border); }
+        .shot-info-cols { display:flex; flex:1; min-width:0; gap:10px; align-items:flex-start; }
+        .info-col { font-size:11px; color:var(--text2); line-height:1.5; min-width:0; }
+        .info-col-desc { flex:2.5; }
+        .info-col-sm { flex:0 0 auto; white-space:nowrap; }
+        .info-col .label { color:var(--text3); font-size:10px; }
+        .frame-indicator { display:flex; flex-direction:column; align-items:center; justify-content:center; width:40px; height:60px; flex-shrink:0; border-radius:4px; background:var(--bg); border:1.5px dashed var(--border); box-sizing:border-box; cursor:pointer; transition:.15s; font-size:10px; color:var(--text3); gap:2px; }
+        .frame-indicator:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-bg); }
+        .frame-indicator .num { font-size:16px; font-weight:700; }
+        .frame-list-item { display:flex; align-items:center; gap:12px; padding:12px 16px; background:var(--surface); border:1px solid var(--border); border-radius:8px; margin-bottom:8px; font-size:13px; }
+        .frame-type-badge { display:inline-block; padding:3px 12px; border-radius:12px; font-size:11px; font-weight:600; color:#fff; white-space:nowrap; }
+        .frame-type-first { background:#4338ca; }
+        .frame-type-middle { background:#0891b2; }
+        .frame-type-last { background:#d97706; }
+        .frame-list-time { color:var(--text3); font-size:12px; white-space:nowrap; }
+        .frame-list-desc { flex:1; color:var(--text2); }
+        .frame-list-status { font-size:12px; white-space:nowrap; }
         .extracted-item .name { font-weight:600; font-size:13px; }
         .extracted-item .desc { font-size:11px; color:var(--text3); }
     </style>
@@ -112,6 +128,14 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="frameListModal">
+        <div class="modal" style="width:700px;">
+            <h3 id="frameListTitle">帧列表</h3>
+            <div id="frameListBody" style="max-height:55vh;overflow-y:auto;"></div>
+            <div class="form-actions"><button class="btn btn-ghost" onclick="hideModal('frameListModal')">关闭</button></div>
+        </div>
+    </div>
+
     <script src="../js/main.js"></script>
     <script>
     var pid = null, pName = '';
@@ -162,6 +186,33 @@
         renderEpSidebar();
         if (episodes.length) { if (currentEpIdx < 0) currentEpIdx = 0; setEp(currentEpIdx); }
         else { renderShotTab(); renderAssetTab(); renderContentTab(); }
+        // auto-add frames to shots that don't have them
+        var allShots = JSON.parse(localStorage.getItem('mc_shots') || '[]');
+        var needUpdate = false;
+        var migDesc = [
+            { first: '全景展示环境氛围，奠定场景基调', middle: '镜头扫过场景细节，描绘空间布局', last: '远景收束，为下一镜头过渡' },
+            { first: '角色入画出场，展示姿态与气质', middle: '中景跟拍角色行动，营造代入感', last: '角色停步或转身，引导观众视线' },
+            { first: '面部大特写，捕捉微表情变化', middle: '镜头推进至眼部，强化情绪张力', last: '特写定格，留白渲染氛围' },
+            { first: '过肩镜头建立对话空间关系', middle: '正反打切换，聚焦对话反应', last: '镜头拉回全景，对话场景结束' },
+            { first: '关键道具特写，突出其重要性', middle: '道具细节展示，光影烘托质感', last: '道具被取走或触发，场景转换' },
+            { first: '角色在环境中穿行移动', middle: '跟拍角色行动轨迹，展示环境变化', last: '角色到达新地点，画面过渡' },
+            { first: '超大远景交代时空背景', middle: '镜头缓慢拉远，营造孤寂氛围', last: '画面升入高空，场景收束' }
+        ];
+        allShots.forEach(function(s) {
+            var needsFrames = !s.frames || !s.frames.length || !s.frames[0] || !s.frames[0].description || s.frames[0].description.length < 5;
+            if (needsFrames) {
+                needUpdate = true;
+                var dur = s.duration || 8;
+                var tIdx = ((s.shotNumber || '0').slice(-1) * 1) % migDesc.length;
+                var ft = migDesc[tIdx];
+                s.frames = [
+                    { frameType: 'First', description: ft.first, startTime: 0, duration: Math.min(2, dur * 0.25), order: 0, hasImage: false },
+                    { frameType: 'Middle', description: ft.middle, startTime: Math.min(2, dur * 0.25), duration: Math.min(2.5, dur * 0.35), order: 1, hasImage: false },
+                    { frameType: 'Last', description: ft.last, startTime: Math.min(4.5, dur * 0.6), duration: Math.min(3.5, dur * 0.4), order: 2, hasImage: false }
+                ];
+            }
+        });
+        if (needUpdate) localStorage.setItem('mc_shots', JSON.stringify(allShots));
     }
 
     function renderEpSidebar() {
@@ -173,10 +224,12 @@
             + '<span class="episode-num">ALL</span><div class="episode-info"><div class="episode-name">全部分集</div>'
             + '<div class="episode-meta">' + episodes.length + ' 集</div></div></div>';
         episodes.forEach(function(ep, i) {
+            var bound = getBoundAssets(ep.id);
+            var boundCount = (bound.actor?.length || 0) + (bound.scene?.length || 0) + (bound.prop?.length || 0);
             h += '<div class="episode-item' + (i === currentEpIdx ? ' active' : '') + '" onclick="setEp(' + i + ')">'
                 + '<span class="episode-num">' + (ep.chapterNumber || 'E' + (i+1)) + '</span>'
                 + '<div class="episode-info"><div class="episode-name">' + ep.name + '</div>'
-                + '<div class="episode-meta">' + (getShots(ep.id).length) + ' 分镜</div></div></div>';
+                + '<div class="episode-meta">' + (getShots(ep.id).length) + ' 分镜' + (boundCount ? ' | ' + boundCount + ' 资源' : '') + '</div></div></div>';
         });
         document.getElementById('epList').innerHTML = h;
     }
@@ -253,11 +306,16 @@
             + '</div></div>';
 
         // column headers
-        html += '<div style="display:flex;gap:8px;padding:6px 14px;font-size:11px;color:var(--text3);font-weight:600;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;">'
-            + '<span style="flex:1;">镜头信息</span>'
-            + '<span style="width:100px;text-align:center;">首帧图</span>'
-            + '<span style="width:100px;text-align:center;">视频</span>'
-            + '<span style="width:90px;text-align:center;">操作</span>'
+        html += '<div class="shot-row" style="font-size:11px;color:var(--text3);font-weight:600;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;cursor:default;">'
+            + '<div class="shot-info-cols">'
+            + '<div class="info-col info-col-desc">描述</div>'
+            + '<div class="info-col info-col-sm" style="min-width:60px;">景别</div>'
+            + '<div class="info-col info-col-sm" style="min-width:60px;">运镜</div>'
+            + '</div>'
+            + '<div style="width:40px;text-align:center;">帧</div>'
+            + '<div style="width:100px;text-align:center;">首帧图</div>'
+            + '<div style="width:100px;text-align:center;">视频</div>'
+            + '<div style="width:90px;text-align:center;">操作</div>'
             + '</div>';
 
         shots.forEach(function(s, i) {
@@ -266,27 +324,26 @@
             var sceneN = []; refs.scene && refs.scene.forEach(function(id){ for (var k = 0; k < allScn.length; k++) { if (allScn[k].id === id) { sceneN.push(allScn[k].name); break; } } });
             var propN = []; refs.prop && refs.prop.forEach(function(id){ for (var k = 0; k < allPrp.length; k++) { if (allPrp[k].id === id) { propN.push(allPrp[k].name); break; } } });
 
-            var hasFirst = s.hasFirstFrame || false;
+var hasFirst = s.hasFirstFrame || false;
             var hasVid = s.hasVideo || false;
-            var hl = s.highlight || '';
+            var frames = Array.isArray(s.frames) ? s.frames : [];
 
             html += '<div class="shot-row">';
 
-            // info text
-            var infoParts = [];
-            infoParts.push('<strong style="color:var(--primary);font-size:13px;">' + (s.shotNumber || '#' + (i+1)) + '</strong>');
-            infoParts.push(' <span style="color:var(--text3);">0s~' + (s.duration || '?') + 's</span>');
-            infoParts.push(' <span class="badge badge-blue" style="font-size:10px;padding:0 6px;">景别:' + (s.shotSize || '-') + '</span>');
-            infoParts.push(' <span style="color:var(--text2);font-size:11px;">运镜:' + (s.cameraMovement || '-') + '</span>');
+            // info columns
+            html += '<div class="shot-info-cols">';
+            html += '<div class="info-col info-col-desc">'
+                + '<div style="font-weight:600;color:var(--primary);font-size:13px;margin-bottom:2px;">' + (s.shotNumber || '#' + (i+1)) + '</div>'
+                + (s.description ? '<span class="label">描述：</span>' + s.description : '')
+                + '</div>';
+            html += '<div class="info-col info-col-sm" style="min-width:60px;"><span class="label">景别：</span>' + (s.shotSize || '-') + '</div>';
+            html += '<div class="info-col info-col-sm" style="min-width:60px;"><span class="label">运镜：</span>' + (s.cameraMovement || '-') + '</div>';
+            html += '</div>';
 
-            var secondLine = '';
-            if (s.shotAnalysis) secondLine += '<span class="label">镜头分析：</span>' + s.shotAnalysis + '　';
-            if (hl) secondLine += '<span class="label">爽点特写：</span>' + hl + '　';
-            secondLine += '<span class="label">描述：</span>' + (s.firstFrameDescription || s.description || '');
-
-            html += '<div class="shot-infos">'
-                + '<div>' + infoParts.join('') + '</div>'
-                + '<div>' + secondLine + '</div>'
+            // frame indicator
+            html += '<div class="frame-indicator' + (frames.length === 0 ? '' : '') + '" onclick="' + (frames.length > 0 ? 'showFrameList(' + s.id + ')' : '') + '" title="' + (frames.length > 0 ? '点击查看帧列表' : '') + '" style="' + (frames.length === 0 ? 'opacity:0.3;cursor:default;' : '') + '">'
+                + '<span class="num">' + frames.length + '</span>'
+                + '<span>帧</span>'
                 + '</div>';
 
             // thumbnail
@@ -352,8 +409,9 @@
         document.getElementById('previewTitle').textContent = (s.shotNumber || '#' + shotId) + ' 首帧预览';
         document.getElementById('previewBody').innerHTML = '<div style="width:100%;min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;">'
             + '<div style="width:100%;max-width:640px;aspect-ratio:16/9;background:var(--ok-bg);border:2px solid var(--ok);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--ok);">&#128247;</div>'
-            + '<div style="font-size:14px;color:var(--text2);">' + (s.firstFrameDescription || s.description || '') + '</div>'
-            + '<div style="font-size:12px;color:var(--text3);">' + (s.shotSize || '-') + ' · ' + (s.cameraMovement || '-') + ' · ' + (s.duration || '-') + 's</div>'
+            + '<div style="font-size:14px;color:var(--text2);">' + (s.description || '') + '</div>'
+            + '<div style="font-size:12px;color:var(--text3);margin-top:4px;">首帧描述：' + (s.firstFrameDescription || '-') + '</div>'
+            + '<div style="font-size:12px;color:var(--text3);margin-top:4px;">' + (s.shotSize || '-') + ' · ' + (s.cameraMovement || '-') + ' · ' + (s.duration || '-') + 's</div>'
             + '</div>';
         showModal('previewModal');
     }
@@ -370,7 +428,8 @@
             + '<span style="font-size:14px;">视频播放区域（模拟）</span>'
             + '<span style="font-size:12px;">' + (s.duration || '-') + 's · ' + (s.shotSize || '-') + '</span>'
             + '</div>'
-            + '<div style="font-size:13px;color:#94a3b8;">' + (s.firstFrameDescription || s.description || '') + '</div>'
+            + '<div style="font-size:13px;color:#94a3b8;">' + (s.description || '') + '</div>'
+            + '<div style="font-size:12px;color:#64748b;margin-top:2px;">首帧描述：' + (s.firstFrameDescription || '-') + '</div>'
             + '</div>';
         showModal('previewModal');
     }
@@ -378,7 +437,15 @@
     function genFirstFrame(shotId) {
         showToast('正在调用 ComfyUI 生成首帧图片...', 'info');
         setTimeout(function() {
-            updateShot(shotId, { hasFirstFrame: true });
+            var all = JSON.parse(localStorage.getItem('mc_shots') || '[]');
+            for (var i = 0; i < all.length; i++) {
+                if (all[i].id === shotId) {
+                    all[i].hasFirstFrame = true;
+                    if (all[i].frames && all[i].frames[0]) all[i].frames[0].hasImage = true;
+                    break;
+                }
+            }
+            localStorage.setItem('mc_shots', JSON.stringify(all));
             renderShotTab();
             showToast('首帧图片已生成', 'success');
         }, 2000);
@@ -404,6 +471,62 @@
                 if (done === shots.length) { renderShotTab(); showToast('全部镜头生成完成！共 ' + shots.length + ' 个', 'success'); }
             }, 1000 + i * 800);
         });
+    }
+
+    var _frameTemplates = [
+        { // 0: 全景
+            first: '晨曦微露，薄雾笼罩的村落全景，炊烟袅袅升起，远处山峦层叠，金色光芒从云隙中洒落，鸟群掠过天际',
+            middle: '镜头缓缓扫过村庄，石板路上有早起的居民开始劳作，孩童在巷口追逐嬉戏，一派宁静祥和的田园景象',
+            last: '视线逐渐拉远，整座村庄在山谷中若隐若现，晨光完全照亮大地，远景渐入云海，为场景转换铺垫'
+        },
+        { // 1: 中景入场
+            first: '主角从村口大步走来，身披斗篷腰佩长剑，逆光中身形高大挺拔，目光坚定地望向远方，衣摆随风微扬',
+            middle: '中景跟拍主角穿过市集，周围村民纷纷侧目低语，主角步伐稳健目不斜视，右手不时触碰剑柄，神情专注',
+            last: '主角在镜头前停步，缓缓转身，面部特写定格——眉头微蹙，嘴角紧绷，眼神中透露出决绝与期许'
+        },
+        { // 2: 近景特写
+            first: '面部大特写——主角瞳孔微颤，额头渗出细密汗珠，嘴唇翕动似在低语，光线从右侧打在脸上映出明暗轮廓',
+            middle: '镜头缓慢前推至眼部特写，虹膜中倒映着远方的火光，瞳孔骤然收缩，眼角肌肉微微抽动，情绪急剧变化',
+            last: '特写维持在眉眼之间，一滴泪珠从眼角滑落至下颌，悬而未落，背景完全虚化，只余呼吸的微促起伏'
+        },
+        { // 3: 过肩对话
+            first: '过肩镜头——主角肩部占据画面右下角，对面精灵少女站在树荫下，尖耳微动，手持长弓，目光警惕而好奇',
+            middle: '正反打切换至精灵少女近景，她微微歪头打量着主角，嘴角浮现一抹似有似无的笑意，指尖轻抚弓弦',
+            last: '镜头回到过肩视角，精灵少女收起长弓向前迈出一步，伸出手掌，光影透过树叶在她脸上跳动，气氛缓和'
+        },
+        { // 4: 道具特写
+            first: '特写——一枚古朴的金色宝石悬浮于祭坛之上，表面流转着细密的符文光纹，散发出柔和的琥珀色光芒，四周尘埃浮动',
+            middle: '镜头围绕宝石缓缓旋转，符文光纹逐渐变亮，宝石内部的能量漩涡开始加速运转，投射出斑斓光影在石壁上舞动',
+            last: '一只手（主角）从画面右侧缓缓伸入，指尖接近宝石的瞬间，光纹猛然爆发，画面过曝至白，声音戛然而止'
+        },
+        { // 5: 全景移动
+            first: '全景俯拍——角色在古老的森林中穿行，古木参天藤蔓垂挂，斑驳的光影在林间地面跳跃，远处传来溪流声',
+            middle: '镜头平移跟拍角色在森林中的奔跑，脚下落叶飞溅，树枝从画面两侧掠过，角色不时回头张望，喘息急促',
+            last: '角色冲出树林到达悬崖边缘，豁然开朗——云海翻涌，落日熔金，远景壮阔无边，角色背影定格在夕阳下'
+        },
+        { // 6: 远景拉远
+            first: '超大远景——古战场遗迹横亘在荒原之上，残破的旗帜在风中猎猎作响，乌云压境，雷鸣隐隐，苍凉肃杀',
+            middle: '镜头缓缓拉远，荒原上星罗棋布的篝火逐渐化为光点，入夜后的战场更显孤寂，远处传来狼嚎回响',
+            last: '画面升向高空穿破云层，月光洒下银辉照亮整片大地，远景中的战火化为星星点点，终被云海吞没'
+        }
+    ];
+
+    function buildShotFrames(shot, template) {
+        var dur = shot.duration || 8;
+        var tIdx = ((shot.shotNumber || '0').slice(-1) * 1) % _frameTemplates.length;
+        var ft = _frameTemplates[tIdx];
+        var frames = [
+            { frameType: 'First', description: ft.first, startTime: 0, duration: Math.min(2, dur * 0.25), order: 0, hasImage: false },
+            { frameType: 'Middle', description: ft.middle, startTime: Math.min(2, dur * 0.25), duration: Math.min(2.5, dur * 0.35), order: 1, hasImage: false },
+            { frameType: 'Last', description: ft.last, startTime: Math.min(4.5, dur * 0.6), duration: Math.min(3.5, dur * 0.4), order: 2, hasImage: false }
+        ];
+        // add extra middle frames for longer shots
+        if (dur >= 10) {
+            var mid2 = { frameType: 'Middle', description: _frameTemplates[(tIdx + 1) % _frameTemplates.length].middle, startTime: Math.min(5, dur * 0.4), duration: Math.min(2.5, dur * 0.25), order: 2, hasImage: false };
+            frames.splice(2, 0, mid2);
+            frames.forEach(function(f, i) { f.order = i; });
+        }
+        return frames;
     }
 
     function regenerateAll() {
@@ -432,7 +555,7 @@
                 if (t.a >= 0 && allActors[t.a]) aIds.push(allActors[t.a].id);
                 if (t.s >= 0 && allScenes[t.s]) sIds.push(allScenes[t.s].id);
                 if (t.p >= 0 && allProps[t.p]) pIds.push(allProps[t.p].id);
-                ns.push({
+                var shot = {
                     id: sid, episodeId: ep.id, description: t.desc,
                     shotNumber: 'SH' + String(i+1).padStart(3, '0'),
                     shotSize: t.size, cameraMovement: t.cam, shotAnalysis: t.analysis,
@@ -442,7 +565,9 @@
                     firstFrameDescription: '首帧画面：' + t.desc + '，镜头' + t.cam + '，' + (aIds.length && allActors[0] ? '角色「' + allActors[0].name + '」' : '场景') + '为主体',
                     assetRefs: JSON.stringify({actor:aIds,scene:sIds,prop:pIds}),
                     hasFirstFrame: false, hasVideo: false, order: i
-                });
+                };
+                shot.frames = buildShotFrames(shot, t);
+                ns.push(shot);
                 sid++;
             }
         });
@@ -653,6 +778,74 @@
                 localStorage.setItem('mc_asset_' + k, JSON.stringify(ex));
             });
             showToast('资产提取完成！', 'success');
+        }, 1500);
+    }
+
+    function showFrameList(shotId) {
+        var all = JSON.parse(localStorage.getItem('mc_shots') || '[]');
+        var s = null;
+        for (var i = 0; i < all.length; i++) { if (all[i].id === shotId) { s = all[i]; break; } }
+        if (!s) { showToast('未找到镜头数据', 'error'); return; }
+        var frames = s.frames || [];
+        // ensure every frame has a description
+        var frameFallbacks = ['首帧画面：镜头起始状态', '中段画面：情节推进中', '尾帧画面：镜头收束过渡'];
+        var descFixed = false;
+        frames.forEach(function(f, fi) {
+            if (!f) return;
+            if (!f.description || f.description.length < 5 || f.description.indexOf('首帧画面') === 0) { f.description = frameFallbacks[Math.min(fi, 2)] || ('帧' + (fi+1) + '画面'); descFixed = true; }
+        });
+        if (descFixed) { for (var i = 0; i < all.length; i++) { if (all[i].id === shotId) { all[i].frames = frames; break; } } localStorage.setItem('mc_shots', JSON.stringify(all)); }
+        document.getElementById('frameListTitle').textContent = (s.shotNumber || '#' + shotId) + ' 帧列表 (' + frames.length + ' 帧)';
+        var html = '';
+        frames.forEach(function(f, fi) {
+            if (!f) return;
+            var ft = f.frameType || 'Middle';
+            var badgeCls = 'frame-type-' + ft.toLowerCase();
+            var badgeLabel = ft === 'First' ? '首帧' : ft === 'Middle' ? '中段' : '尾帧';
+            var st = f.startTime || 0;
+            var dur = f.duration || 2;
+            var timeStr = st.toFixed(1) + 's ~ ' + (st + dur).toFixed(1) + 's';
+            var hasImg = f.hasImage || false;
+            html += '<div class="frame-list-item" style="flex-direction:column;align-items:stretch;">'
+                + '<div style="display:flex;gap:14px;">'
+                + '<div style="width:120px;flex-shrink:0;aspect-ratio:16/9;background:var(--bg);border:1.5px dashed var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text3);">' + (hasImg ? '&#128247;' : '&#127912;') + '</div>'
+                + '<div style="flex:1;display:flex;flex-direction:column;">'
+                + '<div style="display:flex;align-items:center;justify-content:space-between;">'
+                + '<div style="display:flex;align-items:center;gap:10px;">'
+                + '<span class="frame-type-badge ' + badgeCls + '">' + badgeLabel + '</span>'
+                + '<span class="frame-list-time">' + timeStr + '</span>'
+                + '</div>'
+                + '<div style="display:flex;align-items:center;gap:8px;">'
+                + '<span style="font-size:12px;color:' + (hasImg ? 'var(--ok)' : 'var(--text3)') + ';">' + (hasImg ? '&#128247; 已生成' : '&#128247; 未生成') + '</span>'
+                + '<button class="btn btn-xs ' + (hasImg ? 'btn-ghost' : 'btn-primary') + '" onclick="genFrameImage(' + shotId + ',' + fi + ',function(){setTimeout(function(){showFrameList(' + shotId + ')},100)})">' + (hasImg ? '重制' : '生成图片') + '</button>'
+                + '</div>'
+                + '</div>'
+                + '<div style="margin-top:8px;font-size:13px;color:var(--text2);line-height:1.6;">' + (f.description || '') + '</div>'
+                + '</div>'
+                + '</div>'
+                + '</div>';
+        });
+        document.getElementById('frameListBody').innerHTML = html || '<p style="text-align:center;color:var(--text3);padding:30px;">暂无帧数据</p>';
+        ['previewModal','assetBindModal','extractConfirmModal'].forEach(function(id){ hideModal(id); });
+        showModal('frameListModal');
+    }
+
+    function genFrameImage(shotId, frameIdx, done) {
+        showToast('正在生成帧图片...', 'info');
+        setTimeout(function() {
+            var all = JSON.parse(localStorage.getItem('mc_shots') || '[]');
+            for (var i = 0; i < all.length; i++) {
+                if (all[i].id === shotId) {
+                    if (!all[i].frames) all[i].frames = [];
+                    if (all[i].frames[frameIdx]) all[i].frames[frameIdx].hasImage = true;
+                    if (frameIdx === 0) all[i].hasFirstFrame = true;
+                    break;
+                }
+            }
+            localStorage.setItem('mc_shots', JSON.stringify(all));
+            renderShotTab();
+            if (done) done();
+            showToast('帧图片已生成', 'success');
         }, 1500);
     }
 

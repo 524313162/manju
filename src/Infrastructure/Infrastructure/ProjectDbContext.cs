@@ -1,87 +1,26 @@
-// @name:         ProjectDbContext
-// @author:       AI Assistant
-// @namespace:    ManjuCraft.Infrastructure
-// @description:  项目数据库上下文实现
-// @version:      1.0
-// @date:         2026-06-30
-
 using Microsoft.EntityFrameworkCore;
 using ManjuCraft.Domain.Models;
 
 namespace ManjuCraft.Infrastructure
 {
-    /// <summary>
-    /// 项目数据库上下文实现
-    /// </summary>
     public class ProjectDbContext : DbContext, IProjectDbContext
     {
-        /// <summary>
-        /// 构造函数
-        /// </summary>
-        /// <param name="options">数据库上下文选项</param>
         public ProjectDbContext(DbContextOptions<ProjectDbContext> options) : base(options)
         {
         }
 
-        /// <summary>
-        /// 项目集合
-        /// </summary>
         public DbSet<Project> Projects => Set<Project>();
-
-        /// <summary>
-        /// 故事集合
-        /// </summary>
         public DbSet<Story> Stories => Set<Story>();
-
-        /// <summary>
-        /// 演员集合
-        /// </summary>
-        public DbSet<Actor> Actors => Set<Actor>();
-
-        /// <summary>
-        /// 道具集合
-        /// </summary>
-        public DbSet<Prop> Props => Set<Prop>();
-
-        /// <summary>
-        /// 场景集合
-        /// </summary>
-        public DbSet<Scene> Scenes => Set<Scene>();
-
-        /// <summary>
-        /// 技能集合
-        /// </summary>
-        public DbSet<Skill> Skills => Set<Skill>();
-
-        /// <summary>
-        /// BGM集合
-        /// </summary>
-        public DbSet<Bgm> Bgms => Set<Bgm>();
-
-        /// <summary>
-        /// 分集集合
-        /// </summary>
+        public DbSet<StoryChapter> StoryChapters => Set<StoryChapter>();
+        public DbSet<Asset> Assets => Set<Asset>();
+        public DbSet<Resource> Resources => Set<Resource>();
         public DbSet<Episode> Episodes => Set<Episode>();
-
-        /// <summary>
-        /// 分镜集合
-        /// </summary>
         public DbSet<Shot> Shots => Set<Shot>();
-
-        /// <summary>
-        /// 实体图片集合
-        /// </summary>
-        public DbSet<EntityImage> EntityImages => Set<EntityImage>();
-
-        /// <summary>
-        /// 工作流集合
-        /// </summary>
+        public DbSet<ShotFrame> ShotFrames => Set<ShotFrame>();
         public DbSet<Workflow> Workflows => Set<Workflow>();
+        public DbSet<PromptTemplate> PromptTemplates => Set<PromptTemplate>();
+        public DbSet<ApiProvider> ApiProviders => Set<ApiProvider>();
 
-        /// <summary>
-        /// 配置模型元数据
-        /// </summary>
-        /// <param name="modelBuilder">模型构建器</param>
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             // Project relationships
@@ -92,33 +31,9 @@ namespace ManjuCraft.Infrastructure
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<Project>()
-                .HasMany(p => p.Actors)
+                .HasMany(p => p.Assets)
                 .WithOne(a => a.Project)
                 .HasForeignKey(a => a.ProjectId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            modelBuilder.Entity<Project>()
-                .HasMany(p => p.Props)
-                .WithOne(p => p.Project)
-                .HasForeignKey(p => p.ProjectId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            modelBuilder.Entity<Project>()
-                .HasMany(p => p.Scenes)
-                .WithOne(s => s.Project)
-                .HasForeignKey(s => s.ProjectId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            modelBuilder.Entity<Project>()
-                .HasMany(p => p.Skills)
-                .WithOne(s => s.Project)
-                .HasForeignKey(s => s.ProjectId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            modelBuilder.Entity<Project>()
-                .HasMany(p => p.Bgms)
-                .WithOne(b => b.Project)
-                .HasForeignKey(b => b.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<Project>()
@@ -128,9 +43,9 @@ namespace ManjuCraft.Infrastructure
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<Project>()
-                .HasMany(p => p.EntityImages)
-                .WithOne(ei => ei.Project)
-                .HasForeignKey(ei => ei.ProjectId)
+                .HasMany(p => p.ShotFrames)
+                .WithOne(sf => sf.Project)
+                .HasForeignKey(sf => sf.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<Project>()
@@ -139,6 +54,13 @@ namespace ManjuCraft.Infrastructure
                 .HasForeignKey(w => w.ProjectId)
                 .OnDelete(DeleteBehavior.SetNull);
 
+            // Story -> StoryChapter
+            modelBuilder.Entity<Story>()
+                .HasMany(s => s.Chapters)
+                .WithOne(c => c.Story)
+                .HasForeignKey(c => c.StoryId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             // Episode -> Shot
             modelBuilder.Entity<Episode>()
                 .HasMany(e => e.Shots)
@@ -146,10 +68,42 @@ namespace ManjuCraft.Infrastructure
                 .HasForeignKey(s => s.EpisodeId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // EntityImage - no self-referential relationship
-            // EntityType + EntityId + ViewType uniquely identifies an asset
+            // Episode -> StoryChapter (optional)
+            modelBuilder.Entity<Episode>()
+                .HasOne(e => e.StoryChapter)
+                .WithMany()
+                .HasForeignKey(e => e.StoryChapterId)
+                .OnDelete(DeleteBehavior.SetNull);
 
-            // Unique project name
+            // Shot -> ShotFrame
+            modelBuilder.Entity<Shot>()
+                .HasMany(s => s.Frames)
+                .WithOne(f => f.Shot)
+                .HasForeignKey(f => f.ShotId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Asset self-reference (ParentId for variants)
+            modelBuilder.Entity<Asset>()
+                .HasOne(a => a.Parent)
+                .WithMany(a => a.Children)
+                .HasForeignKey(a => a.ParentId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Asset -> Resource
+            modelBuilder.Entity<Asset>()
+                .HasOne(a => a.Resource)
+                .WithMany()
+                .HasForeignKey(a => a.ResourceId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // ShotFrame -> Resource
+            modelBuilder.Entity<ShotFrame>()
+                .HasOne(sf => sf.Resource)
+                .WithMany()
+                .HasForeignKey(sf => sf.ResourceId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Unique constraints
             modelBuilder.Entity<Project>()
                 .HasIndex(p => p.Name)
                 .IsUnique();
@@ -159,25 +113,45 @@ namespace ManjuCraft.Infrastructure
                 .Property(p => p.Name)
                 .HasMaxLength(256);
 
-            modelBuilder.Entity<Actor>()
+            modelBuilder.Entity<Story>()
+                .Property(s => s.Title)
+                .HasMaxLength(512);
+
+            modelBuilder.Entity<StoryChapter>()
+                .Property(c => c.ChapterNumber)
+                .HasMaxLength(32);
+
+            modelBuilder.Entity<StoryChapter>()
+                .Property(c => c.ChapterName)
+                .HasMaxLength(256);
+
+            modelBuilder.Entity<Asset>()
+                .Property(a => a.AssetType)
+                .HasMaxLength(32);
+
+            modelBuilder.Entity<Asset>()
                 .Property(a => a.Name)
                 .HasMaxLength(256);
 
-            modelBuilder.Entity<Prop>()
-                .Property(p => p.Name)
-                .HasMaxLength(256);
+            modelBuilder.Entity<Resource>()
+                .Property(r => r.MediaType)
+                .HasMaxLength(16);
 
-            modelBuilder.Entity<Scene>()
-                .Property(s => s.Name)
-                .HasMaxLength(256);
+            modelBuilder.Entity<Resource>()
+                .Property(r => r.FilePath)
+                .HasMaxLength(1024);
 
-            modelBuilder.Entity<Skill>()
-                .Property(s => s.Name)
-                .HasMaxLength(256);
+            modelBuilder.Entity<Shot>()
+                .Property(s => s.ShotSize)
+                .HasMaxLength(32);
 
-            modelBuilder.Entity<Bgm>()
-                .Property(b => b.Name)
-                .HasMaxLength(256);
+            modelBuilder.Entity<Shot>()
+                .Property(s => s.CameraMovement)
+                .HasMaxLength(64);
+
+            modelBuilder.Entity<ShotFrame>()
+                .Property(f => f.FrameType)
+                .HasMaxLength(32);
 
             modelBuilder.Entity<Episode>()
                 .Property(e => e.Name)
@@ -191,48 +165,24 @@ namespace ManjuCraft.Infrastructure
                 .Property(w => w.WorkflowType)
                 .HasMaxLength(50);
 
-            modelBuilder.Entity<Actor>()
-                .Property(a => a.DefaultWorkflowType)
-                .HasMaxLength(50);
+            modelBuilder.Entity<PromptTemplate>()
+                .Property(pt => pt.Name)
+                .HasMaxLength(256);
 
-            modelBuilder.Entity<Prop>()
-                .Property(p => p.DefaultWorkflowType)
-                .HasMaxLength(50);
+            modelBuilder.Entity<PromptTemplate>()
+                .Property(pt => pt.TemplateType)
+                .HasMaxLength(64);
 
-            modelBuilder.Entity<Scene>()
-                .Property(s => s.DefaultWorkflowType)
-                .HasMaxLength(50);
+            modelBuilder.Entity<ApiProvider>()
+                .Property(ap => ap.Name)
+                .HasMaxLength(256);
 
-            modelBuilder.Entity<Skill>()
-                .Property(s => s.DefaultWorkflowType)
-                .HasMaxLength(50);
+            modelBuilder.Entity<ApiProvider>()
+                .Property(ap => ap.ApiUrl)
+                .HasMaxLength(512);
 
-            modelBuilder.Entity<Bgm>()
-                .Property(b => b.DefaultWorkflowType)
-                .HasMaxLength(50);
-
-            modelBuilder.Entity<Shot>()
-                .Property(s => s.FirstFrameWorkflowType)
-                .HasMaxLength(50);
-
-            modelBuilder.Entity<Shot>()
-                .Property(s => s.VideoWorkflowType)
-                .HasMaxLength(50);
-
-            modelBuilder.Entity<EntityImage>()
-                .Property(ei => ei.EntityType)
-                .HasMaxLength(50);
-
-            modelBuilder.Entity<EntityImage>()
-                .Property(ei => ei.ViewType)
-                .HasMaxLength(50);
-
-            modelBuilder.Entity<EntityImage>()
-                .Property(ei => ei.MediaType)
-                .HasMaxLength(10);
-
-            modelBuilder.Entity<EntityImage>()
-                .Property(ei => ei.FilePath)
+            modelBuilder.Entity<ApiProvider>()
+                .Property(ap => ap.ApiKey)
                 .HasMaxLength(1024);
 
             base.OnModelCreating(modelBuilder);

@@ -141,7 +141,15 @@ public class StoryChapter : BaseEntity
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | Id | long | PK, AutoIncrement | 主键 |
+| ProjectId | long | FK → Projects | 所属项目 ID |
+| ResourceId | long | FK → Resources, Nullable | 资产图片资源 ID |
 | AssetType | string(32) | NotNull | 资产类型：Actor/Prop/Scene/Bgm |
+| Name | string(256) | NotNull | 资产名称 |
+| Description | string (max) | Nullable | 详细描述 |
+| ParentId | long | Nullable | 变体引用（同 AssetType 内的父资产 ID，null=不是变体） |
+| Order | int | NotNull | 排序（从 0 开始） |
+| CreatedTime | long | NotNull | 创建时间 |
+| UpdatedTime | long | NotNull | 更新时间 |
 | Name | string(256) | NotNull | 资产名称 |
 | Description | string (max) | Nullable | 详细描述 |
 | ParentId | long | Nullable | 变体引用（同 AssetType 内的父资产 ID，null=不是变体） |
@@ -154,6 +162,8 @@ public class StoryChapter : BaseEntity
 public class Asset : BaseEntity
 {
     public long Id { get; set; }
+    public long ProjectId { get; set; }     // 所属项目
+    public long? ResourceId { get; set; }   // 资产图片资源 ID
     public string AssetType { get; set; }   // "Actor", "Prop", "Scene", "Bgm"
     public string Name { get; set; }
     public string Description { get; set; }
@@ -162,6 +172,8 @@ public class Asset : BaseEntity
     public long CreatedTime { get; set; }
     public long UpdatedTime { get; set; }
 
+    public Project Project { get; set; }
+    public Resource Resource { get; set; }
     public Asset Parent { get; set; }
     public ICollection<Asset> Children { get; set; }
 }
@@ -172,7 +184,7 @@ public class Asset : BaseEntity
 - Prop 变体 = 真假道具
 - Scene 变体 = 季节/环境变体
 - Bgm 无变体，但结构一致
-- 资产跨项目通用，Assets 表不绑定 ProjectId
+- 资产归属项目，通过 ProjectId 关联，同一项目内资产名唯一
 
 ---
 
@@ -249,6 +261,9 @@ public class Episode
 | EpisodeId | long | FK → Episodes | 集 ID |
 | AssetRefs | string (max) | Nullable | 资产引用 JSON（本镜头所用资产） |
 | Description | string (max) | NotNull | 镜头描述（完整描述该镜头内容） |
+| ShotSize | string(32) | Nullable | 景别（远景/全景/中景/近景/特写） |
+| CameraMovement | string(64) | Nullable | 运镜方式（固定/前推/拉远/平移/跟随） |
+| Duration | float | Nullable | 镜头时长（秒） |
 | Order | int | NotNull | 排序 |
 | CreatedTime | long | NotNull | 创建时间 |
 | UpdatedTime | long | NotNull | 更新时间 |
@@ -259,8 +274,11 @@ public class Shot : BaseEntity
 {
     public long Id { get; set; }
     public long EpisodeId { get; set; }
-    public string AssetRefs { get; set; }  // JSON: {"actor":[1],"scene":[2],"prop":[1]}
-    public string Description { get; set; }  // 镜头描述
+    public string AssetRefs { get; set; }
+    public string Description { get; set; }
+    public string ShotSize { get; set; }
+    public string CameraMovement { get; set; }
+    public float? Duration { get; set; }
     public int Order { get; set; }
     public long CreatedTime { get; set; }
     public long UpdatedTime { get; set; }
@@ -281,8 +299,10 @@ public class Shot : BaseEntity
 |------|------|------|------|
 | Id | long | PK, AutoIncrement | 主键 |
 | ShotId | long | FK → Shots | 归属分镜 ID |
+| ProjectId | long | FK → Projects | 所属项目 ID |
 | FrameType | string(32) | NotNull | First / Middle / Last |
 | Description | string (max) | NotNull | 帧画面描述 |
+| ResourceId | long | FK → Resources, Nullable | 帧图片资源 ID |
 | StartTime | float | Nullable | 起始时间（秒，First 帧通常从 0 开始） |
 | Duration | float | Nullable | 持续时间（秒） |
 | Order | int | NotNull | 排序 |
@@ -295,15 +315,19 @@ public class ShotFrame : BaseEntity
 {
     public long Id { get; set; }
     public long ShotId { get; set; }
-    public string FrameType { get; set; }   // "First", "Middle", "Last"
-    public string Description { get; set; } // 帧画面描述
-    public float? StartTime { get; set; }   // 起始时间（秒）
-    public float? Duration { get; set; }    // 持续时间（秒）
+    public long ProjectId { get; set; }
+    public string FrameType { get; set; }
+    public string Description { get; set; }
+    public long? ResourceId { get; set; }
+    public float? StartTime { get; set; }
+    public float? Duration { get; set; }
     public int Order { get; set; }
     public long CreatedTime { get; set; }
     public long UpdatedTime { get; set; }
 
     public Shot Shot { get; set; }
+    public Project Project { get; set; }
+    public Resource Resource { get; set; }
 }
 ```
 
@@ -470,23 +494,100 @@ ShotContent ──→ Assets ──→ Resources ──→ Episode ──→ Sho
 
 ```mermaid
 erDiagram
-    Project ||--o{ Story : has
-    Project ||--o{ Episode : has
-    Story ||--o{ StoryChapter : has
-    Episode ||--o{ Shot : has
-    Shot ||--o{ ShotFrame : has
+    Project ||--o{ Story
+    Project ||--o{ Episode
+    Project ||--o{ Workflow
+    Story ||--o{ Chapter
+    Episode ||--o{ Shot
+    Shot ||--o{ ShotFram
+    ShotFram ||--o| Resource
+    Asset ||--o| Resource
+    Asset ||--o{ Asset
 
-    Assets "资产定义" {
-        AssetType Actor
-        AssetType Prop
-        AssetType Scene
-        AssetType Bgm
+    Project {
+        int Id
+        varchar Name
     }
-
-    Assets ||--o| Assets : "变体/子资产" (ParentId)
-
-    PromptTemplates ||--|| Asset : "生成档案用 (按AssetType查)"
-    ApiProviders ||--|| Asset : "调用生成资源"
+    Story {
+        int Id
+        int ProjectId
+        varchar Title
+    }
+    Chapter {
+        int Id
+        int StoryId
+        varchar Number
+        varchar Name
+        text Content
+        int Order
+    }
+    Episode {
+        int Id
+        int ProjectId
+        int ChapterId
+        varchar Name
+        int Duration
+        int Order
+    }
+    Shot {
+        int Id
+        int EpisodeId
+        text AssetRefs
+        text Description
+        varchar ShotSize
+        varchar CameraMovement
+        float Duration
+        int Order
+    }
+    ShotFram {
+        int Id
+        int ShotId
+        int ProjectId
+        varchar FrameType
+        text Description
+        int ResourceId
+        float StartTime
+        float Duration
+        int Order
+    }
+    Asset {
+        int Id
+        int ProjectId
+        int ResourceId
+        varchar Type
+        varchar Name
+        text Description
+        int ParentId
+        int Order
+    }
+    Resource {
+        int Id
+        varchar MediaType
+        varchar FilePath
+    }
+    Workflow {
+        int Id
+        int ProjectId
+        varchar Name
+        varchar Type
+        text Config
+    }
+    PromptTpl {
+        int Id
+        varchar Name
+        varchar Type
+        text Content
+        bool Default
+    }
+    ApiProvider {
+        int Id
+        varchar Name
+        varchar Url
+        varchar Key
+        text Config
+        bool Default
+        bool Active
+    }
 ```
 
 **资产复用（跨项目）：**
@@ -530,7 +631,11 @@ wwwroot/asset/
 └── shot/
     └── {ShotId}/
         ├── FirstFrame.png
-        └── Video.mp4
+        ├── Video.mp4
+        └── frames/
+            ├── 0.png              ← Frame#0 (First 帧图片)
+            ├── 1.png              ← Frame#1 (Middle 帧图片)
+            └── 2.png              ← Frame#2 (Last 帧图片)
 ```
 
 `Resources.FilePath` 存储相对路径，如 `actor/1/Front.png`、`shot/3/Video.mp4`。

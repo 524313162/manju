@@ -6,26 +6,65 @@
 <div class="page-header" style="display:flex !important; align-items:center !important; justify-content:space-between !important; margin-bottom:24px">
     <div>
         <h2>📖 故事管理</h2>
-        <p style="font-size:14px;color:var(--text3);margin-top:4px">编写并拆分故事为分镜片段</p>
+        <p style="font-size:14px;color:var(--text3);margin-top:4px">编写故事并管理章节</p>
     </div>
-    <button class="btn btn-primary" id="split-btn"><span class="spinner"></span> 拆分故事为分镜</button>
+    <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" id="generate-story-btn">✨ AI生成故事</button>
+        <button class="btn btn-primary btn-sm" id="save-story-btn">保存</button>
+    </div>
 </div>
 
 <div class="settings-card" style="max-width:900px">
     <div class="form-group">
-        <label>故事内容</label>
-        <textarea id="story-content" rows="18" placeholder="在此编写你的漫剧故事内容..."></textarea>
-    </div>
-    <div style="display:flex;gap:8px;margin-top:4px;justify-content:flex-end">
-        <button class="btn btn-primary btn-sm" id="save-btn">保存</button>
-        <button class="btn btn-ghost btn-sm" id="split-btn-secondary">拆分</button>
+        <label>故事标题</label>
+        <input type="text" id="story-title" placeholder="输入故事标题..." style="font-size:18px;font-weight:700" />
     </div>
 </div>
 
-<div class="settings-card" id="split-content" style="display:none;margin-top:16px;max-width:900px">
-    <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">✨ 拆分结果</h3>
-    <p style="font-size:14px;color:var(--text2);line-height:1.8;white-space:pre-wrap" id="split-text"></p>
+<div id="chapters-container" style="max-width:900px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h3 style="font-size:16px;font-weight:700;margin:0">📑 故事章节</h3>
+        <button class="btn btn-sm btn-outline" id="add-chapter-btn">+ 添加章节</button>
+    </div>
+    <p style="padding:20px;text-align:center;color:var(--text3)" id="chapters-empty">暂无章节，点击"添加章节"创建</p>
+    <div id="chapters-list"></div>
 </div>
+
+<div class="modal-overlay" id="generateStoryModal">
+    <div class="modal" style="width:560px">
+        <h3>✨ AI生成故事</h3>
+        <div class="form-group">
+            <label>故事主题/提示</label>
+            <textarea id="storyGeneratePrompt" rows="4" placeholder="描述你想生成的故事主题、风格、角色等..."></textarea>
+        </div>
+        <div class="form-group">
+            <label>章节数量</label>
+            <select id="chapterCount">
+                <option value="3">3 章</option>
+                <option value="5" selected>5 章</option>
+                <option value="8">8 章</option>
+                <option value="10">10 章</option>
+            </select>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-ghost modal-close">取消</button>
+            <button class="btn btn-primary" id="generateStoryBtn">生成故事</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.chapter-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:12px; overflow:hidden; }
+.chapter-card:hover { box-shadow:var(--shadow-sm); }
+.chapter-header { display:flex; align-items:center; padding:12px 16px; background:#f8fafc; border-bottom:1px solid var(--border); gap:8px; }
+.chapter-header input[type=text] { border:1.5px solid var(--border); border-radius:6px; padding:6px 10px; font-size:13px; font-weight:600; width:auto; }
+.chapter-header input.chapter-name { flex:1; }
+.chapter-number { width:80px; }
+.chapter-body { padding:12px 16px; }
+.chapter-body textarea { width:100%; min-height:120px; border:1.5px solid var(--border); border-radius:var(--radius-sm); padding:10px 14px; font-size:14px; resize:vertical; }
+.chapter-body textarea:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(99,102,241,.12); }
+.chapter-actions { display:flex; gap:6px; margin-left:auto; }
+</style>
 
 @section Scripts {
 <script>
@@ -33,61 +72,126 @@ $(function () {
     var projectId = '@ViewData["CurrentProjectId"]';
     if (!projectId) { alert('缺少项目ID'); return; }
 
-    $.get('/api/v1/projects/' + projectId + '/story', function (res) {
-        if (res.data) {
-            $('#story-content').val(res.data.content || '');
-            if (res.data.splitContent) {
-                $('#split-content').show().find('#split-text').text(res.data.splitContent);
+    function loadStory() {
+        $.get('/api/v1/projects/' + projectId + '/story', function (res) {
+            if (res.data) {
+                $('#story-title').val(res.data.title || '');
+
+                var chapters = res.data.chapters || [];
+                var container = $('#chapters-list');
+                container.empty();
+
+                if (chapters.length === 0) {
+                    $('#chapters-empty').show();
+                    return;
+                }
+                $('#chapters-empty').hide();
+
+                chapters.sort(function (a, b) { return a.order - b.order; });
+                chapters.forEach(function (ch) {
+                    addChapterCard(ch);
+                });
             }
+        });
+    }
+
+    function addChapterCard(ch) {
+        var html = '<div class="chapter-card" data-id="' + (ch.id || 0) + '" data-order="' + (ch.order || 0) + '">' +
+            '<div class="chapter-header">' +
+            '<span class="drag-handle" style="cursor:grab;color:var(--text3)">⋮⋮</span>' +
+            '<input type="text" class="chapter-number" value="' + (ch.chapterNumber || '') + '" placeholder="编号" style="width:80px" />' +
+            '<input type="text" class="chapter-name" value="' + (ch.chapterName || '') + '" placeholder="章节名称" />' +
+            '<div class="chapter-actions">' +
+            '<button class="action action-d delete-chapter-btn">🗑️</button>' +
+            '</div>' +
+            '</div>' +
+            '<div class="chapter-body">' +
+            '<textarea class="chapter-content" placeholder="章节内容...">' + (ch.content || '') + '</textarea>' +
+            '</div>' +
+            '</div>';
+        $('#chapters-list').append(html);
+    }
+
+    $('#add-chapter-btn').on('click', function () {
+        $('#chapters-empty').hide();
+        var order = $('#chapters-list .chapter-card').length;
+        addChapterCard({ id: 0, chapterNumber: '', chapterName: '', content: '', order: order });
+    });
+
+    $(document).on('click', '.delete-chapter-btn', function () {
+        if (!confirm('确定删除此章节吗？')) return;
+        $(this).closest('.chapter-card').remove();
+        if ($('#chapters-list .chapter-card').length === 0) {
+            $('#chapters-empty').show();
         }
     });
 
-    $('#split-btn, #split-btn-secondary').on('click', function () {
-        var $btn = $(this);
-        $btn.prop('disabled', true).find('.spinner').show();
-        var content = $('#story-content').val();
-        $.ajax({
-            url: '/api/v1/projects/' + projectId + '/story/split',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({ content: content }),
-            success: function (res) {
-                $btn.prop('disabled', false).find('.spinner').hide();
-                if (res.success && res.data?.splitContent) {
-                    $('#split-content').show().find('#split-text').text(res.data.splitContent);
-                } else {
-                    alert('拆分失败: ' + (res.message || '未知错误'));
-                }
-            },
-            error: function () { $btn.prop('disabled', false).find('.spinner').hide(); alert('请求失败'); }
-        });
-    });
-
-    var _autoSaveTimer;
-    $('#story-content').on('input', function () {
-        clearTimeout(_autoSaveTimer);
-        _autoSaveTimer = setTimeout(function () {
-            var val = $('#story-content').val();
-            $.ajax({
-                url: '/api/v1/projects/' + projectId + '/story',
-                type: 'PUT',
-                contentType: 'application/json',
-                data: JSON.stringify({ content: val })
+    $('#save-story-btn').on('click', function () {
+        var title = $('#story-title').val().trim();
+        var chapters = [];
+        $('#chapters-list .chapter-card').each(function (idx) {
+            var $card = $(this);
+            chapters.push({
+                id: $card.data('id'),
+                chapterNumber: $card.find('.chapter-number').val().trim(),
+                chapterName: $card.find('.chapter-name').val().trim(),
+                content: $card.find('.chapter-content').val().trim(),
+                order: idx
             });
-        }, 1500);
-    });
+        });
 
-    $('#save-btn').on('click', function () {
-        var val = $('#story-content').val();
         $.ajax({
             url: '/api/v1/projects/' + projectId + '/story',
             type: 'PUT',
             contentType: 'application/json',
-            data: JSON.stringify({ content: val }),
+            data: JSON.stringify({ title: title, chapters: chapters }),
             success: function (res) { alert('保存成功'); },
             error: function () { alert('保存失败'); }
         });
     });
+
+    $('#generate-story-btn').on('click', function () {
+        $('#generateStoryModal').addClass('show active');
+    });
+
+    $('#generateStoryBtn').on('click', function () {
+        var prompt = $('#storyGeneratePrompt').val().trim();
+        if (!prompt) { alert('请输入故事主题'); return; }
+
+        var chapterCount = parseInt($('#chapterCount').val()) || 5;
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('生成中...');
+
+        $.ajax({
+            url: '/api/v1/projects/' + projectId + '/story/generate',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ prompt: prompt, chapterCount: chapterCount }),
+            success: function (res) {
+                $btn.prop('disabled', false).text('生成故事');
+                if (res.success) {
+                    $('#generateStoryModal').removeClass('show active');
+                    loadStory();
+                } else {
+                    alert('生成失败: ' + (res.message || '未知错误'));
+                }
+            },
+            error: function () {
+                $btn.prop('disabled', false).text('生成故事');
+                alert('请求失败');
+            }
+        });
+    });
+
+    $('#auto-save-timer');
+    $(document).on('input', '#story-title, .chapter-number, .chapter-name, .chapter-content', function () {
+        clearTimeout(window._autoSaveTimer);
+        window._autoSaveTimer = setTimeout(function () {
+            $('#save-story-btn').trigger('click');
+        }, 3000);
+    });
+
+    loadStory();
 });
 </script>
 }

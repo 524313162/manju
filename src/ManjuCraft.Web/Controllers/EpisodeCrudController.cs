@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using ManjuCraft.Domain.Models;
 using ManjuCraft.Infrastructure;
 
 namespace ManjuCraft.Web.Controllers;
 
-// MVC route for Episodes pages
 [Route("Episodes")]
 [Route("Episodes/{action=Index}")]
 public class EpisodesViewComponent : Controller
@@ -32,7 +32,9 @@ public class EpisodeCrudController : ControllerBase
     [HttpGet("{id}")]
     public IActionResult GetById(long id)
     {
-        var episode = _dbContext.Episodes.Find(id);
+        var episode = _dbContext.Episodes
+            .Include(e => e.StoryChapter)
+            .FirstOrDefault(e => e.Id == id);
         if (episode == null) return NotFound();
         return Ok(new { success = true, data = episode });
     }
@@ -44,8 +46,9 @@ public class EpisodeCrudController : ControllerBase
             .Where(e => e.ProjectId == projectId)
             .OrderBy(e => e.Order)
             .Select(e => new {
-                Id = e.Id, Name = e.Name, e.Duration, e.Order,
-                ShotCount = _dbContext.Shots.Count(s => s.EpisodeId == e.Id)
+                Id = e.Id, e.Name, e.Duration, e.Order, e.StoryChapterId, e.ProjectId,
+                ShotCount = _dbContext.Shots.Count(s => s.EpisodeId == e.Id),
+                ChapterName = e.StoryChapter != null ? e.StoryChapter.ChapterName : null
             })
             .ToList();
         return Ok(new { success = true, data = episodes });
@@ -54,14 +57,15 @@ public class EpisodeCrudController : ControllerBase
     [HttpPost("project/{projectId}")]
     public IActionResult Create(long projectId, [FromBody] EpisodeDto dto)
     {
-        var episode = new Domain.Models.Episode
+        var episode = new Episode
         {
             ProjectId = projectId,
+            StoryChapterId = dto.StoryChapterId,
             Name = dto.Name,
             Duration = dto.Duration,
             Order = dto.Order,
-            CreatedTime = DateTime.UtcNow.Ticks,
-            UpdatedTime = DateTime.UtcNow.Ticks
+            CreatedTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            UpdatedTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         };
         _dbContext.Episodes.Add(episode);
         _dbContext.SaveChanges();
@@ -76,7 +80,8 @@ public class EpisodeCrudController : ControllerBase
         episode.Name = dto.Name;
         episode.Duration = dto.Duration;
         episode.Order = dto.Order;
-        episode.UpdatedTime = DateTime.UtcNow.Ticks;
+        episode.StoryChapterId = dto.StoryChapterId;
+        episode.UpdatedTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         _dbContext.SaveChanges();
         return Ok(new { success = true, message = "更新成功" });
     }
@@ -91,41 +96,6 @@ public class EpisodeCrudController : ControllerBase
         return Ok(new { success = true, message = "删除成功" });
     }
 
-    [HttpGet("{episodeId}/shots")]
-    public IActionResult GetShots(long episodeId)
-    {
-        var shots = _dbContext.Shots
-            .Where(s => s.EpisodeId == episodeId)
-            .OrderBy(s => s.Order)
-            .Select(s => new {
-                s.Id, s.EpisodeId, s.FirstFramePrompt, s.FirstFrameWorkflowType,
-                s.Dialog, s.VideoPrompt, s.VideoWorkflowType, s.Order,
-                s.CreatedTime, s.UpdatedTime
-            })
-            .ToList();
-        return Ok(new { success = true, data = shots });
-    }
-
-    [HttpPost("{episodeId}/shots")]
-    public IActionResult CreateShot(long episodeId, [FromBody] ShotDto dto)
-    {
-        var shot = new Domain.Models.Shot
-        {
-            EpisodeId = episodeId,
-            FirstFramePrompt = dto.FirstFramePrompt,
-            FirstFrameWorkflowType = dto.FirstFrameWorkflowType ?? "Img2Img",
-            Dialog = dto.Dialog,
-            VideoPrompt = dto.VideoPrompt,
-            VideoWorkflowType = dto.VideoWorkflowType ?? "Img2Video",
-            Order = dto.Order,
-            CreatedTime = DateTime.UtcNow.Ticks,
-            UpdatedTime = DateTime.UtcNow.Ticks
-        };
-        _dbContext.Shots.Add(shot);
-        _dbContext.SaveChanges();
-        return Ok(new { success = true, data = new { shot.Id, shot.EpisodeId } });
-    }
-
     [HttpPut("reorder")]
     public IActionResult Reorder([FromBody] ReorderEpisodesDto dto)
     {
@@ -135,23 +105,7 @@ public class EpisodeCrudController : ControllerBase
             if (ep != null)
             {
                 ep.Order = i;
-                ep.UpdatedTime = DateTime.UtcNow.Ticks;
-            }
-        }
-        _dbContext.SaveChanges();
-        return Ok(new { success = true, message = "排序已更新" });
-    }
-
-    [HttpPut("shots/reorder")]
-    public IActionResult ReorderShots([FromBody] ReorderShotsDto dto)
-    {
-        for (int i = 0; i < dto.ShotIds.Length; i++)
-        {
-            var shot = _dbContext.Shots.Find(dto.ShotIds[i]);
-            if (shot != null)
-            {
-                shot.Order = i;
-                shot.UpdatedTime = DateTime.UtcNow.Ticks;
+                ep.UpdatedTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             }
         }
         _dbContext.SaveChanges();
@@ -163,21 +117,7 @@ public class EpisodeCrudController : ControllerBase
         public string Name { get; set; } = "";
         public int Duration { get; set; }
         public int Order { get; set; }
-    }
-
-    public class ShotDto
-    {
-        public string FirstFramePrompt { get; set; } = "";
-        public string FirstFrameWorkflowType { get; set; } = "Img2Img";
-        public string Dialog { get; set; } = "";
-        public string VideoPrompt { get; set; } = "";
-        public string VideoWorkflowType { get; set; } = "Img2Video";
-        public int Order { get; set; }
-    }
-
-    public class ReorderShotsDto
-    {
-        public long[] ShotIds { get; set; } = [];
+        public long? StoryChapterId { get; set; }
     }
 
     public class ReorderEpisodesDto

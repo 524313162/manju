@@ -1,0 +1,164 @@
+@{
+    ViewData["Title"] = "素材管理";
+    Layout = "_Layout";
+}
+@{ var projectId = ViewData["CurrentProjectId"]?.ToString() ?? ""; }
+
+<div class="page-header" style="display:flex !important; align-items:center !important; justify-content:space-between !important; margin-bottom:24px">
+    <div>
+        <h2>素材管理</h2>
+        <p style="font-size:14px;color:var(--text3);margin-top:4px">管理角色、道具、场景、BGM等素材</p>
+    </div>
+    <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm modal-trigger" data-target="#createAssetModal">+ 添加</button>
+    </div>
+</div>
+
+<div class="tabs" style="margin-bottom:20px">
+    <button class="tab active" data-type="Actor">🎭 演员</button>
+    <button class="tab" data-type="Prop">📦 道具</button>
+    <button class="tab" data-type="Scene">🏞️ 场景</button>
+    <button class="tab" data-type="Bgm">🎵 BGM</button>
+</div>
+
+<div class="table-wrap" id="assets-table-wrap" style="max-width:100%">
+    <p style="padding:40px;text-align:center;color:var(--text3)">加载中...</p>
+</div>
+
+<div class="modal-overlay" id="createAssetModal">
+    <div class="modal">
+        <h3>添加素材</h3>
+        <div class="form-group">
+            <label>素材名称</label>
+            <input type="text" id="assetName" placeholder="素材名称" />
+        </div>
+        <div class="form-group">
+            <label>详细描述</label>
+            <textarea id="assetDesc" rows="3" placeholder="素材描述..."></textarea>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-ghost modal-close">取消</button>
+            <button class="btn btn-primary btn-sm" id="saveAssetBtn">保存</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.tabs { display:flex; gap:4px; background:var(--surface); border-radius:var(--radius); padding:4px; border:1px solid var(--border); }
+.tab { flex:1; padding:10px 16px; border:none; background:transparent; border-radius:var(--radius-sm); font-size:14px; font-weight:600; cursor:pointer; color:var(--text3); transition:all .15s; }
+.tab:hover { color:var(--text2); background:var(--bg); }
+.tab.active { background:var(--primary); color:#fff; box-shadow:0 2px 8px rgba(99,102,241,.3); }
+</style>
+
+@section Scripts {
+<script>
+$(function () {
+    var projectId = '@projectId';
+    if (!projectId) { alert('缺少项目ID'); return; }
+
+    var currentType = 'Actor';
+    var typeLabels = { Actor: '演员', Prop: '道具', Scene: '场景', Bgm: 'BGM' };
+    var typeIcons = { Actor: '🎭', Prop: '📦', Scene: '🏞️', Bgm: '🎵' };
+
+    $('.tab').on('click', function () {
+        $('.tab').removeClass('active');
+        $(this).addClass('active');
+        currentType = $(this).data('type');
+        loadAssets(currentType);
+    });
+
+    function loadAssets(type) {
+        var wrap = $('#assets-table-wrap');
+        wrap.html('<p style="padding:40px;text-align:center;color:var(--text3)">加载中...</p>');
+
+        $.get('/api/v1/assets/' + projectId + '?type=' + type, function (res) {
+            if (!res.data || !res.data.length) {
+                wrap.html('<div style="padding:40px;text-align:center;color:var(--text3);font-size:14px">' +
+                    '<div style="font-size:36px;margin-bottom:12px">' + (typeIcons[type] || '📁') + '</div>暂无' + (typeLabels[type] || type) + '，点击"+ 添加"创建</div>');
+                return;
+            }
+            var html = '<table><thead><tr>' +
+                '<th style="width:40px">#</th>' +
+                (type !== 'Bgm' ? '<th style="width:60px">预览</th>' : '') +
+                '<th>名称</th>' +
+                '<th>描述</th>' +
+                '<th style="width:80px">状态</th>' +
+                '<th style="width:220px">操作</th>' +
+                '</tr></thead><tbody>';
+            res.data.forEach(function (item, i) {
+                var statusHtml = '<span class="badge badge-blue"><span class="badge-dot"></span> 待生成</span>';
+                var previewHtml = '<div class="img-thumb empty"><span>+</span></div>';
+                var descText = item.description || '-';
+                html += '<tr data-id="' + item.id + '">' +
+                    '<td>' + (i + 1) + '</td>' +
+                    (type !== 'Bgm' ? '<td>' + previewHtml + '</td>' : '') +
+                    '<td><strong>' + item.name + '</strong></td>' +
+                    '<td style="color:var(--text3);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + descText.substring(0, 50) + '</td>' +
+                    '<td>' + statusHtml + '</td>' +
+                    '<td><div class="actions-bar">' +
+                    '<button class="action action-ok" onclick="genPrompt(\'' + type + '\',' + item.id + ')">📝 提示词</button>' +
+                    (type === 'Bgm' ? '<button class="action action-ok" onclick="genAudio(' + item.id + ')">🎵 生成</button>' : '<button class="action action-ok" onclick="genImage(\'' + type + '\',' + item.id + ')">🎨 生成</button>') +
+                    '<button class="action action-d" onclick="delAsset(\'' + type + '\',' + item.id + ')">🗑️</button>' +
+                    '</div></td></tr>';
+            });
+            html += '</tbody></table>';
+            wrap.html(html);
+        });
+    }
+
+    window.genPrompt = function (type, id) {
+        $.ajax({
+            url: '/api/v1/assets/' + projectId + '/' + type + '/' + id + '/generate-prompt',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ description: '' }),
+            success: function (res) { alert(res.success ? '提示词生成成功' : '失败: ' + res.message); }
+        });
+    };
+
+    window.genImage = function (type, id) {
+        $.ajax({
+            url: '/api/v1/AssetGeneration/actors/' + id + '/generate-images',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ workflowType: 'Txt2Img' }),
+            success: function (res) { alert(res.success ? '图片生成任务已提交' : '失败: ' + res.message); }
+        });
+    };
+
+    window.delAsset = function (type, id) {
+        if (!confirm('确定要删除这个素材吗？')) return;
+        $.ajax({
+            url: '/api/v1/assets/' + projectId + '/' + type + '/' + id,
+            type: 'DELETE',
+            success: function () { loadAssets(currentType); }
+        });
+    };
+
+    $('#saveAssetBtn').on('click', function () {
+        var name = $('#assetName').val().trim();
+        if (!name) { alert('请输入素材名称'); return; }
+
+        $.ajax({
+            url: '/api/v1/assets/' + projectId + '/' + currentType,
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                name: name,
+                description: $('#assetDesc').val().trim(),
+                order: 0
+            }),
+            success: function (res) {
+                if (res.success) {
+                    $('#createAssetModal').removeClass('show active');
+                    $('#assetName, #assetDesc').val('');
+                    loadAssets(currentType);
+                }
+            }
+        });
+    });
+
+    loadAssets('Actor');
+});
+</script>
+}

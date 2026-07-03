@@ -3,11 +3,11 @@ using ManjuCraft.Application.Service;
 using ManjuCraft.Web.Services;
 using ManjuCraft.Infrastructure.Service;
 using ManjuCraft.Domain.Models;
+using ManjuCraft.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 namespace ManjuCraft.Web.Controllers;
 
-// MVC route for Export pages
 [Route("Export")]
 [Route("Export/{action=Index}")]
 public class ExportViewComponent : Controller
@@ -30,6 +30,7 @@ public class ExportController : ControllerBase
     private readonly IFfmpegService _ffmpeg;
     private readonly IProjectService _projectService;
     private readonly IFileStorageService _fileStorage;
+    private readonly ProjectDbContext _dbContext;
     private readonly ILogger<ExportController> _logger;
 
     public ExportController(
@@ -38,6 +39,7 @@ public class ExportController : ControllerBase
         IFfmpegService ffmpeg,
         IProjectService projectService,
         IFileStorageService fileStorage,
+        ProjectDbContext dbContext,
         ILogger<ExportController> logger)
     {
         _episodeService = episodeService;
@@ -45,6 +47,7 @@ public class ExportController : ControllerBase
         _ffmpeg = ffmpeg;
         _projectService = projectService;
         _fileStorage = fileStorage;
+        _dbContext = dbContext;
         _logger = logger;
     }
 
@@ -88,7 +91,6 @@ public class ExportController : ControllerBase
             Directory.CreateDirectory(outputDir);
 
             var videoFiles = new List<string>();
-            var videoNames = new List<string>();
             var tempFiles = new List<string>();
 
             foreach (var (shot, ep) in allShots)
@@ -103,15 +105,12 @@ public class ExportController : ControllerBase
                         System.IO.File.Copy(fullPath, tempFile, true);
                         videoFiles.Add(tempFile);
                         tempFiles.Add(tempFile);
-                        videoNames.Add($"分集-{ep.Name}-分镜-{shot.Id}");
                     }
                 }
             }
 
             if (!videoFiles.Any())
-                return BadRequest(new { success = false, message = "没有可用的视频片段，请先生成分镜视频" });
-
-            var outputPath = Path.Combine(outputDir, $"manju-{projectId}-{DateTime.Now:yyyyMMdd-HHmmss}.mp4");
+                return BadRequest(new { success = false, message = "没有可用的视频片段，请先分镜视频" });
 
             return Ok(new
             {

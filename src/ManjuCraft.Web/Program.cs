@@ -33,6 +33,8 @@ builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IStoryService, StoryService>();
 builder.Services.AddScoped<IEpisodeService, EpisodeService>();
 builder.Services.AddScoped<IShotService, ShotService>();
+builder.Services.AddScoped<IAssetService, AssetService>();
+builder.Services.AddScoped<IShotFrameService, ShotFrameService>();
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
 builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();
 

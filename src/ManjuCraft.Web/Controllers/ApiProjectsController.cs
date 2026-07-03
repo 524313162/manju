@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using ManjuCraft.Application.Service;
-using ManjuCraft.Infrastructure.Service;
 
 namespace ManjuCraft.Web.Controllers;
 
@@ -9,13 +8,11 @@ namespace ManjuCraft.Web.Controllers;
 public class ApiProjectsController : ControllerBase
 {
     private readonly IProjectService _projectService;
-    private readonly IComfyuiConnectionService _comfyuiConnectionService;
     private readonly ILogger<ApiProjectsController> _logger;
 
-    public ApiProjectsController(IProjectService projectService, IComfyuiConnectionService comfyuiConnectionService, ILogger<ApiProjectsController> logger)
+    public ApiProjectsController(IProjectService projectService, ILogger<ApiProjectsController> logger)
     {
         _projectService = projectService;
-        _comfyuiConnectionService = comfyuiConnectionService;
         _logger = logger;
     }
 
@@ -41,8 +38,7 @@ public class ApiProjectsController : ControllerBase
 
         var project = await _projectService.CreateAsync(new Domain.Models.Project
         {
-            Name = dto.Name,
-            ComfyuiConfigJson = dto.ComfyuiConfigJson ?? ""
+            Name = dto.Name
         });
         return Ok(new { success = true, data = new { project.Id, project.Name } });
     }
@@ -54,27 +50,8 @@ public class ApiProjectsController : ControllerBase
         return Ok(new { success = true, message = "删除成功" });
     }
 
-    [HttpGet("{id}/comfyui-status")]
-    public async Task<IActionResult> GetComfyuiStatus(long id)
-    {
-        var project = await _projectService.GetByIdAsync(id);
-        var apiUrl = "http://localhost:8188";
-        if (!string.IsNullOrEmpty(project?.ComfyuiConfigJson))
-        {
-            try
-            {
-                var config = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(project.ComfyuiConfigJson);
-                apiUrl = config?.GetValueOrDefault("apiUrl") ?? apiUrl;
-            }
-            catch { }
-        }
-        var status = await _comfyuiConnectionService.TestConnectionAsync(apiUrl);
-        return Ok(new { success = true, data = status });
-    }
-
     public class ProjectCreateDto
     {
         public string Name { get; set; } = "";
-        public string? ComfyuiConfigJson { get; set; }
     }
 }
