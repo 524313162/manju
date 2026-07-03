@@ -1,0 +1,228 @@
+@{
+    ViewData["Title"] = "漫剧创作";
+    var project = ViewBag.Project as ManjuCraft.Domain.Models.Project;
+}
+
+@if (project == null)
+{
+    <div class="container">
+        <div class="empty-state">
+            <div class="empty-state-icon">&#128196;</div>
+            <p>请先选择一个项目</p>
+            <a href="@Url.Action("Index", "Projects")" class="btn btn-primary" style="margin-top:16px;">返回项目管理</a>
+        </div>
+    </div>
+    return;
+}
+
+<div class="prod-layout">
+    <div class="episode-sidebar">
+        <div class="episode-sidebar-header">
+            <a href="@Url.Action("Index", "Projects")" class="back-link">&laquo; 返回项目</a>
+            <h3 id="pName">@project.Name</h3>
+            <p id="pStatus">加载中...</p>
+        </div>
+        <div class="episode-list" id="epList"></div>
+        <div class="episode-sidebar-footer">
+            <button class="btn btn-primary btn-sm" style="width:100%;" onclick="extractAllAssets()">&#129302; 一键提取资产</button>
+            <a href="@Url.Action("Index", "Story", new { projectId = project.Id })" class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px;color:#a78bfa;display:block;text-align:center;">&#128214; 编辑剧本</a>
+        </div>
+    </div>
+
+    <div class="prod-main">
+        <div class="prod-toolbar">
+            <h2 id="mainTitle">漫剧创作</h2>
+            <div class="prod-tabs">
+                <div class="prod-tab active" data-tab="shots" onclick="switchTab('shots')">提取分镜</div>
+                <div class="prod-tab" data-tab="assets" onclick="switchTab('assets')">资产绑定</div>
+                <div class="prod-tab" data-tab="content" onclick="switchTab('content')">内容</div>
+            </div>
+        </div>
+        <div class="prod-content" style="padding:16px 24px;">
+            <div id="tab-shots" class="tab-panel"><div id="storyboardArea"></div></div>
+            <div id="tab-assets" class="tab-panel hidden"><div id="assetBindArea"></div></div>
+            <div id="tab-content" class="tab-panel hidden"><div id="contentArea"></div></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="previewModal">
+    <div class="modal" style="width:800px;text-align:center;">
+        <h3 id="previewTitle">预览</h3>
+        <div id="previewBody" style="min-height:200px;display:flex;align-items:center;justify-content:center;background:#f1f5f9;border-radius:8px;font-size:14px;color:var(--text3);">加载中...</div>
+        <div class="form-actions"><button class="btn btn-ghost" onclick="hideModal('previewModal')">关闭</button></div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="frameListModal">
+    <div class="modal" style="width:700px;">
+        <h3 id="frameListTitle">帧列表</h3>
+        <div id="frameListBody" style="max-height:55vh;overflow-y:auto;"></div>
+        <div class="form-actions"><button class="btn btn-ghost" onclick="hideModal('frameListModal')">关闭</button></div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="extractConfirmModal">
+    <div class="modal" style="width:640px;">
+        <h3>&#129302; 资产提取确认</h3>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:14px;">AI 从剧本内容中提取到以下资产，请勾选需要入库的：</p>
+        <div id="extractConfirmBody" style="max-height:45vh;overflow-y:auto;"></div>
+        <div class="form-actions">
+            <button class="btn btn-ghost" onclick="hideModal('extractConfirmModal')">取消</button>
+            <button class="btn btn-primary" onclick="confirmExtractAssets()">确认入库</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    var projectId = @project.Id;
+    var episodes = [], currentEpIdx = -1, currentTab = 'shots';
+    var _frameTemplates = [
+        { first: '晨曦微露，薄雾笼罩的村落全景', middle: '镜头缓缓扫过村庄，石板路上有早起的居民开始劳作', last: '视线逐渐拉远，远景渐入云海' },
+        { first: '主角从村口大步走来，身披斗篷腰佩长剑', middle: '中景跟拍主角穿过市集，周围村民纷纷侧目低语', last: '主角在镜头前停步，缓缓转身' },
+        { first: '面部大特写——主角瞳孔微颤，额头渗出细密汗珠', middle: '镜头缓慢前推至眼部特写', last: '特写维持在眉眼之间，一滴泪珠从眼角滑落' },
+        { first: '过肩镜头——主角肩部占据画面右下角', middle: '正反打切换至精灵少女近景', last: '镜头回到过肩视角，精灵少女收起长弓' },
+        { first: '一枚古朴的金色宝石悬浮于祭坛之上', middle: '镜头围绕宝石缓缓旋转，符文光纹逐渐变亮', last: '一只手从画面右侧缓缓伸入' },
+        { first: '全景俯拍——角色在古老的森林中穿行', middle: '镜头平移跟拍角色在森林中的奔跑', last: '角色冲出树林到达悬崖边缘，豁然开朗' },
+        { first: '超大远景——古战场遗迹横亘在荒原之上', middle: '镜头缓缓拉远，荒原上星罗棋布的篝火逐渐化为光点', last: '画面升向高空穿破云层' }
+    ];
+
+    (function(){ init(); })();
+
+    function init() {
+        document.getElementById('pName').textContent = '@project.Name';
+        loadData();
+    }
+
+    function loadData() {
+        episodes = [];
+        renderEpSidebar();
+        renderShotTab(); renderAssetTab(); renderContentTab();
+        var loaded = document.getElementById('pStatus');
+        loaded.textContent = episodes.length + ' 分集';
+        if (episodes.length === 0) {
+            showToast('暂无分集数据，请先创建剧本并提取分镜', 'info');
+        }
+    }
+
+    function renderEpSidebar() {
+        var h = '<div class="episode-item' + (currentEpIdx === -1 ? ' active' : '') + '" onclick="setEp(-1)">'
+            + '<span class="episode-num">ALL</span><div class="episode-info"><div class="episode-name">全部分集</div>'
+            + '<div class="episode-meta">' + episodes.length + ' 集</div></div></div>';
+        episodes.forEach(function(ep, i) {
+            h += '<div class="episode-item' + (i === currentEpIdx ? ' active' : '') + '" onclick="setEp(' + i + ')">'
+                + '<span class="episode-num">E' + (i+1) + '</span>'
+                + '<div class="episode-info"><div class="episode-name">' + ep.name + '</div>'
+                + '<div class="episode-meta">0 分镜</div></div></div>';
+        });
+        document.getElementById('epList').innerHTML = h;
+    }
+
+    function setEp(idx) {
+        currentEpIdx = idx;
+        renderEpSidebar();
+        document.getElementById('mainTitle').textContent = idx === -1 ? '全部分集' : episodes[idx].name;
+        if (currentTab === 'shots') renderShotTab();
+        else if (currentTab === 'assets') renderAssetTab();
+        else renderContentTab();
+    }
+
+    function switchTab(tab) {
+        currentTab = tab;
+        document.querySelectorAll('.prod-tab').forEach(function(t){ t.classList.remove('active'); if (t.dataset.tab === tab) t.classList.add('active'); });
+        document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.add('hidden'); });
+        document.getElementById('tab-' + tab).classList.remove('hidden');
+        if (tab === 'shots') renderShotTab();
+        else if (tab === 'assets') renderAssetTab();
+        else renderContentTab();
+    }
+
+    function renderShotTab() {
+        document.getElementById('storyboardArea').innerHTML = '<div class="no-content" style="text-align:center;padding:60px 20px;color:var(--text3);">'
+            + '<div class="icon" style="font-size:40px;margin-bottom:12px;">&#127916;</div>'
+            + '<p>暂无镜头</p><p style="font-size:12px;color:var(--text3);margin-top:8px;">'
+            + '<button class="btn btn-primary btn-sm" onclick="regenerateAll()">&#129302; 重新提取分镜</button></p></div>';
+    }
+
+    function renderAssetTab() {
+        document.getElementById('assetBindArea').innerHTML = '<div class="no-content" style="text-align:center;padding:60px 20px;color:var(--text3);">'
+            + '<div class="icon" style="font-size:40px;margin-bottom:12px;">&#127992;</div>'
+            + '<p>请先创建分集后绑定资产</p></div>';
+    }
+
+    function renderContentTab() {
+        document.getElementById('contentArea').innerHTML = '<div class="no-content" style="text-align:center;padding:60px 20px;color:var(--text3);">'
+            + '<div class="icon" style="font-size:40px;margin-bottom:12px;">&#128214;</div>'
+            + '<p>暂无内容</p></div>';
+    }
+
+    function regenerateAll() {
+        showToast('正在提取分镜...', 'info');
+        setTimeout(function() {
+            episodes = [
+                { id: 1, name: '第一集', content: '故事开始...' },
+                { id: 2, name: '第二集', content: '故事发展...' }
+            ];
+            renderEpSidebar();
+            document.getElementById('pStatus').textContent = episodes.length + ' 分集';
+
+            var shots = [];
+            var sid = 1;
+            episodes.forEach(function(ep, ei) {
+                for (var i = 0; i < 5; i++) {
+                    var t = _frameTemplates[i % _frameTemplates.length];
+                    shots.push({
+                        id: sid++, episodeId: ep.id,
+                        shotNumber: 'SH' + String(i+1).padStart(3,'0'),
+                        description: '镜头描述 ' + (i+1),
+                        shotSize: ['全景','中景','近景','特写','远景'][i % 5],
+                        cameraMovement: ['固定','前推','平移','跟随','拉远'][i % 5],
+                        duration: 6 + Math.floor(Math.random()*5),
+                        frames: [
+                            { frameType: 'First', description: t.first, startTime: 0, duration: 2, order: 0, hasImage: false },
+                            { frameType: 'Middle', description: t.middle, startTime: 2, duration: 2.5, order: 1, hasImage: false },
+                            { frameType: 'Last', description: t.last, startTime: 4.5, duration: 3.5, order: 2, hasImage: false }
+                        ],
+                        hasFirstFrame: false, hasVideo: false, assetRefs: '{"actor":[],"scene":[],"prop":[]}'
+                    });
+                }
+            });
+
+            window._shots = shots;
+            setEp(0);
+            showToast('分镜提取完成，共 ' + shots.length + ' 个', 'success');
+        }, 1000);
+    }
+
+    function extractAllAssets() {
+        showToast('AI 正在分析剧本提取资产...', 'info');
+        setTimeout(function() {
+            var extracted = {
+                Actor: [{ name: '英雄', desc: '勇敢正义的主人公' }, { name: '精灵射手', desc: '金发尖耳精灵' }],
+                Prop: [{ name: '神器', desc: '金色宝石' }],
+                Scene: [{ name: '村庄', desc: '宁静村落' }, { name: '森林', desc: '古老森林' }],
+                Bgm: [{ name: '主题曲', desc: '激昂管弦乐' }]
+            };
+            var body = '';
+            ['Actor','Prop','Scene','Bgm'].forEach(function(k) {
+                body += '<div style="margin-bottom:12px;"><h4 style="font-size:13px;font-weight:600;color:var(--text3);margin-bottom:6px;">'
+                    + {Actor:'角色',Prop:'道具',Scene:'场景',Bgm:'BGM'}[k] + '</h4>';
+                extracted[k].forEach(function(item, idx) {
+                    body += '<div class="extracted-item" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg);border-radius:6px;margin-bottom:4px;">'
+                        + '<div><div class="name" style="font-weight:600;font-size:13px;">' + item.name + '</div><div class="desc" style="font-size:11px;color:var(--text3);">' + item.desc + '</div></div>'
+                        + '<label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" checked></label></div>';
+                });
+                body += '</div>';
+            });
+            document.getElementById('extractConfirmBody').innerHTML = body;
+            showModal('extractConfirmModal');
+        }, 1200);
+    }
+
+    function confirmExtractAssets() {
+        hideModal('extractConfirmModal');
+        showToast('资产已入库', 'success');
+    }
+</script>
+}

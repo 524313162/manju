@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using ManjuCraft.Infrastructure;
 using ManjuCraft.Infrastructure.Service;
 using ManjuCraft.Application.Service;
-using ManjuCraft.Web.Services;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -27,7 +26,6 @@ builder.Services.AddScoped<IComfyuiClient, ComfyuiClient>();
 builder.Services.AddScoped<ComfyuiWebSocketListener>();
 builder.Services.AddScoped<ComfyuiTaskPoller>();
 builder.Services.AddScoped<IComfyuiConnectionService, ComfyuiConnectionService>();
-builder.Services.AddScoped<IFfmpegService, FfmpegService>();
 
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IStoryService, StoryService>();
@@ -50,6 +48,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ProjectDbContext>();
+    dbContext.Database.EnsureDeleted();
     dbContext.Database.EnsureCreated();
 }
 

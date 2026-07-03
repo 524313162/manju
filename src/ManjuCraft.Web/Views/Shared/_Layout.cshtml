@@ -1,48 +1,69 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@ViewData["Title"] — ManjuCraft</title>
-    <link rel="stylesheet" href="~/css/style.css?v=2026070116" />
-    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css" />
+    <link rel="stylesheet" href="~/css/style.css">
+    @RenderSection("Styles", required: false)
 </head>
+
 <body>
     <nav class="navbar">
         <div class="nav-left">
-            <h1 class="logo">
-                <a asp-controller="Home" asp-action="Index">ManjuCraft</a>
-            </h1>
-            <span class="subtitle">漫剧开发工具</span>
+            <a href="@Url.Action("Index", "Home")"
+               style="display:flex;align-items:baseline;gap:14px;text-decoration:none;">
+                <h1 class="logo">ManjuCraft</h1>
+                <span class="subtitle">漫剧开发工具</span>
+            </a>
         </div>
         <div class="nav-right">
-            @{
-                var currentController = Context.GetRouteValue("controller")?.ToString()?.ToLower();
-                var currentAction = Context.GetRouteValue("action")?.ToString()?.ToLower();
-            }
-            <a asp-controller="Home" asp-action="Index" class="nav-link @(currentController == "home" ? "active" : "")">首页</a>
-            <a asp-controller="Projects" asp-action="Index" class="nav-link @(currentController == "projects" ? "active" : "")">项目管理</a>
-            @if (ViewData["CurrentProjectId"] != null)
-            {
-                var projectId = ViewData["CurrentProjectId"];
-                <a asp-controller="Assets" asp-action="Index" asp-route-projectId="@projectId" class="nav-link @(currentController == "assets" ? "active" : "")">素材管理</a>
-                <a asp-controller="Episodes" asp-action="Index" asp-route-projectId="@projectId" class="nav-link @(currentController == "episodes" ? "active" : "")">分集分镜</a>
-                <a asp-controller="Settings" asp-action="Index" class="nav-link @(currentController == "settings" ? "active" : "")">设置</a>
-            }
+            <a href="@Url.Action("Index", "Home")"
+               class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Home" ? "active" : "")">首页</a>
+            <a href="@Url.Action("Index", "Projects")"
+               class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Projects" ? "active" : "")">项目管理</a>
+            <a href="@Url.Action("Index", "Story")"
+               class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Story" ? "active" : "")">剧本创作</a>
+            <a href="@Url.Action("Index", "Actors")"
+               class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Actors" ? "active" : "")">角色管理</a>
+            <a href="@Url.Action("Index", "Assets")"
+               class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Assets" ? "active" : "")">资产管理</a>
+            <a href="@Url.Action("Index", "Production")"
+               class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Production" ? "active" : "")">漫剧创作</a>
+            <a href="@Url.Action("Index", "Settings")"
+               class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Settings" ? "active" : "")">设置</a>
         </div>
     </nav>
 
-    <main class="container">
+    <main style="min-height:calc(100vh - 62px);">
         @RenderBody()
     </main>
 
-    <footer class="footer">
-        <p>ManjuCraft v1.0 — 漫剧开发工具</p>
-    </footer>
+    @if (ViewBag.HideFooter != true)
+    {
+        <footer class="footer">
+            <p>ManjuCraft v20260629 — 漫剧 AI 创作平台</p>
+        </footer>
+    }
 
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+    <script>
+    function showModal(id){document.getElementById(id).classList.add('show');}
+    function hideModal(id){document.getElementById(id).classList.remove('show');}
+    function showToast(msg,type){
+        type=type||'info';
+        var bg=type==='success'?'#d1fae5':type==='error'?'#fee2e2':'#e0e7ff';
+        var txt=type==='success'?'#15803d':type==='error'?'#b91c1c':'#4338ca';
+        var toast=document.createElement('div');
+        toast.style.cssText='position:fixed;top:80px;right:24px;background:'+bg+';color:'+txt+';padding:14px 24px;border-radius:8px;font-size:14px;font-weight:600;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.12);';
+        toast.textContent=msg;
+        document.body.appendChild(toast);
+        setTimeout(function(){toast.remove();},3000);
+    }
+    function tryJson(str,def){if(!str)return def;try{return JSON.parse(str)}catch(e){return def}}
+    </script>
     <script src="~/js/main.js"></script>
     @RenderSection("Scripts", required: false)
 </body>
+
 </html>

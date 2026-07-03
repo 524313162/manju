@@ -1,72 +1,31 @@
-@model ManjuCraft.Web.ViewModels.ProjectsIndexViewModel
 @{
     ViewData["Title"] = "首页";
-    Layout = "_Layout";
 }
 
-<section class="hero">
-    <h2>一站式漫剧开发工具</h2>
-    <p class="hero-desc">从故事创意到视频导出，自动管理漫画全流程。对接 ComfyUI 生成素材，降低制作成本，提升创作效率。</p>
-    <div class="hero-actions">
-        <a asp-controller="Projects" asp-action="Index" class="btn btn-primary">创建新项目</a>
-        <a asp-controller="Assets" asp-action="Index" class="btn btn-outline">管理素材资产</a>
-    </div>
-</section>
-
-<section class="feature-grid">
-    <div class="feature-card">
-        <div class="feature-icon">📖</div>
-        <h3>故事管理</h3>
-        <p>创建、编辑剧本，AI 逐章自动生成章节内容</p>
-    </div>
-    <div class="feature-card">
-        <div class="feature-icon">🎭</div>
-        <h3>演员资产</h3>
-        <p>管理角色信息，自动生成四视图提示词，对接 ComfyUI 生成角色立绘</p>
-    </div>
-    <div class="feature-card">
-        <div class="feature-icon">🏞️</div>
-        <h3>场景道具</h3>
-        <p>管理角色、道具、场景、BGM 素材，AI 生成对应图片</p>
-    </div>
-    <div class="feature-card">
-        <div class="feature-icon">🎬</div>
-        <h3>分集分镜</h3>
-        <p>按集组织分镜，拖拽排序，首帧图+提示词生成视频</p>
-    </div>
-    <div class="feature-card">
-        <div class="feature-icon">🤖</div>
-        <h3>ComfyUI 对接</h3>
-        <p>配置本地或远程 ComfyUI，AI 批量生成图片/视频/BGM</p>
-    </div>
-    <div class="feature-card">
-        <div class="feature-icon">🎥</div>
-        <h3>视频导出</h3>
-        <p>FFmpeg 自动合并所有镜头视频为完整成品</p>
-    </div>
-</section>
-
-@if (Model.Projects.Any())
-{
-    <section class="quick-stats">
-        <h3>当前项目概览</h3>
-        <div class="stat-cards">
-            <div class="stat-card">
-                <span class="stat-value">@Model.Projects.Count</span>
-                <span class="stat-label">活跃项目</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-value">@Model.Projects.Sum(p => p.Assets?.Count ?? 0)</span>
-                <span class="stat-label">素材</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-value">0</span>
-                <span class="stat-label">分集</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-value">0</span>
-                <span class="stat-label">分镜</span>
-            </div>
+<div class="container">
+    <section class="hero">
+        <h2>一站式漫剧创作平台</h2>
+        <p class="hero-desc">管理项目、创作剧本、提取资产、编排分镜分帧，全流程 AI 辅助制作漫剧。</p>
+        <div class="hero-actions">
+            <a href="@Url.Action("Index", "Projects")" class="btn btn-primary">进入项目管理 &raquo;</a>
         </div>
     </section>
-}
+
+    <section class="feature-grid" style="margin-top:0;">
+        <div class="feature-card">
+            <div class="feature-icon" style="background:#eef2ff;">&#128214;</div>
+            <h3>剧本创作</h3>
+            <p>AI 一键生成或手动逐章编写，支持增删改查</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon" style="background:#d1fae5;">&#127909;</div>
+            <h3>漫剧创作</h3>
+            <p>一键提取资产，分集分镜编排，帧级别精细控制</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon" style="background:#fef3c7;">&#127916;</div>
+            <h3>资产管理</h3>
+            <p>角色、道具、场景、BGM 统一管理，支持生图调用</p>
+        </div>
+    </section>
+</div>

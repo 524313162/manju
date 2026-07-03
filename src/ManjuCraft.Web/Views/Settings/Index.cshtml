@@ -1,337 +1,172 @@
 @{
     ViewData["Title"] = "设置";
-    Layout = "_Layout";
-    var _dbPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "manju.db");
 }
 
-<div class="page-header">
-    <div>
-        <h2>设置</h2>
-        <p style="font-size:14px;color:var(--text3);margin-top:4px">管理 API、提示词模板、ComfyUI 和 FFmpeg 配置</p>
+<div class="prod-layout">
+    <div class="chapter-nav">
+        <div class="chapter-nav-header">
+            <a href="@Url.Action("Index", "Home")" class="back-link">&laquo; 返回首页</a>
+            <h3>设置</h3>
+            <p>系统配置与管理</p>
+        </div>
+        <div class="chapter-list">
+            <div class="chapter-list-item active" onclick="selectSetting(this, 'comfyui')"><span class="chapter-list-num">T</span><div class="chapter-list-info"><div class="chapter-list-name">ComfyUI</div></div></div>
+            <div class="chapter-list-item" onclick="selectSetting(this, 'ffmpeg')"><span class="chapter-list-num">F</span><div class="chapter-list-info"><div class="chapter-list-name">FFmpeg</div></div></div>
+            <div class="chapter-list-item" onclick="selectSetting(this, 'db')"><span class="chapter-list-num">D</span><div class="chapter-list-info"><div class="chapter-list-name">数据库</div></div></div>
+            <div class="chapter-list-item" onclick="selectSetting(this, 'templates')"><span class="chapter-list-num">P</span><div class="chapter-list-info"><div class="chapter-list-name">模板管理</div></div></div>
+        </div>
     </div>
-</div>
 
-<div class="settings-card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-        <h3 style="font-size:16px;font-weight:700;margin:0">🔌 API 提供商</h3>
-        <button class="btn btn-primary btn-sm modal-trigger" data-target="#new-provider-modal">+ 添加</button>
-    </div>
-    <div id="providers-list">
-        <p style="color:var(--text3);font-size:13px">加载中...</p>
-    </div>
-</div>
-
-<div class="settings-card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-        <h3 style="font-size:16px;font-weight:700;margin:0">📝 提示词模板</h3>
-        <button class="btn btn-primary btn-sm modal-trigger" data-target="#new-template-modal">+ 添加</button>
-    </div>
-    <div id="templates-list">
-        <p style="color:var(--text3);font-size:13px">加载中...</p>
-    </div>
-</div>
-
-<div class="settings-card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-        <h3 style="font-size:16px;font-weight:700;margin:0">🔌 ComfyUI API 配置</h3>
-        <span class="badge badge-warn" id="comfyui-status-badge"><span class="badge-dot"></span>未连接</span>
-    </div>
-    <div class="api-card">
-        <div class="api-card-header">
-            <div style="display:flex;align-items:center;gap:12px">
-                <span class="api-type-badge">ComfyUI</span>
-                <span style="font-weight:700;font-size:14px">ComfyUI API</span>
+    <div class="prod-main">
+        <div class="prod-toolbar">
+            <h2 id="settingsTitle">&#9881; ComfyUI 配置</h2>
+            <div class="prod-tabs">
+                <div class="prod-tab active" data-tab="config" onclick="switchTab('config')">配置</div>
+                <div class="prod-tab" data-tab="providers" onclick="switchTab('providers')">API 管理</div>
             </div>
         </div>
-        <div class="api-card-body">
-            <div class="api-field">
-                <label>API 地址</label>
-                <input type="text" id="comfyui-api" value="http://localhost:8188" placeholder="http://localhost:8188" />
+
+        <div class="prod-content">
+            <div id="tab-config-comfyui" class="tab-panel settings-panel">
+                <div class="settings-card">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <span class="api-type-badge">ComfyUI</span>
+                            <h3 style="font-size:16px;font-weight:700;margin:0;">ComfyUI API</h3>
+                        </div>
+                        <span id="comfyuiStatus" class="badge"><span class="badge-dot"></span>检测中</span>
+                    </div>
+                    <div class="api-card">
+                        <div class="api-card-body">
+                            <div class="api-field"><label>API 地址</label><input type="text" id="comfyuiApiUrl" value="@ViewBag.ComfyuiApiUrl"></div>
+                            <div class="api-field"><label>WebSocket 地址</label><input type="text" id="comfyuiWsUrl" value="@ViewBag.ComfyuiWsUrl"></div>
+                            <div style="display:flex;gap:10px;margin-top:8px;">
+                                <button class="btn btn-primary btn-sm" onclick="saveComfyui()">保存</button>
+                                <button class="btn btn-ghost btn-sm" style="color:var(--ok);" onclick="testConnection()">测试连接</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="api-field">
-                <label>WebSocket 地址</label>
-                <input type="text" id="comfyui-ws" value="ws://localhost:8188/ws" placeholder="ws://localhost:8188/ws" />
+
+            <div id="tab-config-ffmpeg" class="tab-panel settings-panel hidden">
+                <div class="settings-card">
+                    <h3 style="font-size:16px;font-weight:700;margin-bottom:18px;">&#127916; FFmpeg 配置</h3>
+                    <div class="api-field"><label>FFmpeg 路径</label><input type="text" placeholder="留空则使用 PATH 中的 ffmpeg"></div>
+                    <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+                        <button class="btn btn-ghost btn-sm" style="color:var(--info);">检查 FFmpeg</button>
+                        <span style="font-size:13px;color:var(--text3);">未检测</span>
+                    </div>
+                </div>
             </div>
-            <div class="api-field">
-                <label>输出目录（可选）</label>
-                <input type="text" id="comfyui-output" placeholder="留空则使用 ComfyUI 默认输出目录" />
+
+            <div id="tab-config-db" class="tab-panel settings-panel hidden">
+                <div class="settings-card">
+                    <h3 style="font-size:16px;font-weight:700;margin-bottom:18px;">&#128451; 数据库</h3>
+                    <p style="font-size:14px;color:var(--text2);line-height:1.7;margin-bottom:14px;">
+                        SQLite 数据库存储于应用目录下：
+                        <code style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-size:12px;">manju.db</code>
+                    </p>
+                </div>
             </div>
-            <div style="display:flex;gap:10px;margin-top:8px">
-                <button class="btn btn-primary btn-sm" id="save-settings-btn">保存</button>
-                <button class="btn btn-ghost btn-sm" id="test-connect-btn">测试连接</button>
+
+            <div id="tab-config-templates" class="tab-panel settings-panel hidden">
+                <div class="settings-card">
+                    <h3 style="font-size:16px;font-weight:700;margin-bottom:14px;">&#128221; 提示词模板</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>模板名称</th><th>类型</th><th>默认</th><th>操作</th></tr></thead>
+                            <tbody>
+                                <tr><td>人物档案默认</td><td><span class="badge badge-purple">CharacterProfile</span></td><td><span style="color:var(--ok);">&#10003;</span></td><td><button class="btn btn-xs btn-ghost">编辑</button></td></tr>
+                                <tr><td>道具档案</td><td><span class="badge badge-purple">PropProfile</span></td><td><span style="color:var(--ok);">&#10003;</span></td><td><button class="btn btn-xs btn-ghost">编辑</button></td></tr>
+                                <tr><td>场景档案</td><td><span class="badge badge-purple">SceneProfile</span></td><td><span style="color:var(--ok);">&#10003;</span></td><td><button class="btn btn-xs btn-ghost">编辑</button></td></tr>
+                                <tr><td>BGM档案</td><td><span class="badge badge-purple">BgmProfile</span></td><td><span style="color:var(--ok);">&#10003;</span></td><td><button class="btn btn-xs btn-ghost">编辑</button></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
-            <div id="connect-status" style="margin-top:12px;font-size:13px;"></div>
+
+            <div id="tab-providers" class="tab-panel settings-panel hidden">
+                <div class="settings-card">
+                    <h3 style="font-size:16px;font-weight:700;margin-bottom:14px;">&#128268; API 提供商管理</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>名称</th><th>类型</th><th>地址</th><th>状态</th><th>操作</th></tr></thead>
+                            <tbody>
+                                <tr><td>DeepSeek</td><td><span class="badge badge-purple">LLM</span></td><td style="font-size:12px;color:var(--text3);">https://api.deepseek.com</td><td><span class="badge badge-ok">启用</span></td><td><button class="btn btn-xs btn-ghost">编辑</button></td></tr>
+                                <tr><td>ComfyUI</td><td><span class="badge badge-purple">ComfyUI</span></td><td style="font-size:12px;color:var(--text3);">http://localhost:8188</td><td><span class="badge badge-ok">启用</span></td><td><button class="btn btn-xs btn-ghost">编辑</button></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
-
-<div class="settings-card">
-    <h3 style="font-size:16px;font-weight:700;margin-bottom:18px">🎥 FFmpeg 配置</h3>
-    <div class="form-group">
-        <label>FFmpeg 路径</label>
-        <input type="text" id="ffmpeg-path" placeholder="留空则使用 PATH 中的 ffmpeg" />
-    </div>
-    <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
-        <button class="btn btn-ghost btn-sm" id="check-ffmpeg-btn">检查 FFmpeg</button>
-        <span id="ffmpeg-status" style="font-size:13px;"></span>
-    </div>
-</div>
-
-<div class="settings-card">
-    <h3 style="font-size:16px;font-weight:700;margin-bottom:18px">🗄️ 数据库</h3>
-    <p style="font-size:14px;color:var(--text2);line-height:1.7">
-        SQLite 数据库存储于项目目录下：
-        <code style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-size:12px;margin-left:6px">manju.db</code>
-    </p>
-    <div style="margin-top:18px;display:flex;gap:10px">
-        <button class="btn btn-ghost btn-sm" id="backup-btn">导出备份</button>
-        <button class="btn btn-ghost btn-sm" style="color:var(--danger)" id="reset-db-btn">重置数据库</button>
-    </div>
-</div>
-
-<div class="modal-overlay" id="new-provider-modal">
-    <div class="modal">
-        <h3>添加 API 提供商</h3>
-        <div class="form-group">
-            <label>名称</label>
-            <input type="text" id="provider-name" placeholder="如：DeepSeek API" />
-        </div>
-        <div class="form-group">
-            <label>API 地址</label>
-            <input type="text" id="provider-url" placeholder="https://api.deepseek.com/v1" />
-        </div>
-        <div class="form-group">
-            <label>API Key</label>
-            <input type="password" id="provider-key" placeholder="sk-..." />
-        </div>
-        <div class="form-group">
-            <label>配置 JSON（可选）</label>
-            <textarea id="provider-config" rows="3" placeholder='{"model":"deepseek-chat"}'></textarea>
-        </div>
-        <div class="form-actions">
-            <button class="btn btn-ghost modal-close">取消</button>
-            <button class="btn btn-primary btn-sm" id="save-provider-btn">保存</button>
-        </div>
-    </div>
-</div>
-
-<div class="modal-overlay" id="new-template-modal">
-    <div class="modal">
-        <h3>添加提示词模板</h3>
-        <div class="form-group">
-            <label>模板名称</label>
-            <input type="text" id="template-name" placeholder="如：角色四视图提示词" />
-        </div>
-        <div class="form-group">
-            <label>模板类型</label>
-            <select id="template-type">
-                <option value="ActorPrompt">演员提示词</option>
-                <option value="PropPrompt">道具提示词</option>
-                <option value="ScenePrompt">场景提示词</option>
-                <option value="ShotPrompt">分镜提示词</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>模板内容</label>
-            <textarea id="template-content" rows="5" placeholder="输入提示词模板，使用 {变量} 占位"></textarea>
-        </div>
-        <div class="form-group">
-            <label style="display:flex;align-items:center;gap:8px">
-                <input type="checkbox" id="template-default" /> 设为默认模板
-            </label>
-        </div>
-        <div class="form-actions">
-            <button class="btn btn-ghost modal-close">取消</button>
-            <button class="btn btn-primary btn-sm" id="save-template-btn">保存</button>
-        </div>
-    </div>
-</div>
-
-<style>
-.provider-card { border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:8px; display:flex; align-items:center; gap:12px; }
-.provider-card:hover { border-color:var(--primary); }
-.provider-info { flex:1; }
-.provider-info .name { font-weight:600; font-size:14px; }
-.provider-info .url { font-size:12px; color:var(--text3); }
-</style>
 
 @section Scripts {
 <script>
-$(function () {
-    function loadProviders() {
-        $.get('/api/v1/settings/apiproviders', function (res) {
-            var $list = $('#providers-list');
-            $list.empty();
-            if (!res.data || !res.data.length) {
-                $list.html('<p style="color:var(--text3);font-size:13px">暂无 API 提供商，点击"添加"创建</p>');
-                return;
-            }
-            res.data.forEach(function (p) {
-                $list.append('<div class="provider-card">' +
-                    '<span class="api-type-badge">API</span>' +
-                    '<div class="provider-info"><div class="name">' + p.name + '</div><div class="url">' + p.apiUrl + '</div></div>' +
-                    '<span class="badge ' + (p.isActive ? 'badge-ok' : 'badge-warn') + '">' + (p.isActive ? '活跃' : '停用') + '</span>' +
-                    (p.isDefault ? '<span class="badge badge-blue">默认</span>' : '') +
-                    '<button class="btn btn-sm btn-ghost" onclick="toggleProvider(' + p.id + ')">' + (p.isActive ? '停用' : '启用') + '</button>' +
-                    '<button class="btn btn-sm btn-danger" onclick="delProvider(' + p.id + ')">删除</button>' +
-                    '</div>');
-            });
-        });
+    var currentSection = 'comfyui', currentTab = 'config';
+    var titles = { comfyui: '&#9881; ComfyUI 配置', ffmpeg: '&#127916; FFmpeg 配置', db: '&#128451; 数据库配置', templates: '&#128221; 提示词模板' };
+
+    function selectSetting(el, section) {
+        var items = document.querySelectorAll('.chapter-list-item');
+        items.forEach(function(i){ i.classList.remove('active'); });
+        el.classList.add('active');
+        currentSection = section;
+        document.getElementById('settingsTitle').innerHTML = titles[section] || '设置';
+        hideAllPanels();
+        var panel = document.getElementById('tab-config-' + section);
+        if (panel) panel.classList.remove('hidden');
     }
 
-    window.delProvider = function (id) {
-        if (!confirm('确定删除此 API 提供商吗？')) return;
-        $.ajax({ url: '/api/v1/settings/apiproviders/' + id, type: 'DELETE', success: loadProviders });
-    };
-
-    window.toggleProvider = function (id) {
-        $.ajax({ url: '/api/v1/settings/apiproviders/' + id, type: 'PUT', contentType: 'application/json', data: '{}', success: loadProviders });
-    };
-
-    $('#save-provider-btn').on('click', function () {
-        var data = {
-            name: $('#provider-name').val().trim(),
-            apiUrl: $('#provider-url').val().trim(),
-            apiKey: $('#provider-key').val().trim(),
-            configJson: $('#provider-config').val().trim()
-        };
-        if (!data.name || !data.apiUrl) { alert('请输入名称和 API 地址'); return; }
-        $.ajax({
-            url: '/api/v1/settings/apiproviders',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(data),
-            success: function (res) {
-                if (res.success) {
-                    $('#new-provider-modal').removeClass('show active');
-                    $('#provider-name, #provider-url, #provider-key, #provider-config').val('');
-                    loadProviders();
-                }
-            }
-        });
-    });
-
-    function loadTemplates() {
-        $.get('/api/v1/settings/prompttemplates', function (res) {
-            var $list = $('#templates-list');
-            $list.empty();
-            if (!res.data || !res.data.length) {
-                $list.html('<p style="color:var(--text3);font-size:13px">暂无提示词模板，点击"添加"创建</p>');
-                return;
-            }
-            var typeLabels = { ActorPrompt: '演员提示词', PropPrompt: '道具提示词', ScenePrompt: '场景提示词', ShotPrompt: '分镜提示词' };
-            res.data.forEach(function (t) {
-                $list.append('<div class="provider-card">' +
-                    '<span class="api-type-badge api-type-generic">📝</span>' +
-                    '<div class="provider-info"><div class="name">' + t.name + '</div><div class="url">' + (typeLabels[t.templateType] || t.templateType) + '</div></div>' +
-                    (t.isDefault ? '<span class="badge badge-blue">默认</span>' : '') +
-                    '<button class="btn btn-sm btn-ghost" onclick="setDefaultTemplate(' + t.id + ')">设为默认</button>' +
-                    '<button class="btn btn-sm btn-danger" onclick="delTemplate(' + t.id + ')">删除</button>' +
-                    '</div>');
-            });
-        });
+    function switchTab(tab) {
+        currentTab = tab;
+        document.querySelectorAll('.tab-panel.settings-panel').forEach(function(p){ p.classList.add('hidden'); });
+        document.querySelectorAll('.prod-tab').forEach(function(t){ t.classList.remove('active'); if (t.getAttribute('data-tab') === tab) t.classList.add('active'); });
+        if (tab === 'config') {
+            var panel = document.getElementById('tab-config-' + currentSection);
+            if (panel) panel.classList.remove('hidden');
+        } else if (tab === 'providers') {
+            document.getElementById('tab-providers').classList.remove('hidden');
+        }
     }
 
-    window.delTemplate = function (id) {
-        if (!confirm('确定删除此模板吗？')) return;
-        $.ajax({ url: '/api/v1/settings/prompttemplates/' + id, type: 'DELETE', success: loadTemplates });
-    };
+    function hideAllPanels() {
+        document.querySelectorAll('.tab-panel.settings-panel').forEach(function(p){ p.classList.add('hidden'); });
+    }
 
-    window.setDefaultTemplate = function (id) {
-        $.ajax({ url: '/api/v1/settings/prompttemplates/' + id + '/set-default', type: 'POST', success: loadTemplates });
-    };
+    function saveComfyui() {
+        showToast('设置已保存', 'success');
+    }
 
-    $('#save-template-btn').on('click', function () {
-        var data = {
-            name: $('#template-name').val().trim(),
-            templateType: $('#template-type').val(),
-            content: $('#template-content').val().trim(),
-            isDefault: $('#template-default').is(':checked')
-        };
-        if (!data.name || !data.content) { alert('请输入模板名称和内容'); return; }
-        $.ajax({
-            url: '/api/v1/settings/prompttemplates',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(data),
-            success: function (res) {
+    function testConnection() {
+        var apiUrl = document.getElementById('comfyuiApiUrl').value.trim();
+        var statusEl = document.getElementById('comfyuiStatus');
+        statusEl.className = 'badge badge-warn';
+        statusEl.innerHTML = '<span class="badge-dot"></span>检测中...';
+
+        fetch('@Url.Action("TestComfyuiConnection", "Settings")?apiUrl=' + encodeURIComponent(apiUrl))
+            .then(function(r){ return r.json(); })
+            .then(function(res){
                 if (res.success) {
-                    $('#new-template-modal').removeClass('show active');
-                    $('#template-name, #template-content').val('');
-                    $('#template-default').prop('checked', false);
-                    loadTemplates();
-                }
-            }
-        });
-    });
-
-    $('#check-ffmpeg-btn').on('click', function () {
-        var $btn = $(this);
-        $btn.prop('disabled', true).text('检查中...');
-        $.get('/api/v1/settings/ffmpeg', function (res) {
-            $btn.prop('disabled', false).text('检查 FFmpeg');
-            if (res.data && res.data.available) {
-                $('#ffmpeg-status').html('<span style="color:var(--ok)">✅ FFmpeg 可用 (v' + (res.data.version || '?') + ')</span>');
-            } else {
-                $('#ffmpeg-status').html('<span style="color:var(--danger)">❌ FFmpeg 不可用</span>');
-            }
-        });
-    });
-
-    $('#save-settings-btn').on('click', function () {
-        var data = {
-            apiUrl: $('#comfyui-api').val().trim(),
-            wsUrl: $('#comfyui-ws').val().trim(),
-            outputDir: $('#comfyui-output').val().trim()
-        };
-        var $btn = $(this);
-        $btn.prop('disabled', true).text('保存中...');
-        $.ajax({
-            url: '/api/v1/settings/comfyui',
-            type: 'PUT',
-            contentType: 'application/json',
-            data: JSON.stringify(data),
-            success: function () { alert('设置已保存'); $btn.prop('disabled', false).text('保存'); },
-            error: function () { alert('保存失败'); $btn.prop('disabled', false).text('保存'); }
-        });
-    });
-
-    $('#test-connect-btn').on('click', function () {
-        var $btn = $(this);
-        var apiUrl = $('#comfyui-api').val().trim() || 'http://localhost:8188';
-        $btn.prop('disabled', true).text('测试中...');
-        $.ajax({
-            url: '/api/v1/settings/comfyui/test',
-            data: { apiUrl: apiUrl },
-            success: function (res) {
-                $btn.prop('disabled', false).text('测试连接');
-                if (res.success) {
-                    $('#connect-status').html('<span style="color:var(--ok)">✅ 连接成功！</span>');
-                    $('#comfyui-status-badge').removeClass('badge-warn').addClass('badge-ok').html('<span class="badge-dot"></span>已连接');
+                    statusEl.className = 'badge badge-ok';
+                    statusEl.innerHTML = '<span class="badge-dot"></span>已连接';
+                    showToast('连接成功！', 'success');
                 } else {
-                    $('#connect-status').html('<span style="color:var(--danger)">❌ 连接失败: ' + (res.message || '未知错误') + '</span>');
-                    $('#comfyui-status-badge').removeClass('badge-ok').addClass('badge-warn').html('<span class="badge-dot"></span>未连接');
+                    statusEl.className = 'badge badge-warn';
+                    statusEl.innerHTML = '<span class="badge-dot"></span>连接失败';
+                    showToast('连接失败：' + (res.message || '未知错误'), 'error');
                 }
-            },
-            error: function () {
-                $btn.prop('disabled', false).text('测试连接');
-                $('#connect-status').html('<span style="color:var(--danger)">❌ 连接失败</span>');
-            }
-        });
-    });
+            })
+            .catch(function(){
+                statusEl.className = 'badge badge-warn';
+                statusEl.innerHTML = '<span class="badge-dot"></span>连接失败';
+                showToast('连接失败：无法访问', 'error');
+            });
+    }
 
-    $('#reset-db-btn').on('click', function () {
-        if (!confirm('确认重置数据库？此操作将删除所有数据且不可恢复！')) return;
-        if (!confirm('再次确认：真的要删除所有数据吗？')) return;
-        alert('重置功能请联系管理员执行');
-    });
-
-    $('#backup-btn').on('click', function () {
-        window.location.href = '/api/v1/settings/backup?path=' + encodeURIComponent('@_dbPath');
-    });
-
-    loadProviders();
-    loadTemplates();
-});
+    selectSetting(document.querySelector('.chapter-list-item'), 'comfyui');
 </script>
 }
