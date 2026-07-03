@@ -9,9 +9,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Application\ManjuCraft.Application.csproj" />
-    <ProjectReference Include="..\Domain\ManjuCraft.Domain.csproj" />
-    <ProjectReference Include="..\Infrastructure\ManjuCraft.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Application\ManjuCraft.Application.csproj" />
+    <ProjectReference Include="..\..\Domain\ManjuCraft.Domain.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\ManjuCraft.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
