@@ -1,9 +1,10 @@
 {
+  "$schema": "http://json.schemastore.org/launchsettings.json",
   "profiles": {
     "ComfyuiProxy.Web": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "launchBrowser": false,
+      "launchBrowser": true,
       "applicationUrl": "http://localhost:8288",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
