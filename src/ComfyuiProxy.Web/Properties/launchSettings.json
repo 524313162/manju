@@ -1,20 +1,10 @@
 {
-  "$schema": "https://json.schemastore.org/launchsettings.json",
   "profiles": {
-    "http": {
+    "ComfyuiProxy.Web": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "launchBrowser": true,
-      "applicationUrl": "http://localhost:5212",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      }
-    },
-    "https": {
-      "commandName": "Project",
-      "dotnetRunMessages": true,
-      "launchBrowser": true,
-      "applicationUrl": "https://localhost:7163;http://localhost:5212",
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:8288",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }

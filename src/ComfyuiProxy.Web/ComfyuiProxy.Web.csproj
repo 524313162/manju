@@ -4,12 +4,17 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ComfyuiProxy.Web</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Domain\ManjuCraft.Domain.csproj" />
     <ProjectReference Include="..\Application\ManjuCraft.Application.csproj" />
     <ProjectReference Include="..\Infrastructure\ManjuCraft.Infrastructure.csproj" />
-    <ProjectReference Include="..\Domain\ManjuCraft.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

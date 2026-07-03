@@ -1,5 +1,6 @@
-using ManjuCraft.Domain.Models;
 using ComfyuiProxy.Web.Services;
+using ManjuCraft.Domain.Models;
+using ManjuCraft.Domain.Models.ComfyUI;
 using ManjuCraft.Infrastructure.Service;
 using Microsoft.Extensions.Options;
 using Serilog;
@@ -21,12 +22,12 @@ builder.Services.Configure<ComfyuiOptions>(options =>
 });
 
 // 依赖注入
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
 builder.Services.AddControllers();
 builder.Services.AddScoped<IComfyuiClient, ComfyuiClient>();
 builder.Services.AddScoped<ComfyuiProxyService>();
 builder.Services.AddSingleton<TaskManager>();
-builder.Services.AddSingleton<IFileStorageService, ProxyFileStorageService>();
 
 var app = builder.Build();
 
@@ -40,8 +41,16 @@ app.UseHttpsRedirection();
 app.UseRouting();
 app.UseAuthorization();
 
-var logger = app.Services.GetRequiredService<ILogger<Program>>();
+var logger = app.Services.GetRequiredService<Serilog.ILogger>();
 var comfyuiOptions = app.Services.GetRequiredService<IOptionsSnapshot<ComfyuiOptions>>();
+
+// 静态文件服务 — 输出文件
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+        Path.Combine(AppContext.BaseDirectory, "output")),
+    RequestPath = "/output"
+});
 
 // GET / — 健康概览
 app.MapGet("/", async (ComfyuiProxyService service, TaskManager taskMgr) =>
@@ -49,7 +58,12 @@ app.MapGet("/", async (ComfyuiProxyService service, TaskManager taskMgr) =>
     try
     {
         var status = await service.CheckComfyuiStatusAsync();
-        return Results.Json(new { status, version = "1.0.0", queueLength = taskMgr.QueueLength });
+        return Results.Json(new
+        {
+            status,
+            version = "1.0.0",
+            queueLength = taskMgr.QueueLength
+        });
     }
     catch
     {
@@ -68,11 +82,17 @@ app.MapPost("/api/generate", async (GenerateRequest request, ComfyuiProxyService
         {
             try
             {
-                var promptId = await service.SubmitAsync(request.WorkflowType, request.Prompt, request.PositivePrompt, request.ImageUrl);
-                taskMgr.Update(taskId, "running", 10, outputPath: promptId);
+                var (promptId, error) = await service.SubmitAsync(request);
+                if (error != null)
+                {
+                    logger.Error("提交失败: {Error}", error);
+                    taskMgr.Update(taskId, "failed", 0, error: error);
+                    return;
+                }
+
+                taskMgr.Update(taskId, "running", 10, node: promptId);
 
                 var outputs = await service.PollAsync(promptId);
-                // PollAsync 返回 Dictionary<string, ComfyuiHistoryNodeOutputs>
                 var outputPath = await service.DownloadOutputAsync(outputs);
 
                 if (!string.IsNullOrEmpty(outputPath))
@@ -84,9 +104,14 @@ app.MapPost("/api/generate", async (GenerateRequest request, ComfyuiProxyService
                     taskMgr.Update(taskId, "failed", 0, error: "未找到输出文件");
                 }
             }
+            catch (TimeoutException)
+            {
+                logger.Error("任务 {TaskId} 超时", taskId);
+                taskMgr.Update(taskId, "failed", 0, error: "任务超时");
+            }
             catch (Exception ex)
             {
-                logger.LogError(ex, "任务 {TaskId} 失败", taskId);
+                logger.Error(ex, "任务 {TaskId} 失败", taskId);
                 taskMgr.Update(taskId, "failed", 0, error: ex.Message);
             }
         });
@@ -113,7 +138,7 @@ app.MapPost("/api/generate", async (GenerateRequest request, ComfyuiProxyService
 // GET /api/tasks — 获取所有任务
 app.MapGet("/api/tasks", (TaskManager taskMgr) =>
 {
-    return Results.Json(taskMgr.All());
+    return Results.Json(taskMgr.All().OrderByDescending(t => t.CreatedAt));
 });
 
 // GET /api/tasks/{id} — 获取单个任务
@@ -127,8 +152,7 @@ app.MapGet("/api/tasks/{id}", (string id, TaskManager taskMgr) =>
         TaskId = task.Id,
         Status = task.Status,
         Progress = task.Progress,
-        Result = !string.IsNullOrEmpty(task.OutputPath) ?
-            new GenerateResult { Url = task.OutputPath } : null,
+        Result = task.Result,
         Error = task.Error
     };
 
@@ -136,7 +160,15 @@ app.MapGet("/api/tasks/{id}", (string id, TaskManager taskMgr) =>
 });
 
 // GET /api/health — 健康检查
-app.MapGet("/api/health", () =>
-    Results.Json(new HealthResponse { Status = "ok", Version = "1.0.0" }));
+app.MapGet("/api/health", async (ComfyuiProxyService service) =>
+{
+    var comfyuiOk = await service.CheckComfyuiStatusAsync();
+    return Results.Json(new HealthResponse
+    {
+        Status = comfyuiOk ? "ok" : "degraded",
+        Version = "1.0.0",
+        ComfyuiStatus = comfyuiOk ? "connected" : "disconnected"
+    });
+});
 
 app.Run();
