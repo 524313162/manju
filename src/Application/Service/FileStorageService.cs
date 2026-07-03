@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Hosting;
-using ManjuCraft.Infrastructure.Service;
 
 namespace ManjuCraft.Application.Service
 {

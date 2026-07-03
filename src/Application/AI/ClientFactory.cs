@@ -48,61 +48,18 @@ public class AiClientRegistry : IAiClientRegistry
 
     public ITextToImageClient? GetTextToImageClient(ApiProvider provider)
     {
-        var loggerFactory = _services.GetRequiredService<ILoggerFactory>();
-        var name = (provider.Name ?? "").ToLowerInvariant();
-
-        if (name.Contains("comfyui"))
-        {
-            var logger = loggerFactory.CreateLogger<ComfyUiClient>();
-            return new ComfyUiClient(provider.ApiUrl, logger)
-            { Capability = AiCapability.TextToImage };
-        }
-
         return null;
     }
 
     public ITextToAudioClient? GetTextToAudioClient(ApiProvider provider)
     {
-        var loggerFactory = _services.GetRequiredService<ILoggerFactory>();
-        var name = (provider.Name ?? "").ToLowerInvariant();
-
-        if (name.Contains("comfyui"))
-        {
-            var logger = loggerFactory.CreateLogger<ComfyUiClient>();
-            // ComfyUiClient 需要额外的音频实现，返回null暂用
-            return null;
-        }
-
         return null;
     }
 
     public ITextToVideoClient? GetTextToVideoClient(ApiProvider provider)
     {
-        var loggerFactory = _services.GetRequiredService<ILoggerFactory>();
-        var name = (provider.Name ?? "").ToLowerInvariant();
-
-        if (name.Contains("comfyui"))
-        {
-            var logger = loggerFactory.CreateLogger<ComfyUiClient>();
-            return new ComfyUiClient(provider.ApiUrl, logger)
-            { Capability = AiCapability.TextToVideo };
-        }
-
         return null;
     }
 
-    public IImageToVideoClient? GetImageToVideoClient(ApiProvider provider)
-    {
-        var loggerFactory = _services.GetRequiredService<ILoggerFactory>();
-        var name = (provider.Name ?? "").ToLowerInvariant();
-
-        if (name.Contains("comfyui"))
-        {
-            var logger = loggerFactory.CreateLogger<ComfyUiClient>();
-            return new ComfyUiClient(provider.ApiUrl, logger)
-            { Capability = AiCapability.ImageToVideo };
-        }
-
-        return null;
-    }
+    public IImageToVideoClient? GetImageToVideoClient(ApiProvider provider) => null;
 }

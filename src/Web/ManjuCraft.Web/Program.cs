@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
 using ManjuCraft.Infrastructure;
-using ManjuCraft.Infrastructure.Service;
 using ManjuCraft.Application.Service;
 using ManjuCraft.Application.AI;
 
@@ -26,10 +25,10 @@ builder.Services.AddDbContext<ProjectDbContext>(options =>
 builder.Services.AddScoped<IProjectDbContext>(sp => sp.GetRequiredService<ProjectDbContext>());
 
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
-builder.Services.AddScoped<IComfyuiClient, ComfyuiClient>();
-builder.Services.AddScoped<ComfyuiWebSocketListener>();
-builder.Services.AddScoped<ComfyuiTaskPoller>();
-builder.Services.AddScoped<IComfyuiConnectionService, ComfyuiConnectionService>();
+//builder.Services.AddScoped<IComfyuiClient, ComfyuiClient>();
+//builder.Services.AddScoped<ComfyuiWebSocketListener>();
+//builder.Services.AddScoped<ComfyuiTaskPoller>();
+//builder.Services.AddScoped<IComfyuiConnectionService, ComfyuiConnectionService>();
 
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IStoryService, StoryService>();

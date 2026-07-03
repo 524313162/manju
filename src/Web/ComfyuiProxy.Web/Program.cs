@@ -1,7 +1,3 @@
-using ComfyuiProxy.Web.Services;
-using ManjuCraft.Domain.Models;
-using ManjuCraft.Domain.Models.ComfyUI;
-using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using Serilog;
 using Serilog.Events;
@@ -14,19 +10,6 @@ Log.Logger = new LoggerConfiguration()
 .CreateLogger();
 
 builder.Host.UseSerilog(Log.Logger);
-
-// ComfyUI 连接配置
-builder.Services.Configure<ComfyuiOptions>(options =>
-{
-    options.BaseUrl = builder.Configuration.GetValue<string>("ComfyUI:BaseUrl") ?? "http://localhost:8188";
-});
-
-// 依赖注入
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddHttpClient();
-builder.Services.AddControllers();
-builder.Services.AddScoped<ComfyuiProxyService>();
-builder.Services.AddSingleton<TaskManager>();
 
 // Swagger 配置
 builder.Services.AddEndpointsApiExplorer();

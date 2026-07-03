@@ -20,7 +20,7 @@ public class ComfyuiProxyClient : IComfyuiProxyClient
     {
         _logger.LogInformation("[ComfyuiProxy] {Type} 生图: {Prompt}", workflowType, prompt);
         var payload = new { workflow_type = workflowType, prompt, positive_prompt = positivePrompt };
-        var res = await _http.PostAsJsonAsync($"{_proxyUrl.TrimEnd('/')}/api/generate", payload, ct);
+        var res = await _http.PostAsJsonAsync($"{_proxyUrl.TrimEnd('/')}/api/v1/comfyui/generate", payload, ct);
         res.EnsureSuccessStatusCode();
         var data = await res.Content.ReadFromJsonAsync<ProxyResponse>(cancellationToken: ct);
         return data?.Result?.Url ?? $"/mock/proxy/{workflowType}_{Guid.NewGuid():N}.png";
@@ -30,7 +30,7 @@ public class ComfyuiProxyClient : IComfyuiProxyClient
     {
         _logger.LogInformation("[ComfyuiProxy] {Type} 生视频: {Prompt}", workflowType, prompt);
         var payload = new { workflow_type = workflowType, prompt, image_url = imageUrl };
-        var res = await _http.PostAsJsonAsync($"{_proxyUrl.TrimEnd('/')}/api/generate", payload, ct);
+        var res = await _http.PostAsJsonAsync($"{_proxyUrl.TrimEnd('/')}/api/v1/comfyui/generate", payload, ct);
         res.EnsureSuccessStatusCode();
         var data = await res.Content.ReadFromJsonAsync<ProxyResponse>(cancellationToken: ct);
         return data?.Result?.Url ?? $"/mock/proxy/{workflowType}_{Guid.NewGuid():N}.mp4";
@@ -40,7 +40,7 @@ public class ComfyuiProxyClient : IComfyuiProxyClient
     {
         _logger.LogInformation("[ComfyuiProxy] {Type} 生音频: {Prompt}", workflowType, prompt);
         var payload = new { workflow_type = workflowType, prompt };
-        var res = await _http.PostAsJsonAsync($"{_proxyUrl.TrimEnd('/')}/api/generate", payload, ct);
+        var res = await _http.PostAsJsonAsync($"{_proxyUrl.TrimEnd('/')}/api/v1/comfyui/generate", payload, ct);
         res.EnsureSuccessStatusCode();
         var data = await res.Content.ReadFromJsonAsync<ProxyResponse>(cancellationToken: ct);
         return data?.Result?.Url ?? $"/mock/proxy/{workflowType}_{Guid.NewGuid():N}.mp3";
@@ -50,7 +50,7 @@ public class ComfyuiProxyClient : IComfyuiProxyClient
     {
         try
         {
-            var res = await _http.GetAsync($"{_proxyUrl.TrimEnd('/')}/health", ct);
+            var res = await _http.GetAsync($"{_proxyUrl.TrimEnd('/')}/api/v1/comfyui/health", ct);
             return res.IsSuccessStatusCode;
         }
         catch { return false; }

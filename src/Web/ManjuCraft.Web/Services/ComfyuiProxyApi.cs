@@ -27,7 +27,7 @@ public class ComfyuiProxyApi
             ImageUrl = imageUrl
         };
 
-        var res = await _http.PostAsJsonAsync("/api/generate", req);
+        var res = await _http.PostAsJsonAsync("/api/v1/comfyui/generate", req);
         res.EnsureSuccessStatusCode();
         var data = await res.Content.ReadFromJsonAsync<GenerateResponse>();
         return data?.TaskId ?? "";
@@ -35,7 +35,7 @@ public class ComfyuiProxyApi
 
     public async Task<GenerateResponse> GetTaskStatusAsync(string taskId)
     {
-        var res = await _http.GetAsync($"/api/tasks/{taskId}");
+        var res = await _http.GetAsync($"/api/v1/comfyui/tasks/{taskId}");
         res.EnsureSuccessStatusCode();
         return await res.Content.ReadFromJsonAsync<GenerateResponse>();
     }
@@ -62,7 +62,7 @@ public class ComfyuiProxyApi
     {
         try
         {
-            var res = await _http.GetAsync("/api/health");
+            var res = await _http.GetAsync("/api/v1/comfyui/health");
             return res.IsSuccessStatusCode;
         }
         catch
