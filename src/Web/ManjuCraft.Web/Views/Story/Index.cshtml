@@ -1,7 +1,8 @@
-@{
+ @{
     ViewData["Title"] = "剧本创作";
     var project = ViewBag.Project as ManjuCraft.Domain.Models.Project;
     var story = ViewBag.Story as ManjuCraft.Domain.Models.Story;
+    var textProvider = ViewBag.TextProvider as dynamic;
 }
 
 @if (project == null)
@@ -52,6 +53,13 @@
             <label>故事内容 / 主题描述</label>
             <textarea id="storyPrompt" rows="8" placeholder="输入你的故事主题或完整故事内容，AI 将自动生成剧本分集和角色清单..."></textarea>
         </div>
+        <div id="providerInfo" style="display:none;">
+            <div style="padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;">
+                <span style="font-size:12px;color:var(--text3);">当前 AI 提供者：</span>
+                <span id="providerName" style="font-size:13px;font-weight:600;color:var(--text);"></span>
+                <span id="providerModel" style="font-size:12px;color:var(--text3);margin-left:8px;"></span>
+            </div>
+        </div>
         <div id="genResult" style="display:none;"></div>
         <div class="form-actions">
             <button class="btn btn-ghost" onclick="hideModal('genModal')">取消</button>
@@ -78,16 +86,27 @@
     var projectId = @project.Id;
     var storyId = @(story?.Id ?? 0);
     var chapters = [], ci = 0;
+    var currentProvider = @Html.Raw(Json.Serialize(textProvider)) || null;
 
     (function(){ init(); })();
 
     function init() {
         loadChapters();
         render();
+        showProviderInfo();
     }
 
     function loadChapters() {
         chapters = [];
+    }
+
+    function showProviderInfo() {
+        if (!currentProvider) return;
+        document.getElementById('providerInfo').style.display = 'block';
+        document.getElementById('providerName').textContent = currentProvider.name || '';
+        if (currentProvider.model) {
+            document.getElementById('providerModel').textContent = '模型: ' + currentProvider.model;
+        }
     }
 
     function render() {
@@ -128,6 +147,7 @@
         document.getElementById('storyTitle').value = @Json.Serialize(project.Name);
         document.getElementById('storyPrompt').value = '';
         document.getElementById('genResult').style.display = 'none';
+        document.getElementById('genResult').innerHTML = '';
         document.getElementById('genGoBtn').disabled = false;
         document.getElementById('genGoBtn').textContent = '开始生成';
         showModal('genModal');
@@ -141,23 +161,125 @@
 
         document.getElementById('genGoBtn').disabled = true;
         document.getElementById('genGoBtn').textContent = '生成中...';
+        document.getElementById('genResult').style.display = 'block';
+        document.getElementById('genResult').innerHTML = '<div style="text-align:center;padding:20px;">'
+            + '<div class="spinner" style="display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></div>'
+            + '<p style="margin-top:10px;color:var(--text2);font-size:13px;">AI 正在生成剧本，请稍候...</p></div>';
 
-        setTimeout(function() {
-            chapters = [
-                { chapterNumber: '第一章', chapterName: '命运的召唤', content: '在一个遥远的世界里，英雄踏上了冒险的旅程。\n\n他带着勇气和希望，面对未知的挑战。\n\n命运之轮开始转动，伟大的传说由此开始。' },
-                { chapterNumber: '第二章', chapterName: '征程的考验', content: '英雄在旅途中遇到了忠实的伙伴。\n\n他们一起穿越黑暗的森林，跨越险峻的山脉。\n\n每一次考验都让他们变得更加坚强。' },
-                { chapterNumber: '第三章', chapterName: '最终的决战', content: '面对强大的敌人，英雄毫不退缩。\n\n在伙伴们的支持下，他找到了内心的力量。\n\n光与暗的终极对决，决定了世界的命运。' }
-            ];
-            ci = 0;
-            render();
-            document.getElementById('genResult').style.display = 'block';
-            document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--ok-bg);border-radius:8px;margin-top:12px;">'
-                + '<p style="font-size:13px;font-weight:700;color:var(--ok);">&#10003; 生成完成！3 个章节</p></div>';
+        var data = new FormData();
+        data.append('title', title);
+        data.append('prompt', prompt);
+        if (storyId > 0) data.append('projectId', storyId);
+
+        fetch('/api/v1/ai/story/generate', { method: 'POST', body: data })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.success) {
+                    parseAndSave(res.data);
+                } else {
+                    document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;">'
+                        + '<p style="font-size:13px;font-weight:700;color:var(--danger);">生成失败：' + (res.message || res.data || '未知错误') + '</p></div>';
+                    document.getElementById('genGoBtn').disabled = false;
+                    document.getElementById('genGoBtn').textContent = '重新生成';
+                }
+            })
+            .catch(function(err) {
+                document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;">'
+                    + '<p style="font-size:13px;font-weight:700;color:var(--danger);">请求失败：' + err.message + '</p></div>';
+                document.getElementById('genGoBtn').disabled = false;
+                document.getElementById('genGoBtn').textContent = '重新生成';
+            });
+    }
+
+    function parseAndSave(rawResponse) {
+        if (storyId === 0) {
+            alert('未找到剧本，请先创建剧本');
             document.getElementById('genGoBtn').disabled = false;
             document.getElementById('genGoBtn').textContent = '重新生成';
-            hideModal('genModal');
-            showToast('剧本生成完成！', 'success');
-        }, 1500);
+            return;
+        }
+
+        try {
+            var result;
+            var text = rawResponse;
+            var backtickMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+            if (backtickMatch) {
+                text = backtickMatch[1].trim();
+            }
+            result = JSON.parse(text);
+        } catch (e) {
+            document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;">'
+                + '<p style="font-size:13px;font-weight:700;color:var(--danger);">JSON 解析失败</p>'
+                + '<pre style="font-size:11px;color:var(--text3);margin-top:8px;white-space:pre-wrap;">' + escapeHtml(rawResponse?.substring(0, 2000)) + '</pre>'
+                + '</div>';
+            document.getElementById('genGoBtn').disabled = false;
+            document.getElementById('genGoBtn').textContent = '重新生成';
+            return;
+        }
+
+        var dataChapters = [];
+        if (result.chapters && Array.isArray(result.chapters)) {
+            dataChapters = result.chapters;
+        } else if (result.Chapters && Array.isArray(result.Chapters)) {
+            dataChapters = result.Chapters;
+        } else {
+            document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;">'
+                + '<p style="font-size:13px;font-weight:700;color:var(--danger);">返回数据格式不正确，缺少 chapters 字段</p></div>';
+            document.getElementById('genGoBtn').disabled = false;
+            document.getElementById('genGoBtn').textContent = '重新生成';
+            return;
+        }
+
+        var itemsSave = dataChapters.map(function(ch) {
+            return {
+                storyId: storyId,
+                chapterNumber: ch.chapterNumber || ch.ChapterNumber || '第' + (ch.index || ch序号 || (ch.items?Object.keys(ch.items).length:0) + 1) + '章',
+                chapterName: ch.chapterName || ch.ChapterName || ch.title || ch.章节名称 || '未命名',
+                content: ch.content || ch.Content || ch.chapterContent || ch.ChapterContent || ch.章节内容 || ''
+            };
+        });
+
+        document.getElementById('genResult').innerHTML = '<div style="text-align:center;padding:14px;background:var(--ok-bg);border-radius:8px;margin-top:12px;">'
+            + '<p style="font-size:13px;font-weight:700;color:var(--ok);">&#10003; ' + itemsSave.length + ' 个章节已生成，正在保存...</p></div>';
+
+        fetch('/api/v1/story/bulkaddchapters', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(itemsSave.map(function(c) {
+                return { StoryId: storyId, ChapterNumber: c.chapterNumber, ChapterName: c.chapterName, Content: c.content };
+            }))
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.success) {
+                loadChapters();
+                render();
+                var extraInfo = '';
+                if (result.characters && result.characters.length > 0) {
+                    extraInfo += '<p style="font-size:12px;margin-top:8px;color:var(--text2);">角色 ' + result.characters.length + ' 个，场景 ' + (result.scenes?.length || 0) + ' 个</p>';
+                }
+                document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--ok-bg);border-radius:8px;margin-top:12px;">'
+                    + '<p style="font-size:13px;font-weight:700;color:var(--ok);">&#10003; ' + itemsSave.length + ' 个章节保存成功！</p>' + extraInfo
+                    + '</div>';
+            } else {
+                document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--warning-bg);border-radius:8px;margin-top:12px;">'
+                    + '<p style="font-size:13px;font-weight:700;color:#b45309;">章节解析成功但保存失败</p></div>';
+            }
+            document.getElementById('genGoBtn').disabled = false;
+            document.getElementById('genGoBtn').textContent = '重新生成';
+        })
+        .catch(function() {
+            document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;">'
+                + '<p style="font-size:13px;font-weight:700;color:var(--danger);">保存失败</p></div>';
+            document.getElementById('genGoBtn').disabled = false;
+            document.getElementById('genGoBtn').textContent = '重新生成';
+        });
+    }
+
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
 
     function showChapterModal(idx) {

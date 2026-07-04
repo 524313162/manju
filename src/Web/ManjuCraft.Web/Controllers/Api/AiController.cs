@@ -18,7 +18,10 @@ public class AiController : ControllerBase
 
     [HttpPost("story/generate")]
     public async Task<IActionResult> GenerateStory([FromForm] string title, [FromForm] string prompt, [FromForm] long? projectId = null)
-        => Ok(new { success = true, data = await _text.GenerateStoryAsync(title, prompt, projectId) });
+    {
+        var data = await _text.GenerateStoryAsync(title, prompt, projectId);
+        return Ok(new { success = true, data = data, storyId = projectId });
+    }
 
     [HttpPost("story/rewrite")]
     public async Task<IActionResult> RewriteStory([FromForm] string prompt, [FromForm] string originalStory, [FromForm] long? projectId = null)

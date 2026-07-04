@@ -1,5 +1,7 @@
 @{
     ViewData["Title"] = "设置";
+    var providers = ViewBag.Providers as IEnumerable<ManjuCraft.Domain.Models.ApiProvider>;
+    var templates = ViewBag.Templates as IEnumerable<ManjuCraft.Domain.Models.PromptTemplate>;
 }
 
 <div class="prod-layout">
@@ -10,7 +12,8 @@
             <p>系统配置与管理</p>
         </div>
         <div class="chapter-list">
-            <div class="chapter-list-item active" onclick="selectSetting(this, 'comfyui')"><span class="chapter-list-num">T</span><div class="chapter-list-info"><div class="chapter-list-name">ComfyUI</div></div></div>
+            <div class="chapter-list-item active" onclick="selectSetting(this, 'providers')"><span class="chapter-list-num">A</span><div class="chapter-list-info"><div class="chapter-list-name">API 管理</div></div></div>
+            <div class="chapter-list-item" onclick="selectSetting(this, 'comfyui')"><span class="chapter-list-num">T</span><div class="chapter-list-info"><div class="chapter-list-name">ComfyUI</div></div></div>
             <div class="chapter-list-item" onclick="selectSetting(this, 'ffmpeg')"><span class="chapter-list-num">F</span><div class="chapter-list-info"><div class="chapter-list-name">FFmpeg</div></div></div>
             <div class="chapter-list-item" onclick="selectSetting(this, 'db')"><span class="chapter-list-num">D</span><div class="chapter-list-info"><div class="chapter-list-name">数据库</div></div></div>
             <div class="chapter-list-item" onclick="selectSetting(this, 'templates')"><span class="chapter-list-num">P</span><div class="chapter-list-info"><div class="chapter-list-name">模板管理</div></div></div>
@@ -19,7 +22,7 @@
 
     <div class="prod-main">
         <div class="prod-toolbar">
-            <h2 id="settingsTitle">&#9881; ComfyUI 配置</h2>
+            <h2 id="settingsTitle">&#128268; API 提供商管理</h2>
             <div class="prod-tabs">
                 <div class="prod-tab active" data-tab="config" onclick="switchTab('config')">配置</div>
                 <div class="prod-tab" data-tab="providers" onclick="switchTab('providers')">API 管理</div>
@@ -76,27 +79,22 @@
                     <div class="table-wrap">
                         <table>
                             <thead><tr><th>模板名称</th><th>类型</th><th>默认</th><th>操作</th></tr></thead>
-                            <tbody>
-                                <tr><td>人物档案默认</td><td><span class="badge badge-purple">CharacterProfile</span></td><td><span style="color:var(--ok);">&#10003;</span></td><td><button class="btn btn-xs btn-ghost">编辑</button></td></tr>
-                                <tr><td>道具档案</td><td><span class="badge badge-purple">PropProfile</span></td><td><span style="color:var(--ok);">&#10003;</span></td><td><button class="btn btn-xs btn-ghost">编辑</button></td></tr>
-                                <tr><td>场景档案</td><td><span class="badge badge-purple">SceneProfile</span></td><td><span style="color:var(--ok);">&#10003;</span></td><td><button class="btn btn-xs btn-ghost">编辑</button></td></tr>
-                                <tr><td>BGM档案</td><td><span class="badge badge-purple">BgmProfile</span></td><td><span style="color:var(--ok);">&#10003;</span></td><td><button class="btn btn-xs btn-ghost">编辑</button></td></tr>
-                            </tbody>
+                            <tbody id="templateTable"></tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
-            <div id="tab-providers" class="tab-panel settings-panel hidden">
+            <div id="tab-providers" class="tab-panel settings-panel">
                 <div class="settings-card">
-                    <h3 style="font-size:16px;font-weight:700;margin-bottom:14px;">&#128268; API 提供商管理</h3>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+                        <h3 style="font-size:16px;font-weight:700;margin:0;">&#128268; API 提供商管理</h3>
+                        <button class="btn btn-primary btn-sm" onclick="showAddProvider()">&#43; 新增</button>
+                    </div>
                     <div class="table-wrap">
                         <table>
-                            <thead><tr><th>名称</th><th>类型</th><th>地址</th><th>状态</th><th>操作</th></tr></thead>
-                            <tbody>
-                                <tr><td>DeepSeek</td><td><span class="badge badge-purple">LLM</span></td><td style="font-size:12px;color:var(--text3);">https://api.deepseek.com</td><td><span class="badge badge-ok">启用</span></td><td><button class="btn btn-xs btn-ghost">编辑</button></td></tr>
-                                <tr><td>ComfyUI</td><td><span class="badge badge-purple">ComfyUI</span></td><td style="font-size:12px;color:var(--text3);">http://localhost:8188</td><td><span class="badge badge-ok">启用</span></td><td><button class="btn btn-xs btn-ghost">编辑</button></td></tr>
-                            </tbody>
+                            <thead><tr><th>名称</th><th>能力</th><th>地址</th><th>模型</th><th>状态</th><th>操作</th></tr></thead>
+                            <tbody id="providerTable"></tbody>
                         </table>
                     </div>
                 </div>
@@ -107,18 +105,26 @@
 
 @section Scripts {
 <script>
-    var currentSection = 'comfyui', currentTab = 'config';
-    var titles = { comfyui: '&#9881; ComfyUI 配置', ffmpeg: '&#127916; FFmpeg 配置', db: '&#128451; 数据库配置', templates: '&#128221; 提示词模板' };
+    var currentSection = 'providers', currentTab = 'config';
+    var titles = {
+        providers: "&#128268; API &#25552;&#20379;&#21306;&#31649;&#29702;",
+        comfyui: '&#9881; ComfyUI &#37197;&#32622;',
+        ffmpeg: '&#127916; FFmpeg &#37197;&#32622;',
+        db: '&#128451; &#25968;&#25454;&#24211;&#35774;&#32622;',
+        templates: '&#128221; &#25512;&#26009;&#27169;&#26723;'
+    };
 
     function selectSetting(el, section) {
         var items = document.querySelectorAll('.chapter-list-item');
         items.forEach(function(i){ i.classList.remove('active'); });
         el.classList.add('active');
         currentSection = section;
-        document.getElementById('settingsTitle').innerHTML = titles[section] || '设置';
+        document.getElementById('settingsTitle').innerHTML = titles[section] || '&#9881; &#35774;&#32622;';
         hideAllPanels();
         var panel = document.getElementById('tab-config-' + section);
         if (panel) panel.classList.remove('hidden');
+        if (section === 'providers') loadProviders();
+        if (section === 'templates') loadTemplates();
     }
 
     function switchTab(tab) {
@@ -138,35 +144,152 @@
     }
 
     function saveComfyui() {
-        showToast('设置已保存', 'success');
+        showToast('\u8bbe\u7f6e\u5df2\u4fdd\u5b58', 'success');
     }
 
     function testConnection() {
         var apiUrl = document.getElementById('comfyuiApiUrl').value.trim();
         var statusEl = document.getElementById('comfyuiStatus');
         statusEl.className = 'badge badge-warn';
-        statusEl.innerHTML = '<span class="badge-dot"></span>检测中...';
-
+        statusEl.innerHTML = '<span class="badge-dot"></span>\u68c0\u6d4b\u4e2d...';
         fetch('@Url.Action("TestComfyuiConnection", "Settings")?apiUrl=' + encodeURIComponent(apiUrl))
             .then(function(r){ return r.json(); })
             .then(function(res){
                 if (res.success) {
                     statusEl.className = 'badge badge-ok';
-                    statusEl.innerHTML = '<span class="badge-dot"></span>已连接';
-                    showToast('连接成功！', 'success');
+                    statusEl.innerHTML = '<span class="badge-dot"></span>\u5df2\u8fde\u63a5';
+                    showToast('\u8fde\u63a5\u6210\u529f\uff01', 'success');
                 } else {
                     statusEl.className = 'badge badge-warn';
-                    statusEl.innerHTML = '<span class="badge-dot"></span>连接失败';
-                    showToast('连接失败：' + (res.message || '未知错误'), 'error');
+                    statusEl.innerHTML = '<span class="badge-dot"></span>\u8fde\u63a5\u5931\u8d25';
+                    showToast('\u8fde\u63a5\u5931\u8d25\uff1a' + (res.message || '\u672a\u77e5\u9519\u8bef'), 'error');
                 }
             })
             .catch(function(){
                 statusEl.className = 'badge badge-warn';
-                statusEl.innerHTML = '<span class="badge-dot"></span>连接失败';
-                showToast('连接失败：无法访问', 'error');
+                statusEl.innerHTML = '<span class="badge-dot"></span>\u8fde\u63a5\u5931\u8d25';
+                showToast('\u8fde\u63a5\u5931\u8d25\uff1a\u65e0\u6cd5\u8bbf\u95ee', 'error');
             });
     }
 
-    selectSetting(document.querySelector('.chapter-list-item'), 'comfyui');
+    function loadProviders() {
+        fetch('/api/v1/providers/list')
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+                renderProviders(res.data || []);
+            })
+            .catch(function(){
+                @if (providers != null) {
+                    @foreach (var p in providers) {
+                        @:providersArray.push({ Id: @p.Id, Name: '@(p.Name ?? "").Replace("\\", "\\\\").Replace("'", "\\'")', Capability: @p.Capability, ApiUrl: '@(p.ApiUrl ?? "").Replace("\\", "\\\\").Replace("'", "\\'")', Model: '@(p.Model ?? "").Replace("\\", "\\\\").Replace("'", "\\'")' });
+                    }
+                }
+            });
+    }
+
+    var providersArray = [];
+    function renderProviders(list) {
+        var capMap = { 1: 'TextToText', 2: 'TextToImage', 3: 'TextToAudio', 4: 'TextToVideo', 5: 'ImageToVideo' };
+        var capBgMap = { 1: 'badge-purple', 2: 'badge-info', 3: 'badge-warning', 4: 'badge-danger', 5: 'badge-ok' };
+        var html = '';
+        if (list.length === 0) {
+            html = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px;">\u6682\u65e0 API \u63d0\u4f9b\u5546\uff0c\u70b9\u51fb\u300c\u65b0\u589e\u300d\u6dfb\u52a0</td></tr>';
+        }
+        list.forEach(function(p, i) {
+            var capText = capMap[p.capability] || ('Capability' + p.capability);
+            html += '<tr>'
+                + '<td><strong>' + (p.name || '') + '</strong></td>'
+                + '<td><span class="badge ' + (capBgMap[p.capability] || 'badge-purple') + '">' + capText + '</span></td>'
+                + '<td style="font-size:12px;color:var(--text3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (p.apiUrl || '') + '</td>'
+                + '<td style="font-size:12px;color:var(--text2);">' + (p.model || '\u2014') + '</td>'
+                + '<td><span class="badge badge-ok">\u5df2\u914d\u7f6e</span></td>'
+                + '<td style="display:flex;gap:4px;">'
+                + '<button class="btn btn-xs btn-ghost" onclick="testApiProvider(' + p.id + ')">\u6d4b\u8bd5</button>'
+                + '<button class="btn btn-xs btn-danger" onclick="deleteProvider(' + p.id + ')">\u5220\u9664</button>'
+                + '</td></tr>';
+        });
+        document.getElementById('providerTable').innerHTML = html;
+    }
+
+    function showAddProvider() {
+        var name = prompt('\u63d0\u4f9b\u5546\u540d\u79f0\uff08\u5982 DeepSeek\uff09');
+        if (!name) return;
+        var cap = prompt('\u80fd\u529b\u7c7b\u578b: TextToText, TextToImage, TextToAudio, TextToVideo, ImageToVideo', 'TextToText');
+        if (!cap) return;
+        var apiUrl = prompt('API \u5730\u5740\uff08\u5982 https://api.deepseek.com/v1\uff09');
+        if (!apiUrl) return;
+        var apiKey = prompt('API Key');
+        var model = prompt('\u6a21\u578b\u540d\u79f0\uff08\u5982 deepseek-v4-flash\uff09');
+        fetch('/api/v1/providers/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name, capability: cap, apiUrl: apiUrl, apiKey: apiKey || '', model: model || '' })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res) {
+            if (res.success) {
+                loadProviders();
+                showToast('\u6dfb\u52a0\u6210\u529f', 'success');
+            } else {
+                alert('\u6dfb\u52a0\u5931\u8d25\uff1a' + (res.message || '\u672a\u77e5\u9519\u8bef'));
+            }
+        });
+    }
+
+    function deleteProvider(id) {
+        if (!confirm('\u786e\u8ba4\u5220\u9664\u6b64 API \u63d0\u4f9b\u5546\uff1f')) return;
+        fetch('/api/v1/providers/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res) {
+            if (res.success) { loadProviders(); showToast('\u5220\u9664\u6210\u529f', 'success'); }
+            else alert('\u5220\u9664\u5931\u8d25');
+        });
+    }
+
+    function testApiProvider(id) {
+        fetch('/api/v1/providers/test?id=' + id)
+            .then(function(r){ return r.json(); })
+            .then(function(res) {
+                if (res.success) {
+                    showToast('\u8fde\u63a5\u6210\u529f\uff1a' + res.message, 'success');
+                } else {
+                    showToast('\u8fde\u63a5\u5931\u8d25\uff1a' + res.message, 'error');
+                }
+            });
+    }
+
+    // Template management
+    function loadTemplates() {
+        @if (templates != null) {
+            @foreach (var t in templates) {
+                @:templatesArray.push({ Id: @t.Id, Name: '@(t.Name ?? "").Replace("\\", "\\\\").Replace("'", "\\'")', TemplateType: '@(t.TemplateType ?? "").Replace("\\", "\\\\").Replace("'", "\\'")', IsDefault: @(t.IsDefault.ToString().ToLower()) });
+            }
+        }
+    }
+
+    var templatesArray = [];
+    function renderTemplates(list) {
+        var html = '';
+        list.forEach(function(t) {
+            html += '<tr>'
+                + '<td>' + t.name + '</td>'
+                + '<td><span class="badge badge-purple">' + t.templateType + '</span></td>'
+                + '<td>' + (t.isDefault ? '<span style="color:var(--ok);">&#10003;</span>' : '\u2014') + '</td>'
+                + '<td><button class="btn btn-xs btn-ghost" onclick="editTemplate(' + t.id + ')">\u7f16\u8f91</button></td>'
+                + '</tr>';
+        });
+        if (list.length === 0) html = '<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:24px;">\u6682\u65e0\u6a21\u677f</td></tr>';
+        document.getElementById('templateTable').innerHTML = html;
+    }
+
+    function editTemplate(id) {
+        alert('\u6a21\u677f\u7f16\u8f91\u529f\u80fd\u5f85\u5b9e\u73b0');
+    }
+
+    selectSetting(document.querySelector('.chapter-list-item'), 'providers');
 </script>
 }

@@ -43,7 +43,10 @@ public class AiClientRegistry : IAiClientRegistry
             { Capability = AiCapability.TextToText };
         }
 
-        return null;
+        // Default: fallback to DeepSeek-compatible OpenAI API
+        var logger2 = loggerFactory.CreateLogger<DeepSeekClient>();
+        return new DeepSeekClient(provider.ApiUrl, provider.ApiKey, provider.Model ?? "deepseek-chat", logger2)
+        { Capability = AiCapability.TextToText };
     }
 
     public ITextToImageClient? GetTextToImageClient(ApiProvider provider)
@@ -58,6 +61,16 @@ public class AiClientRegistry : IAiClientRegistry
 
     public ITextToVideoClient? GetTextToVideoClient(ApiProvider provider)
     {
+        if (provider == null) return null;
+        var name = (provider.Name ?? "").ToLowerInvariant();
+        var loggerFactory = _services.GetRequiredService<ILoggerFactory>();
+
+        if (name.Contains("comfy"))
+        {
+            var logger = loggerFactory.CreateLogger<ComfyuiVideoClient>();
+            return new ComfyuiVideoClient(provider.ApiUrl, provider.ApiKey, provider.Model ?? "LLM-QWEN.json", logger);
+        }
+
         return null;
     }
 

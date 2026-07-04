@@ -113,13 +113,15 @@ public class AiTextService : IAiTextService
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var content = templateType switch
         {
-            "StoryGeneration" => "你是一个专业的剧本创作助手。根据用户提供的标题和故事主题，生成包含3-4章的完整剧本大纲。每章需要包含：章节编号、章节名称、详细的场景描写和对话内容。请以JSON格式返回。",
+            "StoryGeneration" => @"你是一个专业的剧本创作AI，擅长将故事转化为完整的剧本。请根据用户的标题和故事主题，生成完整的剧本内容。你的输出必须是严格的JSON格式，包含以下字段：name（剧本名称）、content（故事梗概）、chapters（章节数组，每章含chapterNumber/chapterName/content）、characters（角色清单含name/description）、scenes（场景清单含name/description）、bgms（音乐清单含name/description）、props（道具清单含name/description）、skills（技能清单含name/description）。每个清单项都必须有说明。使用代码块包裹JSON输出。",
+            "SystemPrompt" => @"你是一个专业的剧本创作AI。输出严格的JSON对象，包含name、content、chapters（chapterNumber/chapterName/content）、characters（name/description）、scenes（name/description）、bgms（name/description）、props（name/description）、skills（name/description），每个清单项必须有说明。",
             "CharacterProfile" => "你是一个角色设计师。根据角色描述，生成完整的角色档案，包括外貌特征、性格特点、背景故事和英文生图提示词。以JSON格式返回。",
             "SceneProfile" => "你是一个场景设计师。根据场景描述，生成详细的场景档案和英文生图提示词。以JSON格式返回。",
             "PropProfile" => "你是一个道具设计师。根据道具描述，生成详细的道具档案和英文生图提示词。以JSON格式返回。",
             "BgmProfile" => "你是一个音乐制作人。根据BGM描述，生成详细的音乐风格说明和英文音频生成提示词。以JSON格式返回。",
             "EpisodeBreakdown" => "你是一个剧本分析专家。从给定的故事内容中提取所有角色、道具、场景和BGM。每个资产需要名称和详细描述。以JSON格式返回。",
             "ShotPlanning" => "你是一个视频导演。根据动态描述生成视频生成提示词，包括运镜、氛围、画质要求。以JSON格式返回。",
+            "SkillProfile" => "你是一个游戏/动画设计师。根据技能描述，生成完整的技能档案。以JSON格式返回。",
             _ => "你是一个AI助手，根据用户输入生成对应的JSON格式输出。"
         };
 
@@ -178,16 +180,4 @@ public class AiTextService : IAiTextService
 
         return await query.FirstOrDefaultAsync(ct);
     }
-
-    static string DefaultPrompt(string type) => type switch
-    {
-        "StoryGeneration" => "你是一个专业的剧本创作助手。根据用户提供的标题和故事主题，生成包含3-4章的完整剧本大纲。每章需要包含：章节编号、章节名称、详细的场景描写和对话内容。请以JSON格式返回。",
-        "CharacterProfile" => "你是一个角色设计师。根据角色描述，生成完整的角色档案，包括外貌特征、性格特点、背景故事和英文生图提示词。以JSON格式返回。",
-        "SceneProfile" => "你是一个场景设计师。根据场景描述，生成详细的场景档案和英文生图提示词。以JSON格式返回。",
-        "PropProfile" => "你是一个道具设计师。根据道具描述，生成详细的道具档案和英文生图提示词。以JSON格式返回。",
-        "BgmProfile" => "你是一个音乐制作人。根据BGM描述，生成详细的音乐风格说明和英文音频生成提示词。以JSON格式返回。",
-        "EpisodeBreakdown" => "你是一个剧本分析专家。从给定的故事内容中提取所有角色、道具、场景和BGM。每个资产需要名称和详细描述。以JSON格式返回。",
-        "ShotPlanning" => "你是一个视频导演。根据动态描述生成视频生成提示词，包括运镜、氛围、画质要求。以JSON格式返回。",
-        _ => "你是一个AI助手，根据用户输入生成对应的JSON格式输出。"
-    };
 }
