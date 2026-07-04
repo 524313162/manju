@@ -25,7 +25,7 @@ public class ComfyuiProxyHealthCheck : IHealthCheck
         try
         {
             var comfyuiUrl = _configuration["ComfyUI:Url"] ?? "http://localhost:8188";
-            var healthCheckUrl = $"{comfyuiUrl.TrimEnd('/')}/system_info";
+            var healthCheckUrl = comfyuiUrl;
 
             using var httpClient = new HttpClient();
             httpClient.Timeout = TimeSpan.FromSeconds(5);
