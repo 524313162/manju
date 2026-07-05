@@ -9,7 +9,9 @@ namespace ManjuCraft.Application.AI;
 public interface IAiTextService
 {
     Task<string> GenerateStoryAsync(string title, string prompt, long? projectId = null, CancellationToken ct = default);
-    Task<string> RewriteStoryAsync(string prompt, string originalStory, long? projectId = null, CancellationToken ct = default);
+    Task<string> GenerateStoryAsync(string title, string prompt, string? customTemplate, long? projectId = null, CancellationToken ct = default);
+    Task<string> RewriteStoryAsync(string prompt, string originalStory, string? mode = null, long? projectId = null, CancellationToken ct = default);
+    Task<string> RewriteStoryAsync(string prompt, string originalStory, string? mode, string? customTemplate, long? projectId = null, CancellationToken ct = default);
     Task<string> ExtractAssetsAsync(string story, long? projectId = null, CancellationToken ct = default);
     Task<string> CreateCharacterProfileAsync(string characterDescription, long? projectId = null, CancellationToken ct = default);
     Task<string> CreateSceneProfileAsync(string sceneDescription, long? projectId = null, CancellationToken ct = default);
@@ -34,15 +36,38 @@ public class AiTextService : IAiTextService
 
     public async Task<string> GenerateStoryAsync(string title, string prompt, long? projectId = null, CancellationToken ct = default)
     {
-        var sys = await Template("StoryGeneration");
+        return await GenerateStoryInternalAsync(title, prompt, projectId, null, ct);
+    }
+
+    public async Task<string> GenerateStoryAsync(string title, string prompt, string? customTemplate, long? projectId = null, CancellationToken ct = default)
+    {
+        return await GenerateStoryInternalAsync(title, prompt, projectId, customTemplate, ct);
+    }
+
+    private async Task<string> GenerateStoryInternalAsync(string title, string prompt, long? projectId, string? customTemplate, CancellationToken ct)
+    {
+        var sys = customTemplate ?? await Template("StoryGeneration");
         var user = $"标题：{title}\n故事主题：{prompt}";
         return await CallTextToText(sys, user, projectId, ct);
     }
 
-    public async Task<string> RewriteStoryAsync(string prompt, string originalStory, long? projectId = null, CancellationToken ct = default)
+    public async Task<string> RewriteStoryAsync(string prompt, string originalStory, string? mode = null, long? projectId = null, CancellationToken ct = default)
     {
-        var sys = await Template("StoryGeneration");
-        var user = $"改写要求：{prompt}\n原始故事：{originalStory}";
+        return await RewriteStoryAsync(prompt, originalStory, mode, null, projectId, ct);
+    }
+
+    public async Task<string> RewriteStoryAsync(string prompt, string originalStory, string? mode, string? customTemplate, long? projectId = null, CancellationToken ct = default)
+    {
+        var templateType = mode == "expand" ? "StoryGeneration" : "RewriteStory";
+        var sys = customTemplate ?? await Template(templateType);
+        var modeLabel = mode switch
+        {
+            "expand" => "扩写",
+            "polish" => "润色",
+            "summary" => "精简",
+            _ => "改写"
+        };
+        var user = $"{modeLabel}要求：{prompt}\n原始故事：{originalStory}";
         return await CallTextToText(sys, user, projectId, ct);
     }
 

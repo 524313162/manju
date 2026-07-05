@@ -17,7 +17,7 @@ public class AssetsController : Controller
         _projectService = projectService;
     }
 
-    public async Task<IActionResult> Index(long projectId, string type = "Actor")
+    public async Task<IActionResult> Index(long projectId, AssetTypeEnum type = AssetTypeEnum.Actor)
     {
         if (projectId <= 0)
         {
@@ -26,15 +26,7 @@ public class AssetsController : Controller
 
         await LoadProjectsAsync();
 
-        var typeMap = new Dictionary<string, string>
-        {
-            { "Actor", "角色" },
-            { "Scene", "场景" },
-            { "Bgm", "BGM" },
-            { "Skill", "技能" },
-            { "Prop", "道具" }
-        };
-        var typeName = typeMap.ContainsKey(type) ? typeMap[type] : "角色";
+        var typeName = type.DisplayName();
 
         var assets = await _assetService.GetByProjectAsync(projectId, type);
 
@@ -64,7 +56,7 @@ public class AssetsController : Controller
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create(long? projectId, string? assetType, string? name, string? description, int order = 0)
+    public async Task<IActionResult> Create(long? projectId, AssetTypeEnum? assetType, string? name, string? description, int order = 0)
     {
         if (string.IsNullOrEmpty(name))
             return Content(ToJson(false, "名称不能为空"));
@@ -72,7 +64,7 @@ public class AssetsController : Controller
         var asset = new Asset
         {
             ProjectId = projectId ?? 0,
-            AssetType = assetType ?? "Actor",
+            AssetType = assetType ?? AssetTypeEnum.Actor,
             Name = name,
             Description = description ?? String.Empty,
             Order = order

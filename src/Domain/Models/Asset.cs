@@ -9,8 +9,7 @@ namespace ManjuCraft.Domain.Models
         public long? ResourceId { get; set; }
 
         [Required]
-        [StringLength(32)]
-        public string AssetType { get; set; } = default!;
+        public AssetTypeEnum AssetType { get; set; }
 
         [Required]
         [StringLength(256)]

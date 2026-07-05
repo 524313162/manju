@@ -115,10 +115,6 @@ namespace ManjuCraft.Infrastructure
                 .HasMaxLength(256);
 
             modelBuilder.Entity<Asset>()
-                .Property(a => a.AssetType)
-                .HasMaxLength(32);
-
-            modelBuilder.Entity<Asset>()
                 .Property(a => a.Name)
                 .HasMaxLength(256);
 

@@ -4,7 +4,7 @@ namespace ManjuCraft.Application.Service
 {
     public interface IAssetService
     {
-        Task<List<Asset>> GetByProjectAsync(long projectId, string? assetType = null);
+        Task<List<Asset>> GetByProjectAsync(long projectId, AssetTypeEnum? assetType = null);
 
         Task<Asset> GetByIdAsync(long id);
 

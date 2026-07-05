@@ -3,33 +3,32 @@
 @{
     ViewData["Title"] = "资产管理";
     var projectId = ViewBag.ProjectId as long?;
-    var assetType = ViewBag.Type as string ?? "Actor";
+    var assetType = ViewBag.Type as AssetTypeEnum? ?? AssetTypeEnum.Actor;
     var typeName = ViewBag.TypeName as string ?? "角色";
     var projects = ViewBag.Projects as List<Project> ?? new();
     var assets = ViewBag.Assets as List<Asset> ?? new();
 }
 
 @functions {
-    string GetEmoji(string t) => t switch {
-        "Actor" => char.ConvertFromUtf32(0x1F464),
-        "Scene" => char.ConvertFromUtf32(0x1F3D0),
-        "Bgm" => char.ConvertFromUtf32(0x1F3A5),
-        "Skill" => "\u26A1",
-        "Prop" => char.ConvertFromUtf32(0x1F525),
+    string GetEmoji(AssetTypeEnum t) => t switch {
+        AssetTypeEnum.Actor => char.ConvertFromUtf32(0x1F464),
+        AssetTypeEnum.Scene => char.ConvertFromUtf32(0x1F3D0),
+        AssetTypeEnum.Bgm => char.ConvertFromUtf32(0x1F3A5),
+        AssetTypeEnum.Skill => "\u26A1",
+        AssetTypeEnum.Prop => char.ConvertFromUtf32(0x1F525),
         _ => char.ConvertFromUtf32(0x1F4AA)
     };
-    string GetBgColor(string t) => t switch {
-        "Actor" => "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-        "Scene" => "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
-        "Bgm" => "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-        "Skill" => "linear-gradient(135deg, #ffc371 0%, #ff5858 100%)",
-        "Prop" => "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)",
+    string GetBgColor(AssetTypeEnum t) => t switch {
+        AssetTypeEnum.Actor => "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        AssetTypeEnum.Scene => "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
+        AssetTypeEnum.Bgm => "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+        AssetTypeEnum.Skill => "linear-gradient(135deg, #ffc371 0%, #ff5858 100%)",
+        AssetTypeEnum.Prop => "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)",
         _ => "linear-gradient(135deg, #868f96 0%, #596164 100%)"
     };
 }
 
 <div class="container">
-    <!-- Top bar: project left, search + add right -->
     <div class="assets-topbar">
         <div class="assets-topbar-left">
             <label for="projectSelect">&#128233; 当前项目：</label>
@@ -53,50 +52,23 @@
         </div>
     </div>
 
-    <!-- Type selector cards -->
     <div class="asset-type-grid">
-        <a href="?type=Actor&projectId=@projectId" class="asset-type-card @(assetType == "Actor" ? "active" : "")" data-type="Actor">
-            <div class="asset-type-icon actor-icon">&#128100;</div>
-            <div class="asset-type-content">
-                <div class="asset-type-name">角色</div>
-                <div class="asset-type-count">角色资产</div>
-            </div>
-        </a>
-        <a href="?type=Scene&projectId=@projectId" class="asset-type-card @(assetType == "Scene" ? "active" : "")" data-type="Scene">
-            <div class="asset-type-icon scene-icon">&#127960;</div>
-            <div class="asset-type-content">
-                <div class="asset-type-name">场景</div>
-                <div class="asset-type-count">场景资产</div>
-            </div>
-        </a>
-        <a href="?type=Bgm&projectId=@projectId" class="asset-type-card @(assetType == "Bgm" ? "active" : "")" data-type="Bgm">
-            <div class="asset-type-icon bgm-icon">&#127925;</div>
-            <div class="asset-type-content">
-                <div class="asset-type-name">BGM</div>
-                <div class="asset-type-count">背景音乐</div>
-            </div>
-        </a>
-        <a href="?type=Skill&projectId=@projectId" class="asset-type-card @(assetType == "Skill" ? "active" : "")" data-type="Skill">
-            <div class="asset-type-icon skill-icon">&#9889;</div>
-            <div class="asset-type-content">
-                <div class="asset-type-name">技能</div>
-                <div class="asset-type-count">技能资产</div>
-            </div>
-        </a>
-        <a href="?type=Prop&projectId=@projectId" class="asset-type-card @(assetType == "Prop" ? "active" : "")" data-type="Prop">
-            <div class="asset-type-icon prop-icon">&#128293;</div>
-            <div class="asset-type-content">
-                <div class="asset-type-name">道具</div>
-                <div class="asset-type-count">道具资产</div>
-            </div>
-        </a>
+        @foreach (var t in Enum.GetValues<AssetTypeEnum>())
+        {
+            <a href="?type=@((int)t)&projectId=@projectId" class="asset-type-card @(assetType == t ? "active" : "")" data-type="@t.ToString()">
+                <div class="asset-type-icon actor-icon">@GetEmoji(t)</div>
+                <div class="asset-type-content">
+                    <div class="asset-type-name">@t.DisplayName()</div>
+                    <div class="asset-type-count">@t.DisplayName()资产</div>
+                </div>
+            </a>
+        }
     </div>
 
-    <!-- Page header -->
     <div class="assets-page-header">
         <div>
             <h2>
-                <span class="header-emoji" style="margin-right:6px;">@GetEmoji(assetType)</span>
+                <span class="header-emoji" style="margin-right:6px;">@(GetEmoji(assetType))</span>
                 <span>@typeName</span>
             </h2>
             <p>管理@typeName资产，为生成和绑定做准备</p>
@@ -104,7 +76,6 @@
         <button class="btn btn-primary btn-lg" onclick="showAddModal()">+ 新增值项</button>
     </div>
 
-    <!-- Asset detail cards -->
     <div id="assetList">
         @if (assets.Count == 0)
         {
@@ -122,8 +93,8 @@
                     var emoji = GetEmoji(a.AssetType);
                     var bgGradient = GetBgColor(a.AssetType);
                     var imgSrc = a.Resource != null && !string.IsNullOrEmpty(a.Resource.FilePath) ? "/uploaded/" + a.Resource.FilePath : "";
-                    var badgeClass = a.AssetType == "Scene" ? "type-scene" : a.AssetType == "Bgm" ? "type-bgm" : a.AssetType == "Skill" ? "type-skill" : a.AssetType == "Prop" ? "type-prop" : "type-actor";
-                    <div class="asset-detail-card" data-type="@a.AssetType">
+                    var badgeClass = a.AssetType == AssetTypeEnum.Scene ? "type-scene" : a.AssetType == AssetTypeEnum.Bgm ? "type-bgm" : a.AssetType == AssetTypeEnum.Skill ? "type-skill" : a.AssetType == AssetTypeEnum.Prop ? "type-prop" : "type-actor";
+                    <div class="asset-detail-card" data-type="@a.AssetType.ToString()">
                         <div class="asset-image-placeholder" onclick="showImagePreview('@imgSrc', '@a.Name.Replace("'", "\\'")')">
                             @if (!string.IsNullOrEmpty(imgSrc))
                             {
@@ -155,7 +126,6 @@
     </div>
 </div>
 
-<!-- Add/Edit Modal -->
 <div class="modal-overlay" id="assetModal">
     <div class="modal modal-medium">
         <div class="modal-header">
@@ -179,7 +149,6 @@
     </div>
 </div>
 
-<!-- Image Preview Modal -->
 <div class="modal-overlay" id="imagePreviewModal" onclick="hideModal('imagePreviewModal')">
     <div class="modal" style="width:90vw;max-width:1400px;height:90vh;background:transparent;box-shadow:none;align-items:center;justify-content:center;">
         <div style="text-align:center;">
@@ -194,7 +163,7 @@
 @section Scripts {
     <script>
         var projectId = parseInt('@(projectId ?? 0L)');
-        var currentType = '@assetType';
+        var currentType = @(assetType.GetHashCode());
         var typeName = '@typeName';
 
         function switchProject(pid) {

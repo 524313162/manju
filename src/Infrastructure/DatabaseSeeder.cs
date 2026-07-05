@@ -74,20 +74,26 @@ public static class DatabaseSeeder
     {
         var existingTypes = await db.PromptTemplates.Select(t => t.TemplateType).ToHashSetAsync();
         var templates = LoadPromptTemplatesFromEmbeddedResources();
-        var toInsert = templates
-            .Where(t => !existingTypes.Contains(t.TemplateType))
-            .ToList();
-
+        
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        foreach (var t in toInsert)
+        
+        // 更新已存在的模板（如果种子中有），插入不存在的
+        foreach (var seedTemplate in templates)
         {
-            t.CreatedTime = now;
-            t.UpdatedTime = now;
-        }
-
-        if (toInsert.Any())
-        {
-            await db.PromptTemplates.AddRangeAsync(toInsert);
+            var existing = await db.PromptTemplates.FirstOrDefaultAsync(t => t.TemplateType == seedTemplate.TemplateType);
+            if (existing != null)
+            {
+                // 更新已有模板的内容
+                existing.Name = seedTemplate.Name;
+                existing.Content = seedTemplate.Content;
+                existing.UpdatedTime = now;
+            }
+            else
+            {
+                seedTemplate.CreatedTime = now;
+                seedTemplate.UpdatedTime = now;
+                await db.PromptTemplates.AddAsync(seedTemplate);
+            }
         }
     }
 

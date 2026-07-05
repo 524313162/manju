@@ -56,6 +56,36 @@ public class StoryController : Controller
         return View();
     }
 
+    [HttpGet]
+    [Route("[controller]/templates")]
+    public async Task<IActionResult> GetTemplates()
+    {
+        var templates = await _dbContext.PromptTemplates
+            .Where(p => p.TemplateType == "StoryGeneration" || p.TemplateType == "RewriteStory")
+            .OrderBy(p => p.Id)
+            .Select(p => new { p.Id, p.TemplateType, p.Name, p.Content })
+            .ToListAsync();
+        
+        if (templates.Count == 0)
+        {
+            var allTemplates = await _dbContext.PromptTemplates
+                .Select(p => new { p.Id, p.TemplateType, p.Name, p.Content })
+                .ToListAsync();
+            
+            var data = allTemplates.Count > 0
+                ? (object)allTemplates
+                : Array.Empty<object>();
+            
+            var warning = allTemplates.Count == 0
+                ? "数据库中没有任何提示词模板，请检查种子数据是否正确加载"
+                : $"数据库中仅有 {allTemplates.Count} 个模板，但不包含 StoryGeneration 或 RewriteStory";
+            
+            return Json(new { success = true, data, warning });
+        }
+        
+        return Json(new { success = true, data = templates });
+    }
+
     [HttpPost]
     public async Task<IActionResult> CreateStory(long projectId, string title)
     {
@@ -192,16 +222,18 @@ public class StoryController : Controller
             else
             {
                 story = stories.First();
+                story.Title = title;
+                await _storyService.UpdateAsync(story);
             }
 
             // 导入 assets
             if (root.TryGetProperty("assets", out var assetsProp) && assetsProp.ValueKind == JsonValueKind.Object)
             {
-                await UpsertAssetGroup(assetsProp, "characters", projectId, "characters");
-                await UpsertAssetGroup(assetsProp, "scenes", projectId, "scenes");
-                await UpsertAssetGroup(assetsProp, "props", projectId, "props");
-                await UpsertAssetGroup(assetsProp, "skills", projectId, "skills");
-                await UpsertAssetGroup(assetsProp, "bgm", projectId, "bgm");
+                await UpsertAssetGroup(assetsProp, "characters", projectId, AssetTypeEnum.Actor);
+                await UpsertAssetGroup(assetsProp, "scenes", projectId, AssetTypeEnum.Scene);
+                await UpsertAssetGroup(assetsProp, "props", projectId, AssetTypeEnum.Prop);
+                await UpsertAssetGroup(assetsProp, "skills", projectId, AssetTypeEnum.Skill);
+                await UpsertAssetGroup(assetsProp, "bgm", projectId, AssetTypeEnum.Bgm);
             }
 
             // 导入 chapters
@@ -241,7 +273,7 @@ public class StoryController : Controller
         }
     }
 
-    private async Task UpsertAssetGroup(JsonElement assetsProp, string groupName, long projectId, string assetType)
+    private async Task UpsertAssetGroup(JsonElement assetsProp, string groupName, long projectId, AssetTypeEnum assetType)
     {
         if (!assetsProp.TryGetProperty(groupName, out var groupProp) || groupProp.ValueKind != JsonValueKind.Array)
             return;
