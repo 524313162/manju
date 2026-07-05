@@ -167,12 +167,7 @@ public class StoryController : Controller
         return Json(new { success = true, data = storyChapters });
     }
 
-    public class ImportScriptRequest
-    {
-        public string ScriptJson { get; set; } = "";
-    }
-
-    [HttpPost("import")]
+    [HttpPost("ImportScript")]
     public async Task<IActionResult> ImportScript(long projectId, [FromBody] ImportScriptRequest req)
     {
         if (string.IsNullOrWhiteSpace(req.ScriptJson))
