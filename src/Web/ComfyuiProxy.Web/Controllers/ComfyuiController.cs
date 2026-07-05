@@ -1,4 +1,5 @@
 using ComfyuiProxy.Web.Services;
+using ComfyuiProxy.Web.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ComfyuiProxy.Web.Controllers;
@@ -161,6 +162,53 @@ public class ComfyuiController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading file to ComfyUI: {Message}", ex.Message);
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// 执行工作流并等待返回结果
+    /// </summary>
+    [HttpPost("workflows/execute")]
+    public async Task<IActionResult> ExecuteWorkflowWithParams([FromBody] WorkflowExecuteRequest request)
+    {
+        try
+        {
+            _logger.LogInformation("Executing workflow: {WorkflowFileName}", request.WorkflowFileName);
+            var result = await _comfyuiProxyService.ExecuteWorkflowWithParamsAsync(request);
+            return Ok(result);
+        }
+        catch (FileNotFoundException ex)
+        {
+            _logger.LogWarning("Workflow file not found: {Message}", ex.Message);
+            return NotFound(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error executing workflow: {Message}", ex.Message);
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// 获取工作流执行结果
+    /// </summary>
+    [HttpGet("workflows/result/{promptId}")]
+    public async Task<IActionResult> GetWorkflowResult([FromRoute] string promptId)
+    {
+        try
+        {
+            _logger.LogInformation("Getting workflow result for prompt ID: {PromptId}", promptId);
+            var result = await _comfyuiProxyService.GetWorkflowResultAsync(promptId);
+
+            if (result.Status == "not_found")
+                return NotFound(new { error = result.ErrorMessage });
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting workflow result: {Message}", ex.Message);
             return StatusCode(500, new { error = ex.Message });
         }
     }
