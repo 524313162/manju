@@ -90,19 +90,44 @@
        </div>
    </div>
 
-  <div class="modal-overlay" id="chapterModal">
-     <div class="modal" style="width:600px;">
-         <h3 id="chapterModalTitle">添加章节</h3>
-         <input type="hidden" id="editChapterIdx">
-         <input type="hidden" id="editChapterId">
-         <div class="form-group"><label>章节名称</label><input type="text" id="chName" placeholder="如：雨夜决战"></div>
-         <div class="form-group"><label>章节内容</label><textarea id="chContent" rows="10" placeholder="输入本章节内容..."></textarea></div>
-         <div class="form-actions">
-             <button class="btn btn-ghost" onclick="hideModal('chapterModal')">取消</button>
-             <button class="btn btn-primary" onclick="saveChapter()">保存</button>
-         </div>
-     </div>
- </div>
+   <div class="modal-overlay" id="chapterModal">
+      <div class="modal" style="width:600px;">
+          <h3 id="chapterModalTitle">添加章节</h3>
+          <input type="hidden" id="editChapterIdx">
+          <input type="hidden" id="editChapterId">
+          <div class="form-group"><label>章节名称</label><input type="text" id="chName" placeholder="如：雨夜决战"></div>
+          <div class="form-group"><label>章节内容</label><textarea id="chContent" rows="10" placeholder="输入本章节内容..."></textarea></div>
+          <div class="form-actions">
+              <button class="btn btn-ghost" onclick="hideModal('chapterModal')">取消</button>
+              <button class="btn btn-primary" onclick="saveChapter()">保存</button>
+          </div>
+      </div>
+  </div>
+
+   <div class="modal-overlay" id="rewriteModal">
+       <div class="modal" style="width:720px;">
+           <h3>&#9889; AI 改写/扩写</h3>
+           <input type="hidden" id="rewriteChapterIdx">
+           <div class="form-group">
+               <label>改写方式</label>
+               <select id="rewriteMode" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:14px;">
+                   <option value="rewrite">改写（保留原意，优化表达）</option>
+                   <option value="expand">扩写（在原有内容基础上展开）</option>
+                   <option value="polish">润色（提升文笔，增加细节）</option>
+                   <option value="summary">精简（压缩内容，提取要点）</option>
+               </select>
+           </div>
+           <div class="form-group">
+               <label>原文内容（可手动修改）</label>
+               <textarea id="rewriteOriginal" rows="12" placeholder="原文内容..."></textarea>
+           </div>
+           <div id="rewriteResult" style="display:none;"></div>
+           <div class="form-actions">
+               <button class="btn btn-ghost" onclick="hideModal('rewriteModal')">取消</button>
+               <button class="btn btn-primary" id="rewriteGoBtn" onclick="doRewrite()">开始改写</button>
+           </div>
+       </div>
+   </div>
 
  @section Scripts {
  <script>
@@ -182,27 +207,30 @@
              document.getElementById('title').textContent = '剧本创作';
              return;
          }
-         var h = '';
-         chapters.forEach(function(c, i) {
-             h += '<div class="chapter-item' + (i === ci ? ' active' : '') + '" onclick="sel(' + i + ')">'
-                 + '<span class="chapter-num">' + (c.chapterNumber || (i+1)) + '</span>'
-                 + '<div class="chapter-info"><div class="chapter-name">' + c.chapterName + '</div>'
-                 + '<div class="chapter-meta">' + (c.content || '').length + ' 字</div></div></div>';
-         });
+        var h = '';
+          chapters.forEach(function(c, i) {
+              var num = '第' + (c.chapterNumber || (i+1)) + '章';
+              h += '<div class="chapter-item' + (i === ci ? ' active' : '') + '" onclick="sel(' + i + ')">'
+                  + '<span class="chapter-num">' + num + '</span>'
+                  + '<div class="chapter-info"><div class="chapter-name">' + c.chapterName + '</div>'
+                  + '<div class="chapter-meta">' + (c.content || '').length + ' 字</div></div></div>';
+          });
          document.getElementById('chapterList').innerHTML = h;
          if (ci < 0 || ci >= chapters.length) ci = 0;
          var c = chapters[ci];
          if (!c) return;
-         document.getElementById('title').textContent = c.chapterName || '';
-         var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;">'
-             + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">'
-             + '<h3 style="font-size:16px;font-weight:700;">' + (c.chapterNumber || (ci+1)) + ' — ' + c.chapterName + '</h3>'
-             + '<div style="display:flex;gap:6px;">'
-             + '<button class="btn btn-ghost btn-sm" onclick="showChapterModal(' + ci + ')">&#9998; 编辑</button>'
-             + '<button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="delChapter(' + ci + ')">&#128465; 删除</button>'
-             + '</div></div>'
-             + '<div class="content-body">' + formatMarkdown(c.content || '') + '</div>'
-             + '</div>';
+          var num = '第' + (c.chapterNumber || (ci+1)) + '章';
+          document.getElementById('title').textContent = num + ': ' + c.chapterName;
+          var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;">'
+              + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">'
+              + '<h3 style="font-size:16px;font-weight:700;">' + num + ': ' + c.chapterName + '</h3>'
+              + '<div style="display:flex;gap:6px;">'
+              + '<button class="btn btn-info btn-sm" onclick="showRewriteModal(' + ci + ')">&#9889; AI 改写/扩写</button>'
+              + '<button class="btn btn-ghost btn-sm" onclick="showChapterModal(' + ci + ')">&#9998; 编辑</button>'
+              + '<button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="delChapter(' + ci + ')">&#128465; 删除</button>'
+              + '</div></div>'
+              + '<div class="content-body">' + formatMarkdown(c.content || '') + '</div>'
+              + '</div>';
          document.getElementById('area').innerHTML = html;
      }
 
@@ -400,28 +428,29 @@
          }
      }
 
-      function delChapter(idx) {
-          if (!confirm('确认删除「' + chapters[idx].chapterName + '」？')) return;
-          var chapterId = chapters[idx].id;
-          fetch('/Story/DeleteChapter', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: chapterId })
-          })
-          .then(function(r){ return r.json(); })
-          .then(function(res) {
-              if (res.success) {
-                  chapters.splice(idx, 1);
-                  chapters.forEach(function(c, i) { c.chapterNumber = i + 1; });
-                  if (chapters.length === 0) ci = -1;
-                  else ci = Math.min(ci, chapters.length - 1);
-                  render();
-              } else {
-                  alert('删除失败：' + (res.message || '未知错误'));
-              }
-          })
-          .catch(function(){ alert('网络错误'); });
-      }
+        function delChapter(idx) {
+            if (!confirm('确认删除「' + chapters[idx].chapterName + '」？')) return;
+            var chapterId = chapters[idx].id;
+            fetch('/Story/DeleteChapter', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: chapterId })
+            })
+            .then(function(r){ return r.json(); })
+            .then(function(res) {
+                if (res.success) {
+                    chapters.splice(idx, 1);
+                    chapters.forEach(function(c, i) { c.chapterNumber = i + 1; });
+                    if (chapters.length === 0) ci = -1;
+                    else ci = Math.min(ci, chapters.length - 1);
+                    loadChapters();
+                    render();
+                } else {
+                    alert('删除失败：' + (res.message || '未知错误'));
+                }
+            })
+            .catch(function(){ alert('网络错误'); });
+        }
 
        function showImportModal() {
            document.getElementById('importJson').value = '';
@@ -470,9 +499,137 @@
            })
            .catch(function(err) {
                document.getElementById('importResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--danger);">请求失败：' + err.message + '</p></div>';
-               document.getElementById('importGoBtn').disabled = false;
-               document.getElementById('importGoBtn').textContent = '重试';
-           });
-       }
- </script>
- }
+            document.getElementById('importGoBtn').disabled = false;
+            document.getElementById('importGoBtn').textContent = '重试';
+        });
+    }
+
+        function showRewriteModal(idx) {
+            var c = chapters[idx];
+            document.getElementById('rewriteChapterIdx').value = idx;
+            document.getElementById('rewriteOriginal').value = c.content || '';
+            document.getElementById('rewriteResult').style.display = 'none';
+            document.getElementById('rewriteResult').innerHTML = '';
+            document.getElementById('rewriteGoBtn').disabled = false;
+            document.getElementById('rewriteGoBtn').textContent = '开始改写';
+            showModal('rewriteModal');
+        }
+
+        function doRewrite() {
+            var idx = parseInt(document.getElementById('rewriteChapterIdx').value);
+            var c = chapters[idx];
+            var content = document.getElementById('rewriteOriginal').value.trim();
+            var mode = document.getElementById('rewriteMode').value;
+            if (!content) { alert('请输入要改写的内容'); return; }
+            if (!currentProvider || !currentProvider.id) {
+                alert('请先选择 AI 提供者');
+                return;
+            }
+
+            document.getElementById('rewriteGoBtn').disabled = true;
+            document.getElementById('rewriteGoBtn').textContent = '改写中...';
+            document.getElementById('rewriteResult').style.display = 'block';
+            document.getElementById('rewriteResult').innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></div><p style="margin-top:10px;color:var(--text2);font-size:13px;">AI 正在改写，请稍候...</p></div>';
+
+            var data = new FormData();
+            data.append('prompt', content);
+            data.append('mode', mode);
+
+            fetch('/api/v1/ai/story/rewrite', {
+                method: 'POST',
+                body: data
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.success) {
+                    document.getElementById('rewriteOriginal').value = res.data;
+                    document.getElementById('rewriteResult').innerHTML = '<div style="padding:14px;background:var(--ok-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--ok);">&#10003; 改写完成，确认无误后点击保存</p></div>';
+                    document.getElementById('rewriteGoBtn').textContent = '使用改写内容';
+                    document.getElementById('rewriteGoBtn').disabled = false;
+                    _savedChapter = c;
+                } else {
+                    document.getElementById('rewriteResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--danger);">改写失败：' + (res.message || '未知错误') + '</p></div>';
+                    document.getElementById('rewriteGoBtn').disabled = false;
+                    document.getElementById('rewriteGoBtn').textContent = '重试';
+                }
+            })
+            .catch(function(err) {
+                document.getElementById('rewriteResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--danger);">请求失败：' + err.message + '</p></div>';
+                document.getElementById('rewriteGoBtn').disabled = false;
+                document.getElementById('rewriteGoBtn').textContent = '重试';
+            });
+        }
+
+        // Override saveChapter to handle rewrite mode
+        var _savedChapter = null;
+        var _originalSaveChapter = function() {
+            var idx = parseInt(document.getElementById('editChapterIdx').value);
+            var name = document.getElementById('chName').value.trim();
+            var content = document.getElementById('chContent').value.trim();
+            if (!name) { alert('请输入章节名称'); return; }
+            if (!content) { alert('请输入章节内容'); return; }
+
+            if (idx >= 0) {
+                var chapterId = parseInt(document.getElementById('editChapterId').value);
+                fetch('/Story/EditChapter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: chapterId, chapterName: name, content: content })
+                })
+                .then(function(r){ return r.json(); })
+                .then(function(res) {
+                    if (res.success) {
+                        chapters[idx].chapterName = name;
+                        chapters[idx].content = content;
+                        hideModal('chapterModal');
+                        render();
+                    } else {
+                        alert('保存失败：' + (res.message || '未知错误'));
+                    }
+                })
+                .catch(function(){ alert('网络错误'); });
+            } else {
+                fetch('/Story/AddChapter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ storyId: storyId, chapterName: name, content: content })
+                })
+                .then(function(r){ return r.json(); })
+                .then(function(res) {
+                    if (res.success) {
+                        chapters.push(res.data);
+                        hideModal('chapterModal');
+                        loadChapters();
+                    } else {
+                        alert('添加失败：' + (res.message || '未知错误'));
+                    }
+                })
+                .catch(function(){ alert('网络错误'); });
+            }
+        };
+        saveChapter = function() {
+            if (_savedChapter) {
+                var idx = parseInt(document.getElementById('rewriteChapterIdx').value);
+                var newContent = document.getElementById('rewriteOriginal').value.trim();
+                fetch('/Story/EditChapter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: _savedChapter.id, chapterName: _savedChapter.chapterName, content: newContent })
+                })
+                .then(function(r){ return r.json(); })
+                .then(function(res) {
+                    if (res.success) {
+                        chapters[idx].content = newContent;
+                        _savedChapter = null;
+                        hideModal('rewriteModal');
+                        loadChapters();
+                        render();
+                    } else {
+                        alert('保存失败：' + (res.message || '未知错误'));
+                    }
+                })
+                .catch(function(){ alert('网络错误'); });
+            } else {
+                _originalSaveChapter();
+            }
+        };

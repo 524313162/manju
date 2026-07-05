@@ -207,10 +207,6 @@ public class StoryController : Controller
             // 导入 chapters
             if (root.TryGetProperty("chapters", out var chaptersProp) && chaptersProp.ValueKind == JsonValueKind.Array)
             {
-                var maxOrder = await _dbContext.StoryChapters
-                    .Where(c => c.StoryId == story.Id)
-                    .MaxAsync(c => (int?)c.SortOrder) ?? 0;
-
                 var parsedChapters = chaptersProp.EnumerateArray().ToList();
                 var storyChapters = new List<StoryChapter>();
                 for (int i = 0; i < parsedChapters.Count; i++)
@@ -222,16 +218,14 @@ public class StoryController : Controller
                     var content = ch.TryGetProperty("content", out var ct) ? ct.GetString()
                         : ch.TryGetProperty("Content", out var ct2) ? ct2.GetString()
                         : "";
-                    var existingNumber = ch.TryGetProperty("chapterNumber", out var cn4) && cn4.TryGetInt32(out var n4) ? n4 : 0;
 
-                    maxOrder++;
                     storyChapters.Add(new StoryChapter
                     {
                         StoryId = story.Id,
-                        ChapterNumber = existingNumber > 0 ? existingNumber : maxOrder,
+                        ChapterNumber = i + 1,
                         ChapterName = chapterName,
                         Content = content,
-                        SortOrder = maxOrder
+                        SortOrder = i + 1
                     });
                 }
                 if (storyChapters.Count > 0)
