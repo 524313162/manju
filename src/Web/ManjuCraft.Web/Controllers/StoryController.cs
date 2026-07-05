@@ -167,8 +167,8 @@ public class StoryController : Controller
         return Json(new { success = true, data = storyChapters });
     }
 
-    [HttpPost("ImportScript")]
-    public async Task<IActionResult> ImportScript(long projectId, [FromBody] ImportScriptRequest req)
+    [HttpPost]
+    public async Task<IActionResult> ImportScript(long projectId, [FromBody] ImportScriptDto req)
     {
         if (string.IsNullOrWhiteSpace(req.ScriptJson))
             return Json(new { success = false, message = "请输入 JSON 内容" });

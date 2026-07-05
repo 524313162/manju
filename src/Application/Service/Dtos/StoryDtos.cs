@@ -19,7 +19,7 @@ public class ChapterDeleteRequestDto
     public long Id { get; set; }
 }
 
-public class ImportScriptRequest
+public class ImportScriptDto
 {
     public string ScriptJson { get; set; } = "";
 }
