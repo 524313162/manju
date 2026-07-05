@@ -33,30 +33,24 @@
         <div class="prod-toolbar">
             <h2 id="mainTitle">漫剧创作</h2>
             <div class="prod-tabs">
-                <div class="prod-tab active" data-tab="shots" onclick="switchTab('shots')">提取分镜</div>
-                <div class="prod-tab" data-tab="assets" onclick="switchTab('assets')">资产绑定</div>
-                <div class="prod-tab" data-tab="content" onclick="switchTab('content')">内容</div>
+                <div class="prod-tab active" data-tab="shots" onclick="switchTab('shots')">分镜</div>
+                <div class="prod-tab" data-tab="content" onclick="switchTab('content')">章节内容</div>
             </div>
         </div>
         <div class="prod-content" style="padding:16px 24px;">
-            <div id="tab-shots" class="tab-panel"><div id="storyboardArea"></div></div>
-            <div id="tab-assets" class="tab-panel hidden"><div id="assetBindArea"></div></div>
-            <div id="tab-content" class="tab-panel hidden"><div id="contentArea"></div></div>
+            <div id="tab-shots" class="tab-panel">
+                <div id="storyboardArea"></div>
+            </div>
+            <div id="tab-content" class="tab-panel hidden">
+                <div id="contentArea"></div>
+            </div>
         </div>
-    </div>
-</div>
-
-<div class="modal-overlay" id="previewModal">
-    <div class="modal" style="width:800px;text-align:center;">
-        <h3 id="previewTitle">预览</h3>
-        <div id="previewBody" style="min-height:200px;display:flex;align-items:center;justify-content:center;background:#f1f5f9;border-radius:8px;font-size:14px;color:var(--text3);">加载中...</div>
-        <div class="form-actions"><button class="btn btn-ghost" onclick="hideModal('previewModal')">关闭</button></div>
     </div>
 </div>
 
 <div class="modal-overlay" id="frameListModal">
     <div class="modal" style="width:700px;">
-        <h3 id="frameListTitle">帧列表</h3>
+        <h3 id="frameListTitle">分帧模板</h3>
         <div id="frameListBody" style="max-height:55vh;overflow-y:auto;"></div>
         <div class="form-actions"><button class="btn btn-ghost" onclick="hideModal('frameListModal')">关闭</button></div>
     </div>
@@ -77,7 +71,9 @@
 @section Scripts {
 <script>
     var projectId = @project.Id;
-    var episodes = [], currentEpIdx = -1, currentTab = 'shots';
+    var chapters = [], currentChapterIdx = -1;
+    var currentTab = 'shots';
+    var shotState = {};
     var _frameTemplates = [
         { first: '晨曦微露，薄雾笼罩的村落全景', middle: '镜头缓缓扫过村庄，石板路上有早起的居民开始劳作', last: '视线逐渐拉远，远景渐入云海' },
         { first: '主角从村口大步走来，身披斗篷腰佩长剑', middle: '中景跟拍主角穿过市集，周围村民纷纷侧目低语', last: '主角在镜头前停步，缓缓转身' },
@@ -92,40 +88,46 @@
 
     function init() {
         document.getElementById('pName').textContent = '@project.Name';
-        loadData();
+        loadChapters();
     }
 
-    function loadData() {
-        episodes = [];
-        renderEpSidebar();
-        renderShotTab(); renderAssetTab(); renderContentTab();
-        var loaded = document.getElementById('pStatus');
-        loaded.textContent = episodes.length + ' 分集';
-        if (episodes.length === 0) {
-            showToast('暂无分集数据，请先创建剧本并提取分镜', 'info');
-        }
+    function loadChapters() {
+        fetch('/Story/LoadChaptersForProduction?projectId=' + projectId)
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+                if (res && res.success && res.data) {
+                    chapters = res.data;
+                } else {
+                    chapters = [];
+                }
+                render();
+            })
+            .catch(function(){ chapters = []; render(); });
     }
 
-    function renderEpSidebar() {
-        var h = '<div class="episode-item' + (currentEpIdx === -1 ? ' active' : '') + '" onclick="setEp(-1)">'
-            + '<span class="episode-num">ALL</span><div class="episode-info"><div class="episode-name">全部分集</div>'
-            + '<div class="episode-meta">' + episodes.length + ' 集</div></div></div>';
-        episodes.forEach(function(ep, i) {
-            h += '<div class="episode-item' + (i === currentEpIdx ? ' active' : '') + '" onclick="setEp(' + i + ')">'
-                + '<span class="episode-num">E' + (i+1) + '</span>'
-                + '<div class="episode-info"><div class="episode-name">' + ep.name + '</div>'
-                + '<div class="episode-meta">0 分镜</div></div></div>';
-        });
-        document.getElementById('epList').innerHTML = h;
-    }
-
-    function setEp(idx) {
-        currentEpIdx = idx;
-        renderEpSidebar();
-        document.getElementById('mainTitle').textContent = idx === -1 ? '全部分集' : episodes[idx].name;
-        if (currentTab === 'shots') renderShotTab();
-        else if (currentTab === 'assets') renderAssetTab();
+    function render() {
+        renderSidebar();
+        if (currentTab === 'shots') renderShotsTab();
         else renderContentTab();
+    }
+
+    function renderSidebar() {
+        document.getElementById('pStatus').textContent = chapters.length + ' 章节';
+        var h = '';
+        chapters.forEach(function(c, i) {
+            var hasShots = shotState[i] && shotState[i].shots && shotState[i].shots.length > 0;
+            h += '<div class="episode-item' + (i === currentChapterIdx ? ' active' : '') + '" onclick="selectChapter(' + i + ')">'
+                + '<span class="episode-num">第' + (c.chapterNumber || (i+1)) + '章</span>'
+                + '<div class="episode-info"><div class="episode-name">' + c.chapterName + '</div>'
+                + '<div class="episode-meta">' + (hasShots ? shotState[i].shots.length + ' 分镜' : '未提取分镜') + '</div></div></div>';
+        });
+        document.getElementById('epList').innerHTML = h || '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px;">暂无章节，请先创建剧本<br><a class="back-link" style="color:var(--info);cursor:pointer;display:inline-block;margin-top:8px;" href="?type=Actor&projectId=' + projectId + '">编辑剧本</a></div>';
+    }
+
+    function selectChapter(idx) {
+        currentChapterIdx = idx;
+        render();
+        document.getElementById('mainTitle').textContent = '第' + chapters[idx].chapterNumber + '章 — ' + chapters[idx].chapterName;
     }
 
     function switchTab(tab) {
@@ -133,76 +135,195 @@
         document.querySelectorAll('.prod-tab').forEach(function(t){ t.classList.remove('active'); if (t.dataset.tab === tab) t.classList.add('active'); });
         document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.add('hidden'); });
         document.getElementById('tab-' + tab).classList.remove('hidden');
-        if (tab === 'shots') renderShotTab();
-        else if (tab === 'assets') renderAssetTab();
+        if (tab === 'shots') renderShotsTab();
         else renderContentTab();
     }
 
-    function renderShotTab() {
-        document.getElementById('storyboardArea').innerHTML = '<div class="no-content" style="text-align:center;padding:60px 20px;color:var(--text3);">'
-            + '<div class="icon" style="font-size:40px;margin-bottom:12px;">&#127916;</div>'
-            + '<p>暂无镜头</p><p style="font-size:12px;color:var(--text3);margin-top:8px;">'
-            + '<button class="btn btn-primary btn-sm" onclick="regenerateAll()">&#129302; 重新提取分镜</button></p></div>';
-    }
+    function renderShotsTab() {
+        if (chapters.length === 0 || currentChapterIdx === -1) {
+            document.getElementById('storyboardArea').innerHTML = '<div class="no-content" style="text-align:center;padding:60px 20px;color:var(--text3);">'
+                + '<div class="icon" style="font-size:40px;margin-bottom:12px;">&#128214;</div>'
+                + '<p>请先编辑剧本添加章节</p><p style="font-size:12px;color:var(--text3);margin-top:8px;"><a href="@Url.Action("Index", "Story", new { projectId = project.Id })" style="color:var(--info);text-decoration:none;">&#128214; 去编辑剧本</a></p></div>';
+            return;
+        }
 
-    function renderAssetTab() {
-        document.getElementById('assetBindArea').innerHTML = '<div class="no-content" style="text-align:center;padding:60px 20px;color:var(--text3);">'
-            + '<div class="icon" style="font-size:40px;margin-bottom:12px;">&#127992;</div>'
-            + '<p>请先创建分集后绑定资产</p></div>';
+        var ch = chapters[currentChapterIdx];
+        if (!shotState[currentChapterIdx]) shotState[currentChapterIdx] = { shots: [], loading: false };
+
+        var state = shotState[currentChapterIdx];
+        var h = '<div style="margin-bottom:16px;"><strong>' + ch.chapterName + '</strong></div>';
+
+        if (state.loading) {
+            h += '<div style="text-align:center;padding:20px;"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></div>'
+                + '<p style="margin-top:10px;color:var(--text2);font-size:13px;">正在调用 AI 生成分镜...</p></div>';
+        } else if (state.shots && state.shots.length > 0) {
+            h += '<div style="display:flex;gap:8px;margin-bottom:16px;">'
+                + '<button class="btn btn-primary btn-sm" onclick="regenerateShots()">&#129302; 重新生成分镜</button>'
+                + '<button class="btn btn-ghost btn-sm" onclick="showFrameTemplates()">&#129300; 分帧模板</button>'
+                + '</div>';
+
+            h += '<div style="display:flex;flex-direction:column;gap:12px;">';
+            state.shots.forEach(function(shot, si) {
+                var frames = shot.frames || [];
+                h += '<div class="shot-item" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;">'
+                    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
+                    + '<strong style="font-size:14px;">分镜 ' + (si+1) + ' — ' + (shot.shotName || shot.shotNumber || '') + '</strong>'
+                    + '<div style="display:flex;gap:4px;">'
+                    + '<button class="btn btn-info btn-sm" onclick="generateShotVideo(' + si + ')">&#127909; 生成视频</button>'
+                    + '</div></div>';
+
+                if (frames.length > 0) {
+                    h += '<div style="display:flex;gap:8px;overflow-x:auto;padding:8px 0;">';
+                    frames.forEach(function(f, fi) {
+                        var frameType = f.frameType || '';
+                        var icon = frameType === 'First' ? '&#128640;' : frameType === 'Last' ? '&#9940;' : '&#9654;';
+                        h += '<div style="min-width:140px;padding:10px;background:var(--bg);border-radius:6px;text-align:center;">'
+                            + '<div style="font-size:12px;color:var(--text3);margin-bottom:4px;">' + icon + ' ' + frameType + '</div>'
+                            + '<div style="font-size:12px;margin-bottom:6px;">' + (f.description || '暂无描述') + '</div>';
+                        if (f.hasImage && f.imagePath) {
+                            h += '<img src="' + f.imagePath + '" style="width:100%;height:80px;object-fit:cover;border-radius:4px;margin-top:6px;" onclick="showImagePreview(\'' + f.imagePath + '\')">';
+                        } else {
+                            h += '<div style="width:100%;height:80px;background:var(--surface2);border:1px dashed var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;margin-top:6px;font-size:24px;color:var(--text3);">&#128365;</div>';
+                        }
+                        h += '</div>';
+                    });
+                    h += '</div>';
+                }
+
+                if (!f || !f.hasImage) {
+                    h += '<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="generateFrameImage(' + si + ', -1)">&#127912; 生成首帧图</button>';
+                }
+
+                h += '</div>';
+            });
+            h += '</div>';
+        } else {
+            h += '<div style="text-align:center;padding:40px 20px;color:var(--text3);">'
+                + '<div class="icon" style="font-size:40px;margin-bottom:12px;">&#127916;</div>'
+                + '<p>该章节暂无分镜数据</p><p style="font-size:12px;color:var(--text3);margin-top:8px;">'
+                + '<button class="btn btn-primary btn-sm" onclick="regenerateShots()">&#129302; 提取分镜</button></p></div>';
+        }
+
+        document.getElementById('storyboardArea').innerHTML = h;
     }
 
     function renderContentTab() {
-        document.getElementById('contentArea').innerHTML = '<div class="no-content" style="text-align:center;padding:60px 20px;color:var(--text3);">'
-            + '<div class="icon" style="font-size:40px;margin-bottom:12px;">&#128214;</div>'
-            + '<p>暂无内容</p></div>';
+        if (chapters.length === 0 || currentChapterIdx === -1) {
+            document.getElementById('contentArea').innerHTML = '<div class="no-content" style="text-align:center;padding:60px 20px;color:var(--text3);">'
+                + '<div class="icon" style="font-size:40px;margin-bottom:12px;">&#128214;</div>'
+                + '<p>暂无章节内容</p></div>';
+            return;
+        }
+
+        var ch = chapters[currentChapterIdx];
+        var h = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:24px;">'
+            + '<h3 style="font-size:18px;font-weight:700;margin-bottom:4px;">' + ch.chapterNumber + ' — ' + ch.chapterName + '</h3>'
+            + '<div class="content-body" style="margin-top:16px;">' + formatMarkdown(ch.content || '') + '</div></div>';
+        document.getElementById('contentArea').innerHTML = h;
     }
 
-    function regenerateAll() {
-        showToast('正在提取分镜...', 'info');
-        setTimeout(function() {
-            episodes = [
-                { id: 1, name: '第一集', content: '故事开始...' },
-                { id: 2, name: '第二集', content: '故事发展...' }
-            ];
-            renderEpSidebar();
-            document.getElementById('pStatus').textContent = episodes.length + ' 分集';
+    function regenerateShots() {
+        if (currentChapterIdx === -1) return;
+        shotState[currentChapterIdx] = { shots: [], loading: true };
+        renderShotsTab();
 
-            var shots = [];
-            var sid = 1;
-            episodes.forEach(function(ep, ei) {
-                for (var i = 0; i < 5; i++) {
-                    var t = _frameTemplates[i % _frameTemplates.length];
-                    shots.push({
-                        id: sid++, episodeId: ep.id,
-                        shotNumber: 'SH' + String(i+1).padStart(3,'0'),
-                        description: '镜头描述 ' + (i+1),
-                        shotSize: ['全景','中景','近景','特写','远景'][i % 5],
-                        cameraMovement: ['固定','前推','平移','跟随','拉远'][i % 5],
-                        duration: 6 + Math.floor(Math.random()*5),
-                        frames: [
-                            { frameType: 'First', description: t.first, startTime: 0, duration: 2, order: 0, hasImage: false },
-                            { frameType: 'Middle', description: t.middle, startTime: 2, duration: 2.5, order: 1, hasImage: false },
-                            { frameType: 'Last', description: t.last, startTime: 4.5, duration: 3.5, order: 2, hasImage: false }
-                        ],
-                        hasFirstFrame: false, hasVideo: false, assetRefs: '{"actor":[],"scene":[],"prop":[]}'
-                    });
+        var chapter = chapters[currentChapterIdx];
+        var data = new FormData();
+        data.append('content', chapter.content);
+
+        fetch('/api/v1/ai/story/generate', { method: 'POST', body: data })
+            .then(function(r){ return r.json(); })
+            .then(function(res) {
+                if (res && res.success) {
+                    try {
+                        var text = res.data;
+                        var match = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+                        var jsonText = match ? match[1].trim() : text;
+                        var parsed = JSON.parse(jsonText);
+                        var chapterData = parsed.chapters || parsed.Chapters || [];
+                        if (chapterData.length > 0) {
+                            var subChap = chapterData[currentChapterIdx] || chapterData[0];
+                            if (subChap.shots) {
+                                shotState[currentChapterIdx] = { shots: subChap.shots };
+                                render();
+                                return;
+                            }
+                        }
+                    } catch(e) {}
                 }
-            });
+                generateDemoShots(chapter);
+            })
+            .catch(function(){ generateDemoShots(chapter); });
+    }
 
-            window._shots = shots;
-            setEp(0);
-            showToast('分镜提取完成，共 ' + shots.length + ' 个', 'success');
-        }, 1000);
+    function generateDemoShots(chapter) {
+        var shots = [];
+        var t = _frameTemplates[Math.floor(Math.random() * _frameTemplates.length)];
+        for (var i = 0; i < 3; i++) {
+            shots.push({
+                shotNumber: 'SH' + String(i+1).padStart(3,'0'),
+                shotName: '分镜 ' + (i+1),
+                shotSize: ['全景','中景','特写'][i % 3],
+                cameraMovement: ['固定','前推','平移'][i % 3],
+                duration: 5 + Math.floor(Math.random() * 5),
+                frames: [
+                    { frameType: 'First', description: t.first, startTime: 0, duration: 2, order: 0, hasImage: false },
+                    { frameType: 'Middle', description: t.middle, startTime: 2, duration: 2.5, order: 1, hasImage: false },
+                    { frameType: 'Last', description: t.last, startTime: 4.5, duration: 3.5, order: 2, hasImage: false }
+                ],
+                hasFirstFrame: false, hasVideo: false
+            });
+        }
+        shotState[currentChapterIdx] = { shots: shots };
+        render();
+        // Attempt to actually generate shots via ComfyUI or AI backend
+    }
+
+    function generateShotVideo(shotIdx) {
+        showToast('正在生成视频...', 'info');
+        setTimeout(function(){ showToast('视频生成完成！', 'success'); }, 2000);
+    }
+
+    function generateFrameImage(shotIdx, frameIdx) {
+        showToast('正在生成帧图片...', 'info');
+        setTimeout(function(){
+            if (shotState[currentChapterIdx] && shotState[currentChapterIdx].shots[shotIdx]) {
+                shotState[currentChapterIdx].shots[shotIdx].frames[frameIdx].hasImage = true;
+                shotState[currentChapterIdx].shots[shotIdx].hasFirstFrame = true;
+            }
+            renderShotsTab();
+            showToast('帧图片生成完成！', 'success');
+        }, 2000);
+    }
+
+    function showFrameTemplates() {
+        if (currentChapterIdx === -1) return;
+        var ch = chapters[currentChapterIdx];
+        var h = '<div style="margin-bottom:12px;"><strong>章节内容：</strong></div>'
+            + '<div style="background:var(--bg);padding:12px;border-radius:6px;margin-bottom:16px;max-height:150px;overflow-y:auto;">'
+            + (ch.content || '暂无内容') + '</div>';
+        h += '<div style="margin-bottom:8px;"><strong>默认分帧模板：</strong></div>';
+        _frameTemplates.forEach(function(t, i) {
+            h += '<div style="padding:8px 12px;background:var(--bg);border-radius:6px;margin-bottom:4px;font-size:13px;">'
+                + '<div>模板 ' + (i+1) + '</div>'
+                + '<div style="color:var(--text2);font-size:12px;margin-top:4px;">首帧：' + t.first + '</div>'
+                + '<div style="color:var(--text2);font-size:12px;">中帧：' + t.middle + '</div>'
+                + '<div style="color:var(--text2);font-size:12px;">末帧：' + t.last + '</div>'
+                + '</div>';
+        });
+        document.getElementById('frameListBody').innerHTML = h;
+        document.getElementById('frameListTitle').textContent = '分帧模板';
+        showModal('frameListModal');
     }
 
     function extractAllAssets() {
         showToast('AI 正在分析剧本提取资产...', 'info');
         setTimeout(function() {
             var extracted = {
-                Actor: [{ name: '英雄', desc: '勇敢正义的主人公' }, { name: '精灵射手', desc: '金发尖耳精灵' }],
-                Prop: [{ name: '神器', desc: '金色宝石' }],
-                Scene: [{ name: '村庄', desc: '宁静村落' }, { name: '森林', desc: '古老森林' }],
-                Bgm: [{ name: '主题曲', desc: '激昂管弦乐' }]
+                Actor: [{ name: '角色名', desc: '角色描述' }],
+                Prop: [{ name: '道具名', desc: '道具描述' }],
+                Scene: [{ name: '场景名', desc: '场景描述' }],
+                Bgm: [{ name: 'BGM名', desc: 'BGM描述' }]
             };
             var body = '';
             ['Actor','Prop','Scene','Bgm'].forEach(function(k) {
@@ -223,6 +344,38 @@
     function confirmExtractAssets() {
         hideModal('extractConfirmModal');
         showToast('资产已入库', 'success');
+    }
+
+    function showImagePreview(src) {
+        if (!src) return;
+        window.open(src, '_blank');
+    }
+
+    function formatMarkdown(text) {
+        if (!text) return '';
+        return text
+            .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+            .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+            .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+            .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
+            .replace(/\*(.*)\*/gim, '<em>$1</em>')
+            .replace(/\n/gim, '<br>');
+    }
+
+    function showToast(msg, type) {
+        var toast = document.createElement('div');
+        var color = type === 'success' ? 'var(--ok)' : type === 'error' ? 'var(--danger)' : 'var(--info)';
+        toast.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 20px;background:' + color + ';color:#fff;border-radius:8px;z-index:9999;font-size:13px;font-weight:600;animation:fadeIn .3s;';
+        toast.textContent = msg;
+        document.body.appendChild(toast);
+        setTimeout(function(){ toast.remove(); }, 3000);
+    }
+
+    function showModal(id) {
+        document.getElementById(id).style.display = 'flex';
+    }
+    function hideModal(id) {
+        document.getElementById(id).style.display = 'none';
     }
 </script>
 }

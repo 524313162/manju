@@ -1,0 +1,184 @@
+@using ManjuCraft.Domain.Models
+@{
+    ViewData["Title"] = "提示词管理";
+    var templates = ViewBag.Templates as List<PromptTemplate> ?? new();
+}
+
+<div class="container" style="max-width:1100px;">
+    <div class="page-header">
+        <h2>提示词管理</h2>
+        <button class="btn btn-primary btn-sm" onclick="showAddModal()">&#43; 新增模板</button>
+    </div>
+
+    <div id="templateList">
+        @if (templates.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">\uD83D\uDC41</div>
+                <p>暂无提示词模板，点击「新增」添加</p>
+            </div>
+        }
+        else
+        {
+            foreach (var t in templates)
+            {
+                var icon = (t.TemplateType switch
+                {
+                    "SystemPrompt" => "\uD83D\uDCA1",
+                    "StoryGeneration" => "\uD83E\uDD16",
+                    "EpisodeBreakdown" => "\uD83D\uDCCF",
+                    "ShotPlanning" => "\uD83C\uDFA9",
+                    "CharacterProfile" => "\uD83D\uDC64",
+                    "SceneProfile" => "\uD83C\uDFD0",
+                    "PropProfile" => "\uD83D\uDDFA",
+                    "BgmProfile" => "\uD83C\uDFA5",
+                    "SkillProfile" => "\u26A1",
+                    _ => "\uD83D\uDCC1"
+                });
+                var contentPreview = ((t.Content ?? "").Length > 120
+                    ? (t.Content ?? "").Substring(0, 120)
+                    : (t.Content ?? ""))
+                    .Replace("\r\n", " ").Replace("\r", " ").Replace("\n", " ");
+                <div class="res-item">
+                    <div class="res-icon">@icon</div>
+                    <div class="res-info">
+                        <h4>@t.Name <span class="badge badge-purple" style="margin-left:8px;font-size:11px;">@t.TemplateType</span>
+                        @(t.IsDefault ? " <span class=\"badge badge-ok\" style=\"font-size:11px;\">默认</span>" : "")</h4>
+                        <p>@contentPreview@(t.Content != null && t.Content.Length > 120 ? "..." : "")</p>
+                    </div>
+                    <div class="res-actions">
+                        <button class="btn btn-ghost btn-sm" data-action="edit" data-id="@t.Id">&#9998; 编辑</button>
+                        <button class="btn btn-ghost btn-sm" style="color:var(--danger);" data-action="delete" data-id="@t.Id" data-name="@t.Name">&#128465; 删除</button>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<div class="modal-overlay" id="templateModal">
+    <div class="modal" style="width:720px;">
+        <div class="modal-header">
+            <h3 id="templateModalTitle">新增提示词</h3>
+            <button class="modal-close" onclick="hideModal('templateModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editTemplateId">
+            <div class="form-group"><label>模板名称 *</label><input type="text" id="templateName" placeholder="如 剧本创作默认"></div>
+            <div class="form-group"><label>类型 (TemplateType) *</label>
+                <select id="templateType">
+                    <option value="SystemPrompt">SystemPrompt</option>
+                    <option value="StoryGeneration">StoryGeneration</option>
+                    <option value="EpisodeBreakdown">EpisodeBreakdown</option>
+                    <option value="ShotPlanning">ShotPlanning</option>
+                    <option value="CharacterProfile">CharacterProfile</option>
+                    <option value="SceneProfile">SceneProfile</option>
+                    <option value="PropProfile">PropProfile</option>
+                    <option value="BgmProfile">BgmProfile</option>
+                    <option value="SkillProfile">SkillProfile</option>
+                </select>
+            </div>
+            <div class="form-group"><label>是否默认</label>
+                <select id="templateIsDefault">
+                    <option value="true">是</option>
+                    <option value="false">否</option>
+                </select>
+            </div>
+            <div class="form-group"><label>提示词内容 *</label><textarea id="templateContent" rows="14" placeholder="输入提示词内容..."></textarea></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="hideModal('templateModal')">取消</button>
+            <button class="btn btn-primary" onclick="saveTemplate()">保存</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    var _templatesData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(templates.Select(t => new {
+        id = t.Id,
+        name = t.Name,
+        templateType = t.TemplateType,
+        isDefault = t.IsDefault,
+        content = t.Content ?? ""
+    })));
+
+    function showModal(id) { document.getElementById(id).classList.add('show'); }
+    function hideModal(id) { document.getElementById(id).classList.remove('show'); }
+    function showToast(msg, type) { console.log(type + ': ' + msg); }
+
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        var id = btn.dataset.id;
+        var action = btn.dataset.action;
+        if (action === 'edit') { showEditModal(id); }
+        else if (action === 'delete') { deleteRes(id); }
+    });
+
+    function showAddModal() {
+        document.getElementById('editTemplateId').value = '';
+        document.getElementById('templateModalTitle').textContent = '\u65b0\u589e\u63d0\u793a\u8bcd';
+        document.getElementById('templateName').value = '';
+        document.getElementById('templateType').value = 'StoryGeneration';
+        document.getElementById('templateIsDefault').value = 'false';
+        document.getElementById('templateContent').value = '';
+        showModal('templateModal');
+    }
+
+    function showEditModal(id) {
+        var t = _templatesData.find(function(x){ return x.id == id; });
+        if (!t) return;
+        document.getElementById('editTemplateId').value = t.id;
+        document.getElementById('templateModalTitle').textContent = '\u7f16\u8f91\u63d0\u793a\u8bcd';
+        document.getElementById('templateName').value = t.name || '';
+        document.getElementById('templateType').value = t.templateType || '';
+        document.getElementById('templateIsDefault').value = t.isDefault ? 'true' : 'false';
+        document.getElementById('templateContent').value = t.content || '';
+        showModal('templateModal');
+    }
+
+    function saveTemplate() {
+        var id = document.getElementById('editTemplateId').value;
+        var name = document.getElementById('templateName').value.trim();
+        var templateType = document.getElementById('templateType').value;
+        var isDefault = document.getElementById('templateIsDefault').value === 'true';
+        var content = document.getElementById('templateContent').value;
+        if (!name) { alert('\u8bf7\u8f93\u5165\u540d\u79f0'); return; }
+        if (!content) { alert('\u8bf7\u8f93\u5165\u63d0\u793a\u8bcd\u5185\u5bb9'); return; }
+
+        var url = '@Url.Action("Add", "PromptTemplateManagement")';
+        if (id) { url = '@Url.Action("Edit", "PromptTemplateManagement")/' + id; }
+
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name, templateType: templateType, content: content, isDefault: isDefault })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res) {
+            if (res.success) {
+                hideModal('templateModal');
+                showToast('已保存', 'success');
+                location.reload();
+            } else {
+                alert('\u4fdd\u5b58\u5931\u8d25\uff1a' + (res.message || ''));
+            }
+        });
+    }
+
+    function deleteRes(id) {
+        var t = _templatesData.find(function(x){ return x.id == id; });
+        var name = t ? t.name : '';
+        if (!confirm('\u786e\u8ba4\u5220\u9664\u300c' + name + '\u300d\uff1f')) return;
+        fetch('@Url.Action("Delete", "PromptTemplateManagement")?id=' + id, {
+            method: 'POST'
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res) {
+            if (res.success) { showToast('\u5df2\u5220\u9664', 'success'); location.reload(); }
+            else alert('\u5220\u9664\u5931\u8d25');
+        });
+    }
+</script>
+}

@@ -111,10 +111,6 @@ namespace ManjuCraft.Infrastructure
                 .HasMaxLength(512);
 
             modelBuilder.Entity<StoryChapter>()
-                .Property(c => c.ChapterNumber)
-                .HasMaxLength(32);
-
-            modelBuilder.Entity<StoryChapter>()
                 .Property(c => c.ChapterName)
                 .HasMaxLength(256);
 
