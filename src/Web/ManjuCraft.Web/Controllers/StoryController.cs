@@ -39,7 +39,7 @@ public class StoryController : Controller
         }
         else
         {
-            story = stories.FirstOrDefault();
+            story = stories.First();
         }
 
         var textProvider = await _dbContext.ApiProviders
@@ -176,7 +176,8 @@ public class StoryController : Controller
         var chapters = await _dbContext.StoryChapters
             .Where(c => c.StoryId == story.Id)
             .OrderBy(c => c.SortOrder)
-            .Select(c => new {
+            .Select(c => new
+            {
                 c.Id,
                 c.StoryId,
                 c.ChapterNumber,
@@ -186,7 +187,8 @@ public class StoryController : Controller
             })
             .ToListAsync();
 
-        return Json(new {
+        return Json(new
+        {
             success = true,
             storyId = story.Id,
             storyTitle = story.Title,
@@ -197,15 +199,15 @@ public class StoryController : Controller
     public class ChapterCreateRequest
     {
         public long StoryId { get; set; }
-        public string ChapterName { get; set; }
-        public string Content { get; set; }
+        public string ChapterName { get; set; } = default!;
+        public string Content { get; set; } = default!;
     }
 
     public class ChapterEditRequest
     {
         public long Id { get; set; }
-        public string ChapterName { get; set; }
-        public string Content { get; set; }
+        public string ChapterName { get; set; } = default!;
+        public string Content { get; set; } = default!;
     }
 
     public class ChapterDeleteRequest

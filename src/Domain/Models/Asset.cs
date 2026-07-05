@@ -10,13 +10,13 @@ namespace ManjuCraft.Domain.Models
 
         [Required]
         [StringLength(32)]
-        public string AssetType { get; set; }
+        public string AssetType { get; set; } = default!;
 
         [Required]
         [StringLength(256)]
-        public string Name { get; set; }
+        public string Name { get; set; } = default!;
 
-        public string Description { get; set; }
+        public string Description { get; set; } = default!;
 
         public long? ParentId { get; set; }
 

@@ -74,7 +74,7 @@ public class AssetsController : Controller
             ProjectId = projectId ?? 0,
             AssetType = assetType ?? "Actor",
             Name = name,
-            Description = description,
+            Description = description ?? String.Empty,
             Order = order
         };
         await _assetService.CreateAsync(asset);

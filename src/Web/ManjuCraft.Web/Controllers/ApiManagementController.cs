@@ -89,10 +89,10 @@ public class ApiManagementController : Controller
 
     public class ProviderRequest
     {
-        public string Name { get; set; }
-        public string Capability { get; set; }
-        public string ApiUrl { get; set; }
-        public string ApiKey { get; set; }
-        public string Model { get; set; }
+        public string Name { get; set; } = default!;
+        public string Capability { get; set; } = default!;
+        public string ApiUrl { get; set; } = default!;
+        public string ApiKey { get; set; } = default!;
+        public string Model { get; set; } = default!;
     }
 }
