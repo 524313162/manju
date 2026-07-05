@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using ManjuCraft.Application.Service.Dtos;
 using ManjuCraft.Domain.Models;
 using ManjuCraft.Infrastructure;
 
@@ -26,7 +27,7 @@ public class ProvidersController : ControllerBase
     }
 
     [HttpPost("add")]
-    public async Task<IActionResult> Add([FromBody] ProviderRequest req)
+    public async Task<IActionResult> Add([FromBody] ProviderRequestDto req)
     {
         var provider = new ApiProvider
         {
@@ -43,7 +44,7 @@ public class ProvidersController : ControllerBase
     }
 
     [HttpPost("update")]
-    public async Task<IActionResult> Update(long id, [FromBody] ProviderRequest req)
+    public async Task<IActionResult> Update(long id, [FromBody] ProviderRequestDto req)
     {
         var existing = await _db.ApiProviders.FindAsync(id);
         if (existing == null) return Ok(new { success = false, message = "不存在" });
@@ -60,7 +61,7 @@ public class ProvidersController : ControllerBase
     }
 
     [HttpPost("delete")]
-    public async Task<IActionResult> Delete([FromBody] DeleteRequest req)
+    public async Task<IActionResult> Delete([FromBody] DeleteRequestDto req)
     {
         var existing = await _db.ApiProviders.FindAsync(req.Id);
         if (existing == null) return Ok(new { success = false, message = "不存在" });
@@ -101,19 +102,5 @@ public class ProvidersController : ControllerBase
         if (upper.Contains("video")) return AiCapability.TextToVideo;
         if (upper.Contains("comfy")) return AiCapability.ImageToVideo;
         return AiCapability.TextToText;
-    }
-
-    public class ProviderRequest
-    {
-        public string Name { get; set; } = default!;
-        public string Capability { get; set; } = default!;
-        public string ApiUrl { get; set; } = default!;
-        public string ApiKey { get; set; } = default!;
-        public string Model { get; set; } = default!;
-    }
-
-    public class DeleteRequest
-    {
-        public long Id { get; set; }
     }
 }

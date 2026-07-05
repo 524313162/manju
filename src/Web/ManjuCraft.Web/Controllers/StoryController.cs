@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ManjuCraft.Application.Service;
+using ManjuCraft.Application.Service.Dtos;
 using ManjuCraft.Application.AI;
 using ManjuCraft.Domain.Models;
 using ManjuCraft.Infrastructure;
@@ -78,7 +79,7 @@ public class StoryController : Controller
     }
 
     [HttpPost]
-    public async Task<IActionResult> AddChapter([FromBody] ChapterCreateRequest req)
+    public async Task<IActionResult> AddChapter([FromBody] ChapterCreateRequestDto req)
     {
         var story = await _storyService.GetByIdAsync(req.StoryId);
         if (story == null) return Json(new { success = false, message = "剧本不存在" });
@@ -103,7 +104,7 @@ public class StoryController : Controller
     }
 
     [HttpPost]
-    public async Task<IActionResult> EditChapter([FromBody] ChapterEditRequest req)
+    public async Task<IActionResult> EditChapter([FromBody] ChapterEditRequestDto req)
     {
         var existing = await _dbContext.StoryChapters.FindAsync(req.Id);
         if (existing == null) return Json(new { success = false, message = "章节不存在" });
@@ -116,7 +117,7 @@ public class StoryController : Controller
     }
 
     [HttpPost]
-    public async Task<IActionResult> DeleteChapter([FromBody] ChapterDeleteRequest req)
+    public async Task<IActionResult> DeleteChapter([FromBody] ChapterDeleteRequestDto req)
     {
         var chapter = await _dbContext.StoryChapters.FindAsync(req.Id);
         if (chapter == null) return Json(new { success = false, message = "章节不存在" });
@@ -138,7 +139,7 @@ public class StoryController : Controller
     }
 
     [HttpPost]
-    public async Task<IActionResult> BulkAddChapters([FromBody] List<ChapterCreateRequest> chapters)
+    public async Task<IActionResult> BulkAddChapters([FromBody] List<ChapterCreateRequestDto> chapters)
     {
         if (chapters == null || chapters.Count == 0)
             return Json(new { success = false, message = "章节数据为空" });
@@ -194,24 +195,5 @@ public class StoryController : Controller
             storyTitle = story.Title,
             data = chapters
         });
-    }
-
-    public class ChapterCreateRequest
-    {
-        public long StoryId { get; set; }
-        public string ChapterName { get; set; } = default!;
-        public string Content { get; set; } = default!;
-    }
-
-    public class ChapterEditRequest
-    {
-        public long Id { get; set; }
-        public string ChapterName { get; set; } = default!;
-        public string Content { get; set; } = default!;
-    }
-
-    public class ChapterDeleteRequest
-    {
-        public long Id { get; set; }
     }
 }

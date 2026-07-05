@@ -22,7 +22,7 @@ public class ComfyuiProxyClient : IComfyuiProxyClient
         var payload = new { workflow_type = workflowType, prompt, positive_prompt = positivePrompt };
         var res = await _http.PostAsJsonAsync($"{_proxyUrl.TrimEnd('/')}/api/v1/comfyui/generate", payload, ct);
         res.EnsureSuccessStatusCode();
-        var data = await res.Content.ReadFromJsonAsync<ProxyResponse>(cancellationToken: ct);
+        var data = await res.Content.ReadFromJsonAsync<ProxyResponseDto>(cancellationToken: ct);
         return data?.Result?.Url ?? $"/mock/proxy/{workflowType}_{Guid.NewGuid():N}.png";
     }
 
@@ -32,7 +32,7 @@ public class ComfyuiProxyClient : IComfyuiProxyClient
         var payload = new { workflow_type = workflowType, prompt, image_url = imageUrl };
         var res = await _http.PostAsJsonAsync($"{_proxyUrl.TrimEnd('/')}/api/v1/comfyui/generate", payload, ct);
         res.EnsureSuccessStatusCode();
-        var data = await res.Content.ReadFromJsonAsync<ProxyResponse>(cancellationToken: ct);
+        var data = await res.Content.ReadFromJsonAsync<ProxyResponseDto>(cancellationToken: ct);
         return data?.Result?.Url ?? $"/mock/proxy/{workflowType}_{Guid.NewGuid():N}.mp4";
     }
 
@@ -42,7 +42,7 @@ public class ComfyuiProxyClient : IComfyuiProxyClient
         var payload = new { workflow_type = workflowType, prompt };
         var res = await _http.PostAsJsonAsync($"{_proxyUrl.TrimEnd('/')}/api/v1/comfyui/generate", payload, ct);
         res.EnsureSuccessStatusCode();
-        var data = await res.Content.ReadFromJsonAsync<ProxyResponse>(cancellationToken: ct);
+        var data = await res.Content.ReadFromJsonAsync<ProxyResponseDto>(cancellationToken: ct);
         return data?.Result?.Url ?? $"/mock/proxy/{workflowType}_{Guid.NewGuid():N}.mp3";
     }
 
@@ -56,8 +56,8 @@ public class ComfyuiProxyClient : IComfyuiProxyClient
         catch { return false; }
     }
 
-    class ProxyResponse { public string? TaskId { get; set; } public string? Status { get; set; } public ProxyResult? Result { get; set; } }
-    class ProxyResult { public string? Url { get; set; } }
+    class ProxyResponseDto { public string? TaskId { get; set; } public string? Status { get; set; } public ProxyResultDto? Result { get; set; } }
+    class ProxyResultDto { public string? Url { get; set; } }
 }
 
 public interface IComfyuiProxyClient

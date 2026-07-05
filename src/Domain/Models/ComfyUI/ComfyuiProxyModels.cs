@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace ManjuCraft.Domain.Models
 {
-    public class GenerateRequest
+    public class GenerateRequestDto
     {
         [JsonPropertyName("workflowType")]
         public string WorkflowType { get; set; } = "txt2img";
@@ -35,7 +35,7 @@ namespace ManjuCraft.Domain.Models
         public long? Seed { get; set; }
     }
 
-    public class GenerateResponse
+    public class GenerateResponseDto
     {
         [JsonPropertyName("taskId")]
         public string TaskId { get; set; } = "";
@@ -47,13 +47,13 @@ namespace ManjuCraft.Domain.Models
         public int Progress { get; set; }
 
         [JsonPropertyName("result")]
-        public GenerateResult? Result { get; set; }
+        public GenerateResultDto? Result { get; set; }
 
         [JsonPropertyName("error")]
         public string? Error { get; set; }
     }
 
-    public class GenerateResult
+    public class GenerateResultDto
     {
         [JsonPropertyName("url")]
         public string Url { get; set; } = "";
@@ -65,7 +65,7 @@ namespace ManjuCraft.Domain.Models
         public long Size { get; set; }
     }
 
-    public class HealthResponse
+    public class HealthResponseDto
     {
         [JsonPropertyName("status")]
         public string Status { get; set; } = "ok";

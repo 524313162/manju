@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using ManjuCraft.Application.Service.Dtos;
 using ManjuCraft.Domain.Models;
 using ManjuCraft.Infrastructure;
 
@@ -25,7 +26,7 @@ public class PromptTemplateManagementController : Controller
     }
 
     [HttpPost("add")]
-    public async Task<IActionResult> Add([FromBody] TemplateRequest req)
+    public async Task<IActionResult> Add([FromBody] TemplateRequestDto req)
     {
         var template = new PromptTemplate
         {
@@ -40,7 +41,7 @@ public class PromptTemplateManagementController : Controller
     }
 
     [HttpPost("edit/{id}")]
-    public async Task<IActionResult> Edit([FromRoute] long id, [FromBody] TemplateRequest req)
+    public async Task<IActionResult> Edit([FromRoute] long id, [FromBody] TemplateRequestDto req)
     {
         var existing = await _db.PromptTemplates.FindAsync(id);
         if (existing == null) return Json(new { success = false, message = "不存在" });
@@ -72,13 +73,5 @@ public class PromptTemplateManagementController : Controller
         var template = await _db.PromptTemplates.FindAsync(id);
         if (template == null) return Json(new { success = false, message = "不存在" });
         return Json(new { success = true, data = template });
-    }
-
-    public class TemplateRequest
-    {
-        public string Name { get; set; }
-        public string TemplateType { get; set; }
-        public string Content { get; set; }
-        public bool IsDefault { get; set; }
     }
 }
