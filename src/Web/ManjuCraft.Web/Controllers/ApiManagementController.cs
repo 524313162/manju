@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using ManjuCraft.Application.Service.Dtos;
 using ManjuCraft.Domain.Models;
 using ManjuCraft.Infrastructure;
 
@@ -25,15 +26,15 @@ public class ApiManagementController : Controller
     }
 
     [HttpPost("add")]
-    public async Task<IActionResult> Add([FromBody] ProviderRequest req)
+    public async Task<IActionResult> Add([FromBody] ProviderDto dto)
     {
         var provider = new ApiProvider
         {
-            Name = req.Name,
-            Capability = ParseCapability(req.Capability),
-            ApiUrl = req.ApiUrl,
-            ApiKey = req.ApiKey,
-            Model = req.Model
+            Name = dto.Name,
+            Capability = ParseCapability(dto.Capability),
+            ApiUrl = dto.ApiUrl,
+            ApiKey = dto.ApiKey,
+            Model = dto.Model
         };
         _db.ApiProviders.Add(provider);
         await _db.SaveChangesAsync();
@@ -41,16 +42,16 @@ public class ApiManagementController : Controller
     }
 
     [HttpPost("edit/{id}")]
-    public async Task<IActionResult> Edit([FromRoute] long id, [FromBody] ProviderRequest req)
+    public async Task<IActionResult> Edit([FromRoute] long id, [FromBody] ProviderDto dto)
     {
         var existing = await _db.ApiProviders.FindAsync(id);
         if (existing == null) return Json(new { success = false, message = "不存在" });
 
-        existing.Name = req.Name;
-        existing.Capability = ParseCapability(req.Capability);
-        existing.ApiUrl = req.ApiUrl;
-        existing.ApiKey = req.ApiKey;
-        existing.Model = req.Model;
+        existing.Name = dto.Name;
+        existing.Capability = ParseCapability(dto.Capability);
+        existing.ApiUrl = dto.ApiUrl;
+        existing.ApiKey = dto.ApiKey;
+        existing.Model = dto.Model;
         existing.UpdatedTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         await _db.SaveChangesAsync();
@@ -85,14 +86,5 @@ public class ApiManagementController : Controller
         if (upper.Contains("video")) return AiCapability.TextToVideo;
         if (upper.Contains("comfy")) return AiCapability.ImageToVideo;
         return AiCapability.TextToText;
-    }
-
-    public class ProviderRequest
-    {
-        public string Name { get; set; } = default!;
-        public string Capability { get; set; } = default!;
-        public string ApiUrl { get; set; } = default!;
-        public string ApiKey { get; set; } = default!;
-        public string Model { get; set; } = default!;
     }
 }

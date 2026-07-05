@@ -19,7 +19,7 @@ public class ComfyuiProxyApi
 
     public async Task<string> SubmitAsync(string workflowType, string prompt, string? positivePrompt = null, string? imageUrl = null)
     {
-        var req = new GenerateRequest
+        var req = new GenerateRequestDto
         {
             WorkflowType = workflowType,
             Prompt = prompt,
@@ -29,15 +29,15 @@ public class ComfyuiProxyApi
 
         var res = await _http.PostAsJsonAsync("/api/v1/comfyui/generate", req);
         res.EnsureSuccessStatusCode();
-        var data = await res.Content.ReadFromJsonAsync<GenerateResponse>();
+        var data = await res.Content.ReadFromJsonAsync<GenerateResponseDto>();
         return data?.TaskId ?? "";
     }
 
-    public async Task<GenerateResponse> GetTaskStatusAsync(string taskId)
+    public async Task<GenerateResponseDto> GetTaskStatusAsync(string taskId)
     {
         var res = await _http.GetAsync($"/api/v1/comfyui/tasks/{taskId}");
         res.EnsureSuccessStatusCode();
-        return await res.Content.ReadFromJsonAsync<GenerateResponse>();
+        return await res.Content.ReadFromJsonAsync<GenerateResponseDto>();
     }
 
     public async Task<string> WaitForCompletionAsync(string taskId, int maxAttempts = 120, int intervalMs = 5000)
