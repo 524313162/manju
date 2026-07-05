@@ -1,5 +1,4 @@
 using ComfyuiProxy.Web.Infrastructure;
-using ComfyuiProxy.Web.Services;
 using Polly;
 using Polly.Extensions.Http;
 
@@ -13,15 +12,12 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new() { Title = "ComfyUI 代理 API", Version = "v1" });
 });
 
-// 配置 HttpClient
-builder.Services.AddHttpClient<ComfyuiProxyService>(client =>
+// 配置 HttpClient（直接注入，供 Controller 构造 Flow 类使用）
+builder.Services.AddHttpClient("http", ext =>
 {
-    client.Timeout = TimeSpan.FromMinutes(5);
+    ext.Timeout = TimeSpan.FromMinutes(5);
 })
 .AddPolicyHandler(GetRetryPolicy());
-
-// 配置服务
-builder.Services.AddSingleton<ComfyuiProxyService>();
 
 // 配置健康检查
 builder.Services.AddHealthChecks()

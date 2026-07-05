@@ -1,17 +1,26 @@
 namespace ComfyuiProxy.Web.Models;
 
+/// <summary>
+/// 工作流执行响应
+/// </summary>
 public class WorkflowExecuteResponse
 {
-    public string PromptId { get; set; } = "";
-    public string Status { get; set; } = ""; // "completed", "error", "timeout"
-    public List<WorkflowOutputFile> Outputs { get; set; } = new();
-    public string? ErrorMessage { get; set; }
+    public string PromptId { get; set; } = string.Empty;
+    public bool Success { get; set; }
+    public string? Error { get; set; }
+    public double ExecutionTimeMs { get; set; }
+    public List<string> TextOutputs { get; set; } = new();
+    public List<ImageOutputItem> ImageOutputs { get; set; } = new();
+    public List<ImageOutputItem> AudioOutputs { get; set; } = new();
 }
 
-public class WorkflowOutputFile
+/// <summary>
+/// 图片/GIF 输出项
+/// </summary>
+public class ImageOutputItem
 {
-    public string FileName { get; set; } = "";
-    public string Subfolder { get; set; } = "";
-    public string Type { get; set; } = "";
-    public string Url { get; set; } = ""; // 通过代理访问的完整 URL
+    public string Filename { get; set; } = string.Empty;
+    public string? Subfolder { get; set; }
+    public string? Type { get; set; }
+    public string? Url { get; set; }
 }

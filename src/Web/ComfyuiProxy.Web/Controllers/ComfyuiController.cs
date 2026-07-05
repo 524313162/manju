@@ -1,215 +1,135 @@
-using ComfyuiProxy.Web.Services;
-using ComfyuiProxy.Web.Models;
 using Microsoft.AspNetCore.Mvc;
+using ComfyuiProxy.Web.ComfyFlows;
+using ComfyuiProxy.Web.Models;
 
 namespace ComfyuiProxy.Web.Controllers;
 
 /// <summary>
-/// ComfyUI 代理控制器，仅处理请求转发和响应返回，不包含任何业务逻辑
+/// ComfyUI 代理控制器 — 每个 Action 直接构造 Flow 类执行
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class ComfyuiController : ControllerBase
 {
-    private readonly ComfyuiProxyService _comfyuiProxyService;
-    private readonly ILogger<ComfyuiController> _logger;
+    private readonly HttpClient _httpClient;
+    private readonly IConfiguration _configuration;
+    private readonly ILoggerFactory _loggerFactory;
 
-    public ComfyuiController(
-        ComfyuiProxyService comfyuiProxyService,
-        ILogger<ComfyuiController> logger)
+    public ComfyuiController(IHttpClientFactory httpFactory, IConfiguration configuration, ILoggerFactory loggerFactory)
     {
-        _comfyuiProxyService = comfyuiProxyService;
-        _logger = logger;
+        _httpClient = httpFactory.CreateClient("http");
+        _configuration = configuration;
+        _loggerFactory = loggerFactory;
     }
 
-    /// <summary>
-    /// 执行 ComfyUI 工作流
-    /// </summary>
-    /// <param name="promptId">工作流 ID</param>
-    /// <param name="workflowJson">工作流 JSON 数据</param>
-    /// <returns>ComfyUI 执行结果</returns>
-    [HttpPost("execute")]
-    public async Task<IActionResult> ExecuteWorkflow([FromQuery] string promptId, [FromBody] string workflowJson)
+    // ═══ 01. ZIMAGE 文生图 ═══
+    [HttpPost("zimage/text-to-image")]
+    public async Task<IActionResult> ZImageTextToImage([FromBody] ZImageTextToImageRequest req)
     {
-        try
-        {
-            _logger.LogInformation("Executing ComfyUI workflow with prompt ID: {PromptId}", promptId);
+        if (string.IsNullOrWhiteSpace(req.Prompt))
+            return BadRequest(new { error = "prompt 不能为空" });
 
-            var response = await _comfyuiProxyService.ExecuteWorkflowAsync(promptId, workflowJson);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("ComfyUI workflow execution returned non-success status: {StatusCode}", response.StatusCode);
-                return StatusCode((int)response.StatusCode, await response.Content.ReadAsStringAsync());
-            }
-
-            var content = await response.Content.ReadAsStringAsync();
-            return Content(content, "application/json");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error executing ComfyUI workflow: {Message}", ex.Message);
-            return StatusCode(500, new { error = ex.Message });
-        }
+        var flow = new Flow_01_TextToImage(_httpClient, _configuration,
+            _loggerFactory.CreateLogger<Flow_01_TextToImage>());
+        var result = await flow.ExecuteAsync(req);
+        return ToResponse(result);
     }
 
-    /// <summary>
-    /// 获取工作流执行状态
-    /// </summary>
-    /// <param name="promptId">工作流 ID</param>
-    /// <returns>执行状态信息</returns>
-    [HttpGet("status/{promptId}")]
-    public async Task<IActionResult> GetWorkflowStatus([FromRoute] string promptId)
+    // ═══ 02. ZIMAGE 人物档案 ═══
+    [HttpPost("zimage/character-profile")]
+    public async Task<IActionResult> ZImageCharacterProfile([FromBody] ZImageCharacterProfileRequest req)
     {
-        try
-        {
-            _logger.LogInformation("Getting ComfyUI workflow status for prompt ID: {PromptId}", promptId);
+        if (string.IsNullOrWhiteSpace(req.Prompt))
+            return BadRequest(new { error = "prompt 不能为空" });
 
-            var response = await _comfyuiProxyService.GetWorkflowStatusAsync(promptId);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("ComfyUI workflow status check returned non-success status: {StatusCode}", response.StatusCode);
-                return StatusCode((int)response.StatusCode, await response.Content.ReadAsStringAsync());
-            }
-
-            var content = await response.Content.ReadAsStringAsync();
-            return Content(content, "application/json");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting ComfyUI workflow status: {Message}", ex.Message);
-            return StatusCode(500, new { error = ex.Message });
-        }
+        var flow = new Flow_02_CharacterProfile(_httpClient, _configuration,
+            _loggerFactory.CreateLogger<Flow_02_CharacterProfile>());
+        var result = await flow.ExecuteAsync(req);
+        return ToResponse(result);
     }
 
-    /// <summary>
-    /// 获取 ComfyUI 系统信息
-    /// </summary>
-    /// <returns>系统信息</returns>
-    [HttpGet("system-info")]
-    public async Task<IActionResult> GetSystemInfo()
+    // ═══ 03. LTX 文生视频 ═══
+    [HttpPost("ltx/text-to-video")]
+    public async Task<IActionResult> LtxTextToVideo([FromBody] LtxTextToVideoRequest req)
     {
-        try
-        {
-            _logger.LogInformation("Getting ComfyUI system info");
+        if (string.IsNullOrWhiteSpace(req.Prompt))
+            return BadRequest(new { error = "prompt 不能为空" });
 
-            var response = await _comfyuiProxyService.GetSystemInfoAsync();
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("ComfyUI system info request returned non-success status: {StatusCode}", response.StatusCode);
-                return StatusCode((int)response.StatusCode, await response.Content.ReadAsStringAsync());
-            }
-
-            var content = await response.Content.ReadAsStringAsync();
-            return Content(content, "application/json");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting ComfyUI system info: {Message}", ex.Message);
-            return StatusCode(500, new { error = ex.Message });
-        }
+        var flow = new Flow_03_TextToVideo(_httpClient, _configuration,
+            _loggerFactory.CreateLogger<Flow_03_TextToVideo>());
+        var result = await flow.ExecuteAsync(req);
+        return ToResponse(result);
     }
 
-    /// <summary>
-    /// 上传文件到 ComfyUI
-    /// </summary>
-    /// <param name="subfolder">子文件夹</param>
-    /// <param name="overwrite">是否覆盖</param>
-    /// <returns>上传结果</returns>
-    [HttpPost("upload")]
-    public async Task<IActionResult> UploadFile([FromQuery] string? subfolder = null, [FromQuery] bool overwrite = false)
+    // ═══ 04. LTX 图生视频 ═══
+    [HttpPost("ltx/image-to-video")]
+    public async Task<IActionResult> LtxImageToVideo([FromBody] LtxImageToVideoRequest req)
     {
-        try
-        {
-            if (Request.Form.Files.Count == 0)
-            {
-                return BadRequest(new { error = "No file uploaded" });
-            }
+        if (string.IsNullOrWhiteSpace(req.Prompt))
+            return BadRequest(new { error = "prompt 不能为空" });
 
-            var file = Request.Form.Files[0];
-            var tempFilePath = Path.GetTempFileName();
-
-            try
-            {
-                using (var stream = new FileStream(tempFilePath, FileMode.Create))
-                {
-                    await file.CopyToAsync(stream);
-                }
-
-                _logger.LogInformation("File uploaded to temp location: {FileName}", file.FileName);
-
-                var response = await _comfyuiProxyService.UploadFileAsync(tempFilePath, subfolder, overwrite);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogWarning("ComfyUI file upload returned non-success status: {StatusCode}", response.StatusCode);
-                    return StatusCode((int)response.StatusCode, await response.Content.ReadAsStringAsync());
-                }
-
-                var content = await response.Content.ReadAsStringAsync();
-                return Content(content, "application/json");
-            }
-            finally
-            {
-                if (System.IO.File.Exists(tempFilePath))
-                {
-                    System.IO.File.Delete(tempFilePath);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error uploading file to ComfyUI: {Message}", ex.Message);
-            return StatusCode(500, new { error = ex.Message });
-        }
+        var flow = new Flow_04_ImageToVideo(_httpClient, _configuration,
+            _loggerFactory.CreateLogger<Flow_04_ImageToVideo>());
+        var result = await flow.ExecuteAsync(req);
+        return ToResponse(result);
     }
 
-    /// <summary>
-    /// 执行工作流并等待返回结果
-    /// </summary>
-    [HttpPost("workflows/execute")]
-    public async Task<IActionResult> ExecuteWorkflowWithParams([FromBody] WorkflowExecuteRequest request)
+    // ═══ 05. HIDREAM 分镜 ═══
+    [HttpPost("hidream/storyboard")]
+    public async Task<IActionResult> HiDreamStoryboard([FromBody] HiDreamStoryboardRequest req)
     {
-        try
-        {
-            _logger.LogInformation("Executing workflow: {WorkflowFileName}", request.WorkflowFileName);
-            var result = await _comfyuiProxyService.ExecuteWorkflowWithParamsAsync(request);
-            return Ok(result);
-        }
-        catch (FileNotFoundException ex)
-        {
-            _logger.LogWarning("Workflow file not found: {Message}", ex.Message);
-            return NotFound(new { error = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error executing workflow: {Message}", ex.Message);
-            return StatusCode(500, new { error = ex.Message });
-        }
+        if (string.IsNullOrWhiteSpace(req.Prompt))
+            return BadRequest(new { error = "prompt 不能为空" });
+
+        var flow = new Flow_05_Storyboard(_httpClient, _configuration,
+            _loggerFactory.CreateLogger<Flow_05_Storyboard>());
+        var result = await flow.ExecuteAsync(req);
+        return ToResponse(result);
     }
 
-    /// <summary>
-    /// 获取工作流执行结果
-    /// </summary>
-    [HttpGet("workflows/result/{promptId}")]
-    public async Task<IActionResult> GetWorkflowResult([FromRoute] string promptId)
+    // ═══ 06. ACE-MUSIC ═══
+    [HttpPost("ace/music")]
+    public async Task<IActionResult> AceMusic([FromBody] AceMusicRequest req)
     {
-        try
-        {
-            _logger.LogInformation("Getting workflow result for prompt ID: {PromptId}", promptId);
-            var result = await _comfyuiProxyService.GetWorkflowResultAsync(promptId);
+        if (string.IsNullOrWhiteSpace(req.Tags))
+            return BadRequest(new { error = "tags 不能为空" });
 
-            if (result.Status == "not_found")
-                return NotFound(new { error = result.ErrorMessage });
+        var flow = new Flow_06_MusicCompose(_httpClient, _configuration,
+            _loggerFactory.CreateLogger<Flow_06_MusicCompose>());
+        var result = await flow.ExecuteAsync(req);
+        return ToResponse(result);
+    }
 
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting workflow result: {Message}", ex.Message);
-            return StatusCode(500, new { error = ex.Message });
-        }
+    // ═══ 07. STABLE-BGM ═══
+    [HttpPost("stable/bgm")]
+    public async Task<IActionResult> StableBgm([FromBody] StableBgmRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Prompt))
+            return BadRequest(new { error = "prompt 不能为空" });
+
+        var flow = new Flow_07_BgmGenerate(_httpClient, _configuration,
+            _loggerFactory.CreateLogger<Flow_07_BgmGenerate>());
+        var result = await flow.ExecuteAsync(req);
+        return ToResponse(result);
+    }
+
+    // ═══ 08. LLM-QWen ═══
+    [HttpPost("llm/qwen")]
+    public async Task<IActionResult> LlmQwen([FromBody] LlmQwenRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Prompt))
+            return BadRequest(new { error = "prompt 不能为空" });
+
+        var flow = new Flow_08_LlmScript(_httpClient, _configuration,
+            _loggerFactory.CreateLogger<Flow_08_LlmScript>());
+        var result = await flow.ExecuteAsync(req);
+        return ToResponse(result);
+    }
+
+    private IActionResult ToResponse(WorkflowExecuteResponse result)
+    {
+        if (!result.Success)
+            return StatusCode(500, new { error = result.Error, promptId = result.PromptId });
+        return Ok(result);
     }
 }
