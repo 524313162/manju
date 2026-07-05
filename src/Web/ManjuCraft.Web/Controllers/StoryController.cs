@@ -5,6 +5,7 @@ using ManjuCraft.Application.Service.Dtos;
 using ManjuCraft.Application.AI;
 using ManjuCraft.Domain.Models;
 using ManjuCraft.Infrastructure;
+using System.Text.Json;
 
 namespace ManjuCraft.Web.Controllers;
 
@@ -164,6 +165,129 @@ public class StoryController : Controller
         await _dbContext.SaveChangesAsync();
 
         return Json(new { success = true, data = storyChapters });
+    }
+
+    public class ImportScriptRequest
+    {
+        public string ScriptJson { get; set; } = "";
+    }
+
+    [HttpPost("import")]
+    public async Task<IActionResult> ImportScript(long projectId, [FromBody] ImportScriptRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.ScriptJson))
+            return Json(new { success = false, message = "请输入 JSON 内容" });
+
+        try
+        {
+            using var doc = JsonDocument.Parse(req.ScriptJson);
+            var root = doc.RootElement;
+
+            var title = root.TryGetProperty("scriptName", out var nameProp) ? nameProp.GetString()?.Trim() : "";
+            if (string.IsNullOrWhiteSpace(title))
+                title = "默认剧本";
+
+            var stories = await _storyService.GetByProjectIdAsync(projectId);
+            Story story;
+            if (stories.Count == 0)
+            {
+                story = new Story { ProjectId = projectId, Title = title };
+                await _storyService.CreateAsync(story);
+            }
+            else
+            {
+                story = stories.First();
+            }
+
+            // 导入 assets
+            if (root.TryGetProperty("assets", out var assetsProp) && assetsProp.ValueKind == JsonValueKind.Object)
+            {
+                await UpsertAssetGroup(assetsProp, "characters", projectId, "characters");
+                await UpsertAssetGroup(assetsProp, "scenes", projectId, "scenes");
+                await UpsertAssetGroup(assetsProp, "props", projectId, "props");
+                await UpsertAssetGroup(assetsProp, "skills", projectId, "skills");
+                await UpsertAssetGroup(assetsProp, "bgm", projectId, "bgm");
+            }
+
+            // 导入 chapters
+            if (root.TryGetProperty("chapters", out var chaptersProp) && chaptersProp.ValueKind == JsonValueKind.Array)
+            {
+                var maxOrder = await _dbContext.StoryChapters
+                    .Where(c => c.StoryId == story.Id)
+                    .MaxAsync(c => (int?)c.SortOrder) ?? 0;
+
+                var parsedChapters = chaptersProp.EnumerateArray().ToList();
+                var storyChapters = new List<StoryChapter>();
+                for (int i = 0; i < parsedChapters.Count; i++)
+                {
+                    var ch = parsedChapters[i];
+                    var chapterName = ch.TryGetProperty("chapterName", out var cn2) ? cn2.GetString()
+                        : ch.TryGetProperty("ChapterName", out var cn3) ? cn3.GetString()
+                        : $"第{i + 1}章";
+                    var content = ch.TryGetProperty("content", out var ct) ? ct.GetString()
+                        : ch.TryGetProperty("Content", out var ct2) ? ct2.GetString()
+                        : "";
+                    var existingNumber = ch.TryGetProperty("chapterNumber", out var cn4) && cn4.TryGetInt32(out var n4) ? n4 : 0;
+
+                    maxOrder++;
+                    storyChapters.Add(new StoryChapter
+                    {
+                        StoryId = story.Id,
+                        ChapterNumber = existingNumber > 0 ? existingNumber : maxOrder,
+                        ChapterName = chapterName,
+                        Content = content,
+                        SortOrder = maxOrder
+                    });
+                }
+                if (storyChapters.Count > 0)
+                    await _dbContext.StoryChapters.AddRangeAsync(storyChapters);
+            }
+
+            await _dbContext.SaveChangesAsync();
+            return Json(new { success = true, message = "导入成功" });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = "导入失败: " + ex.Message });
+        }
+    }
+
+    private async Task UpsertAssetGroup(JsonElement assetsProp, string groupName, long projectId, string assetType)
+    {
+        if (!assetsProp.TryGetProperty(groupName, out var groupProp) || groupProp.ValueKind != JsonValueKind.Array)
+            return;
+
+        var existingAssets = await _dbContext.Assets
+            .Where(a => a.ProjectId == projectId && a.AssetType == assetType)
+            .ToListAsync();
+
+        var existingNames = existingAssets.Select(a => a.Name.ToLower()).ToList();
+
+        foreach (var item in groupProp.EnumerateArray())
+        {
+            var name = item.TryGetProperty("name", out var n) ? n.GetString()?.Trim() : "";
+            var description = item.TryGetProperty("description", out var d) ? d.GetString() ?? "" : "";
+
+            if (string.IsNullOrWhiteSpace(name))
+                continue;
+
+            var existing = existingAssets.FirstOrDefault(a => a.Name.ToLower() == name.ToLower());
+            if (existing != null)
+            {
+                existing.Description = description;
+            }
+            else
+            {
+                var asset = new Asset
+                {
+                    ProjectId = projectId,
+                    AssetType = assetType,
+                    Name = name,
+                    Description = description
+                };
+                _dbContext.Assets.Add(asset);
+            }
+        }
     }
 
     [HttpGet]

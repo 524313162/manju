@@ -31,10 +31,11 @@
      <div class="prod-main">
          <div class="prod-toolbar">
              <h2 id="title">剧本创作</h2>
-             <div style="display:flex;gap:8px;">
-                 <button class="btn btn-info btn-sm" id="aiBtn" onclick="showGenModal()">&#129302; AI 创作</button>
-                 <button class="btn btn-ghost btn-sm" onclick="showChapterModal(-1)">+ 添加章节</button>
-             </div>
+              <div style="display:flex;gap:8px;">
+                  <button class="btn btn-info btn-sm" id="aiBtn" onclick="showGenModal()">&#129302; AI 创作</button>
+                  <button class="btn btn-ghost btn-sm" onclick="showImportModal()">📂 导入剧本</button>
+                  <button class="btn btn-ghost btn-sm" onclick="showChapterModal(-1)">+ 添加章节</button>
+              </div>
          </div>
          <div class="prod-content">
              <div id="area"></div>
@@ -74,7 +75,22 @@
      </div>
  </div>
 
- <div class="modal-overlay" id="chapterModal">
+   <div class="modal-overlay" id="importModal">
+       <div class="modal" style="width:680px;">
+           <h3>📂 导入剧本</h3>
+           <div class="form-group">
+               <label>JSON 内容</label>
+               <textarea id="importJson" rows="16" placeholder='{ "scriptName": "剧本标题", "assets": { "characters": [...] }, "chapters": [...] }'></textarea>
+           </div>
+           <div id="importResult" style="display:none;"></div>
+           <div class="form-actions">
+               <button class="btn btn-ghost" onclick="hideModal('importModal')">取消</button>
+               <button class="btn btn-primary" id="importGoBtn" onclick="doImport()">导入</button>
+           </div>
+       </div>
+   </div>
+
+  <div class="modal-overlay" id="chapterModal">
      <div class="modal" style="width:600px;">
          <h3 id="chapterModalTitle">添加章节</h3>
          <input type="hidden" id="editChapterIdx">
@@ -384,27 +400,79 @@
          }
      }
 
-     function delChapter(idx) {
-         if (!confirm('确认删除「' + chapters[idx].chapterName + '」？')) return;
-         var chapterId = chapters[idx].id;
-         fetch('/Story/DeleteChapter', {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ id: chapterId })
-         })
-         .then(function(r){ return r.json(); })
-         .then(function(res) {
-             if (res.success) {
-                 chapters.splice(idx, 1);
-                 chapters.forEach(function(c, i) { c.chapterNumber = i + 1; });
-                 if (chapters.length === 0) ci = -1;
-                 else ci = Math.min(ci, chapters.length - 1);
-                 render();
-             } else {
-                 alert('删除失败：' + (res.message || '未知错误'));
-             }
-         })
-         .catch(function(){ alert('网络错误'); });
-     }
+      function delChapter(idx) {
+          if (!confirm('确认删除「' + chapters[idx].chapterName + '」？')) return;
+          var chapterId = chapters[idx].id;
+          fetch('/Story/DeleteChapter', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: chapterId })
+          })
+          .then(function(r){ return r.json(); })
+          .then(function(res) {
+              if (res.success) {
+                  chapters.splice(idx, 1);
+                  chapters.forEach(function(c, i) { c.chapterNumber = i + 1; });
+                  if (chapters.length === 0) ci = -1;
+                  else ci = Math.min(ci, chapters.length - 1);
+                  render();
+              } else {
+                  alert('删除失败：' + (res.message || '未知错误'));
+              }
+          })
+          .catch(function(){ alert('网络错误'); });
+      }
+
+       function showImportModal() {
+           document.getElementById('importJson').value = '';
+           document.getElementById('importResult').style.display = 'none';
+           document.getElementById('importResult').innerHTML = '';
+           document.getElementById('importGoBtn').disabled = false;
+           document.getElementById('importGoBtn').textContent = '导入';
+           showModal('importModal');
+       }
+
+       function doImport() {
+           var jsonStr = document.getElementById('importJson').value.trim();
+           if (!jsonStr) { alert('请输入 JSON 内容'); return; }
+
+           document.getElementById('importGoBtn').disabled = true;
+           document.getElementById('importGoBtn').textContent = '导入中...';
+           document.getElementById('importResult').style.display = 'block';
+           document.getElementById('importResult').innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></div><p style="margin-top:10px;color:var(--text2);font-size:13px;">正在导入...</p></div>';
+
+           try {
+               JSON.parse(jsonStr);
+           } catch (e) {
+               document.getElementById('importResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--danger);">JSON 格式错误：' + e.message + '</p></div>';
+               document.getElementById('importGoBtn').disabled = false;
+               document.getElementById('importGoBtn').textContent = '重试';
+               return;
+           }
+
+           fetch('/Story/ImportScript?projectId=' + projectId, {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({ scriptJson: jsonStr })
+           })
+           .then(function(r) { return r.json(); })
+           .then(function(res) {
+               if (res.success) {
+                   document.getElementById('importResult').innerHTML = '<div style="padding:14px;background:var(--ok-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--ok);">&#10003; ' + res.message + '</p></div>';
+                   loadChapters();
+                   render();
+                   setTimeout(function(){ hideModal('importModal'); }, 1500);
+               } else {
+                   document.getElementById('importResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--danger);">导入失败：' + (res.message || '未知错误') + '</p></div>';
+                   document.getElementById('importGoBtn').disabled = false;
+                   document.getElementById('importGoBtn').textContent = '重试';
+               }
+           })
+           .catch(function(err) {
+               document.getElementById('importResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--danger);">请求失败：' + err.message + '</p></div>';
+               document.getElementById('importGoBtn').disabled = false;
+               document.getElementById('importGoBtn').textContent = '重试';
+           });
+       }
  </script>
  }
