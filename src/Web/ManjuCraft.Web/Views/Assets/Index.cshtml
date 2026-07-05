@@ -92,19 +92,39 @@
                 {
                     var emoji = GetEmoji(a.AssetType);
                     var bgGradient = GetBgColor(a.AssetType);
-                    var imgSrc = a.Resource != null && !string.IsNullOrEmpty(a.Resource.FilePath) ? "/uploaded/" + a.Resource.FilePath : "";
+                    var imgSrc = a.Resource != null && !string.IsNullOrEmpty(a.Resource.FilePath) ? "/" + a.Resource.FilePath : "";
+                    var isBgm = a.AssetType == AssetTypeEnum.Bgm;
+                    var extension = "";
+                    if (!string.IsNullOrEmpty(imgSrc))
+                    {
+                        var parts = imgSrc.Split('.');
+                        if (parts.Length > 1) extension = "." + parts[parts.Length - 1];
+                    }
                     var badgeClass = a.AssetType == AssetTypeEnum.Scene ? "type-scene" : a.AssetType == AssetTypeEnum.Bgm ? "type-bgm" : a.AssetType == AssetTypeEnum.Skill ? "type-skill" : a.AssetType == AssetTypeEnum.Prop ? "type-prop" : "type-actor";
-                    <div class="asset-detail-card" data-type="@a.AssetType.ToString()">
-                        <div class="asset-image-placeholder" onclick="showImagePreview('@imgSrc', '@a.Name.Replace("'", "\\'")')">
-                            @if (!string.IsNullOrEmpty(imgSrc))
-                            {
-                                <img src="@imgSrc" alt="@a.Name" />
-                            }
-                            else
-                            {
-                                <div class="placeholder-icon" style="background:@bgGradient;">@emoji</div>
-                            }
-                        </div>
+                    <div class="asset-detail-card" data-type="@a.AssetType.ToString()" data-imgsrc="@imgSrc" data-isbgm="@(isBgm.ToString().ToLower())">
+                        @if (isBgm)
+                        {
+                            <div class="asset-image-placeholder bgm-card @(string.IsNullOrEmpty(imgSrc) ? "has-placeholder" : "")" onclick="playBgm('@imgSrc', '@a.Name.Replace("'", "\\'")')">
+                                <div class="bgm-icon">🎵</div>
+                                @if (!string.IsNullOrEmpty(imgSrc))
+                                {
+                                    <audio id="audio-@a.Id" src="@imgSrc"></audio>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="asset-image-placeholder @(string.IsNullOrEmpty(imgSrc) ? "has-placeholder" : "")" onclick="showImagePreview('@imgSrc', '@a.Name.Replace("'", "\\'")')">
+                                @if (!string.IsNullOrEmpty(imgSrc))
+                                {
+                                    <img src="@imgSrc" alt="@a.Name" />
+                                }
+                                else
+                                {
+                                    <div class="placeholder-icon" style="background:@bgGradient;">@emoji</div>
+                                }
+                            </div>
+                        }
                         <div class="asset-detail-header">
                             <div class="asset-detail-type @(badgeClass)">@(a.AssetType)</div>
                             <div class="asset-detail-order">No. @(a.Order)</div>
@@ -115,6 +135,18 @@
                             <button type="button" class="action-btn action-edit" data-id="@a.Id" data-name='@Json.Serialize(a.Name)' data-desc='@Json.Serialize(a.Description)' data-order="@a.Order">
                                 <span class="action-icon">&#9998;</span> 编辑
                             </button>
+                            @if (isBgm)
+                            {
+                                <button type="button" class="action-btn action-replace" data-id="@a.Id" data-name='@Json.Serialize(a.Name)' data-imgsrc="@imgSrc" data-isbgm="true">
+                                    <span class="action-icon">&#128266;</span> 替换音频
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="button" class="action-btn action-replace" data-id="@a.Id" data-name='@Json.Serialize(a.Name)' data-imgsrc="@imgSrc" data-isbgm="false">
+                                    <span class="action-icon">&#128249;</span> 替换图片
+                                </button>
+                            }
                             <button type="button" class="action-btn action-delete" data-id="@a.Id" data-name='@Json.Serialize(a.Name)'>
                                 <span class="action-icon">&#128465;</span>
                             </button>
@@ -137,14 +169,38 @@
             <div class="form-group"><label>名称 *</label><input type="text" id="assetName" placeholder="输入名称"></div>
             <div class="form-group"><label>描述</label><textarea id="assetDesc" rows="3" placeholder="详细描述..."></textarea></div>
             <div class="form-group"><label>排序</label><input type="number" id="assetOrder" value="0" min="0"></div>
-            <div class="form-group">
-                <label>上传/选择资源图片</label>
-                <input type="file" id="assetFileInput" accept="image/*" style="padding:8px;text-align:left;">
+            <div class="form-group" id="resourcePreviewGroup" style="display:none">
+                <label>当前资源图片</label>
+                <div id="resourcePreview" style="text-align:center;padding:10px;">
+                    <img id="resourcePreviewImg" src="" style="max-width:100%;max-height:200px;object-fit:contain;border-radius:8px;display:none;" onclick="showImagePreview(this.src, document.getElementById('resourcePreviewTitle').textContent)" />
+                    <div id="resourceNoImage" style="color:#888;font-size:13px;">暂无资源图片</div>
+                    <div id="resourcePreviewTitle" style="display:none"></div>
+                </div>
             </div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-ghost" onclick="hideModal('assetModal')">取消</button>
             <button class="btn btn-primary" onclick="saveAsset()">保存</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="replaceResourceModal">
+    <div class="modal modal-medium">
+        <div class="modal-header">
+            <h3 id="replaceResourceTitle">替换图片</h3>
+            <button class="modal-close" onclick="hideModal('replaceResourceModal')">&times;</button>
+        </div>
+        <input type="hidden" id="replaceAssetId">
+        <div class="modal-body">
+            <input type="file" id="replaceFileInput" accept="image/*" style="padding:8px;text-align:left;width:100%;">
+            <div id="replacePreview" style="text-align:center;padding:10px;">
+                <img id="replacePreviewImg" src="" style="max-width:100%;max-height:200px;object-fit:contain;border-radius:8px;display:none;">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="hideModal('replaceResourceModal')">取消</button>
+            <button class="btn btn-primary" onclick="uploadReplace()">上传替换</button>
         </div>
     </div>
 </div>
@@ -185,7 +241,7 @@
             document.getElementById('assetName').value = '';
             document.getElementById('assetDesc').value = '';
             document.getElementById('assetOrder').value = '0';
-            document.getElementById('assetFileInput').value = '';
+            showResourcePreviewInEdit(null, '');
             showModal('assetModal');
             setTimeout(function() { document.getElementById('assetName').focus(); }, 100);
         }
@@ -195,14 +251,37 @@
             var name = JSON.parse(btn.getAttribute('data-name'));
             var desc = JSON.parse(btn.getAttribute('data-desc') || '""');
             var order = parseInt(btn.getAttribute('data-order')) || 0;
+            var card = btn.closest('.asset-detail-card');
+            var imgSrc = card ? card.getAttribute('data-imgsrc') || '' : '';
             document.getElementById('editAssetId').value = id;
             document.getElementById('assetModalTitle').textContent = '编辑' + typeName;
             document.getElementById('assetName').value = name;
             document.getElementById('assetDesc').value = desc;
             document.getElementById('assetOrder').value = order;
-            document.getElementById('assetFileInput').value = '';
+            showResourcePreviewInEdit('编辑资源', imgSrc);
             showModal('assetModal');
             setTimeout(function() { document.getElementById('assetName').focus(); }, 100);
+        }
+
+        function showResourcePreviewInEdit(title, imgSrc) {
+            var group = document.getElementById('resourcePreviewGroup');
+            var img = document.getElementById('resourcePreviewImg');
+            var noImg = document.getElementById('resourceNoImage');
+            var titleEl = document.getElementById('resourcePreviewTitle');
+            if (imgSrc) {
+                group.style.display = '';
+                img.src = imgSrc;
+                img.style.display = '';
+                noImg.style.display = 'none';
+                if (title) {
+                    titleEl.textContent = title;
+                    titleEl.style.display = '';
+                } else {
+                    titleEl.style.display = 'none';
+                }
+            } else {
+                group.style.display = 'none';
+            }
         }
 
         function saveAsset() {
@@ -229,16 +308,11 @@
                 })
                 .catch(function(err) { alert('请求失败: ' + err.message); });
             } else {
-                var fd = new FormData();
-                fd.append('name', name);
-                fd.append('description', desc);
-                fd.append('order', order);
-                fd.append('assetType', currentType);
-                if (projectId > 0) fd.append('projectId', projectId);
-                var fileInput = document.getElementById('assetFileInput');
-                var file = fileInput && fileInput.files && fileInput.files[0];
-                if (file && file.size > 0) fd.append('uploadFile', file);
-                fetch('/Assets/Create', { method: 'POST', body: fd })
+                fetch('/Assets/Create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId: projectId, assetType: currentType, name: name, description: desc, order: order })
+                })
                 .then(function(r) { return r.text().then(function(t) { try { return JSON.parse(t); } catch(e) { return {success:false,message:t}; } }); })
                 .then(function(res) {
                     if (res.success) {
@@ -252,9 +326,47 @@
             }
         }
 
-        function deleteAsset(btn) {
-            var id = parseInt(btn.getAttribute('data-id'));
+        function showReplaceModal(btn) {
+            var id = btn.getAttribute('data-id');
             var name = JSON.parse(btn.getAttribute('data-name'));
+            var isBgm = btn.getAttribute('data-isbgm') === 'true';
+            document.getElementById('replaceAssetId').value = id;
+            document.getElementById('replaceResourceTitle').textContent = isBgm ? '替换音频: ' + name : '替换图片: ' + name;
+            var fileInput = document.getElementById('replaceFileInput');
+            fileInput.accept = isBgm ? "audio/*" : "image/*";
+            fileInput.value = '';
+            document.getElementById('replacePreviewImg').style.display = 'none';
+            document.getElementById('replacePreviewImg').src = '';
+            showModal('replaceResourceModal');
+            setTimeout(function() { fileInput.focus(); }, 100);
+        }
+
+        function uploadReplace() {
+            var fileInput = document.getElementById('replaceFileInput');
+            var file = fileInput && fileInput.files && fileInput.files[0];
+            if (!file) { alert('请选择文件'); return; }
+
+            var accept = fileInput.getAttribute('accept');
+            var isBgm = accept === 'audio/*';
+            var fd = new FormData();
+            fd.append('assetid', document.getElementById('replaceAssetId').value);
+            fd.append('projectid', projectId);
+            fd.append('uploadFile', file);
+            var url = isBgm ? '/Assets/ReplaceAudio' : '/Assets/ReplaceResource';
+            fetch('/Assets/ReplaceResource', { method: 'POST', body: fd })
+            .then(function(r) { return r.text().then(function(t) { try { return JSON.parse(t); } catch(e) { return {success:false,message:t}; } }); })
+            .then(function(res) {
+                if (res.success) {
+                    hideModal('replaceResourceModal');
+                    window.location.reload();
+                } else {
+                    alert('替换失败: ' + (res.message || ''));
+                }
+            })
+            .catch(function(err) { alert('请求失败: ' + err.message); });
+        }
+
+        function deleteAssetFromId(id, name) {
             if (!confirm('确认删除「' + name + '」？')) return;
             fetch('/Assets/Delete', {
                 method: 'POST',
@@ -281,11 +393,20 @@
                     showEditModal(this);
                 });
             });
+            document.querySelectorAll('.action-replace').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showReplaceModal(this);
+                });
+            });
             document.querySelectorAll('.action-delete').forEach(function(btn) {
                 btn.addEventListener('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    deleteAsset(this);
+                    var id = parseInt(btn.getAttribute('data-id'));
+                    var name = JSON.parse(btn.getAttribute('data-name'));
+                    deleteAssetFromId(id, name);
                 });
             });
         }
@@ -295,6 +416,21 @@
             document.getElementById('previewImageTitle').textContent = title;
             document.getElementById('previewImage').src = src;
             showModal('imagePreviewModal');
+        }
+
+        function playBgm(src, title) {
+            if (!src) { return; }
+            var audioId = src.split('/').pop();
+            var audio = document.getElementById('audio-' + audioId.replace(/\.[^.]+$/, ''));
+            if (!audio) { return; }
+            var wasPlaying = audio.paused;
+            document.querySelectorAll('audio').forEach(function(a) { a.pause(); });
+            if (wasPlaying) {
+                audio.play();
+            } else {
+                audio.play();
+            }
+            showImagePreview(src, title);
         }
 
         document.addEventListener('DOMContentLoaded', function() {

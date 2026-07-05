@@ -10,11 +10,15 @@ public class AssetsController : Controller
 {
     private readonly IAssetService _assetService;
     private readonly IProjectService _projectService;
+    private readonly IFileStorageService _fileStorageService;
+    private readonly IWebHostEnvironment _env;
 
-    public AssetsController(IAssetService assetService, IProjectService projectService)
+    public AssetsController(IAssetService assetService, IProjectService projectService, IFileStorageService fileStorageService, IWebHostEnvironment env)
     {
         _assetService = assetService;
         _projectService = projectService;
+        _fileStorageService = fileStorageService;
+        _env = env;
     }
 
     public async Task<IActionResult> Index(long projectId, AssetTypeEnum type = AssetTypeEnum.Actor)
@@ -94,13 +98,15 @@ public class AssetsController : Controller
 
         if (id <= 0)
             return Content(ToJson(false, "参数错误"));
+        if (string.IsNullOrEmpty(name))
+            return Content(ToJson(false, "名称不能为空"));
 
         var asset = await _assetService.GetByIdAsync(id);
         if (asset == null)
             return Content(ToJson(false, "资产不存在"));
 
         asset.Name = name;
-        asset.Description = description;
+        asset.Description = description ?? String.Empty;
         asset.Order = order;
         await _assetService.UpdateAsync(asset);
         return Content(ToJson(true));
@@ -124,8 +130,122 @@ public class AssetsController : Controller
         if (id <= 0)
             return Content(ToJson(false, "参数错误"));
 
+        await DeleteResourceForAssetAsync(id);
         await _assetService.DeleteAsync(id);
         return Content(ToJson(true));
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> ReplaceResource()
+    {
+        long? projectId = null;
+        long assetId = 0;
+
+        foreach (var key in Request.Form.Keys)
+        {
+            switch (key.ToLower())
+            {
+                case "projectid": projectId = long.TryParse(Request.Form[key], out var pid) ? pid : null; break;
+                case "assetid": assetId = long.TryParse(Request.Form[key], out var aid) ? aid : 0L; break;
+            }
+        }
+
+        if (assetId <= 0)
+            return Content(ToJson(false, "参数错误"));
+
+        var asset = await _assetService.GetByIdAsync(assetId);
+        if (asset == null)
+            return Content(ToJson(false, "资产不存在"));
+
+        var file = Request.Form.Files.GetFile("uploadFile");
+        if (file == null || file.Length == 0)
+            return Content(ToJson(false, "请选择文件"));
+
+        await SaveResourceForAssetAsync(asset, file);
+        return Content(ToJson(true));
+    }
+
+    private async Task SaveResourceForAssetAsync(Asset asset, IFormFile file)
+    {
+        await DeleteResourceForAssetAsync(asset.Id);
+
+        var assetTypeStr = asset.AssetType.ToString().ToLower();
+        var ext = DetermineFileExtension(file);
+
+        var path = await _fileStorageService.SaveAssetAsync(asset.ProjectId, assetTypeStr, asset.Id, await ReadFileBytesAsync(file), ext);
+
+        var ctx = HttpContext.RequestServices.GetRequiredService<ManjuCraft.Infrastructure.ProjectDbContext>();
+        var resource = new Resource
+        {
+            MediaType = file.ContentType?.Split('/')[0] ?? "",
+            FilePath = path
+        };
+        ctx.Resources.Add(resource);
+        await ctx.SaveChangesAsync();
+
+        asset.ResourceId = resource.Id;
+        await ctx.SaveChangesAsync();
+    }
+
+    private async Task DeleteResourceForAssetAsync(long assetId)
+    {
+        var db = _env.WebRootPath;
+        try
+        {
+            var ctx = HttpContext.RequestServices.GetRequiredService<ManjuCraft.Infrastructure.ProjectDbContext>();
+            var asset = await ctx.Assets.FindAsync(assetId);
+            if (asset?.ResourceId.HasValue == true)
+            {
+                var oldRes = await ctx.Resources.FindAsync(asset.ResourceId.Value);
+                if (oldRes != null)
+                {
+                    var oldPath = Path.Combine(db, oldRes.FilePath.Replace('/', Path.DirectorySeparatorChar));
+                    if (System.IO.File.Exists(oldPath))
+                        System.IO.File.Delete(oldPath);
+                    ctx.Resources.Remove(oldRes);
+                    await ctx.SaveChangesAsync();
+                }
+            }
+            if (asset != null)
+            {
+                asset.ResourceId = null;
+                await ctx.SaveChangesAsync();
+            }
+        }
+        catch { }
+    }
+
+    private string DetermineFileExtension(IFormFile file)
+    {
+        var ext = System.IO.Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!string.IsNullOrEmpty(ext))
+            return ext;
+        var contentType = (file.ContentType ?? "").ToLowerInvariant();
+        switch (contentType)
+        {
+            // Images
+            case "image/png": return ".png";
+            case "image/jpeg":
+            case "image/jpg": return ".jpg";
+            case "image/webp": return ".webp";
+            case "image/gif": return ".gif";
+            case "image/bmp": return ".bmp";
+            case "image/svg+xml": return ".svg";
+            // Audio
+            case "audio/mpeg": return ".mp3";
+            case "audio/wav": return ".wav";
+            case "audio/ogg": return ".ogg";
+            case "audio/mp4":
+            case "audio/aac": return ".m4a";
+            default: return ext;
+        }
+    }
+
+    private async Task<byte[]> ReadFileBytesAsync(IFormFile file)
+    {
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        return ms.ToArray();
     }
 
     private string ToJson(bool success, string? message = null)

@@ -505,6 +505,14 @@ tr:hover td { background: #f8faff; }
     color: #fff;
 }
 
+/* BGM card */
+.bgm-card .bgm-icon { font-size: 48px; color: #fbbf24; animation: pulse 2s infinite; }
+.bgm-card audio { display: none; }
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+}
+
 /* Detail header */
 .asset-detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .asset-detail-type {
