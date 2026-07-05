@@ -19,18 +19,18 @@
             </a>
         </div>
         <div class="nav-right">
-            <a href="@Url.Action("Index", "Home")"
-               class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Home" ? "active" : "")">首页</a>
             <a href="@Url.Action("Index", "Projects")"
                class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Projects" ? "active" : "")">项目管理</a>
             <a href="@Url.Action("Index", "Story")"
                class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Story" ? "active" : "")">剧本创作</a>
-            <a href="@Url.Action("Index", "Actors")"
-               class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Actors" ? "active" : "")">角色管理</a>
-            <a href="@Url.Action("Index", "Assets")"
-               class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Assets" ? "active" : "")">资产管理</a>
             <a href="@Url.Action("Index", "Production")"
                class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Production" ? "active" : "")">漫剧创作</a>
+            <a href="javascript:void(0)" onclick="goAssets()"
+               class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Assets" ? "active" : "")">资产管理</a>
+            <a href="@Url.Action("Index", "ApiManagement")"
+               class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "ApiManagement" ? "active" : "")">API 管理</a>
+            <a href="@Url.Action("Index", "PromptTemplateManagement")"
+               class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "PromptTemplateManagement" ? "active" : "")">提示词管理</a>
             <a href="@Url.Action("Index", "Settings")"
                class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Settings" ? "active" : "")">设置</a>
         </div>
@@ -61,6 +61,14 @@
         setTimeout(function(){toast.remove();},3000);
     }
     function tryJson(str,def){if(!str)return def;try{return JSON.parse(str)}catch(e){return def}}
+    function goAssets() {
+        var lastProj = localStorage.getItem('selectedProjectId');
+        if (lastProj) {
+            window.location.href = '@Url.Action("Index", "Assets")?projectId=' + lastProj;
+        } else {
+            window.location.href = '@Url.Action("Index", "Projects")';
+        }
+    }
     </script>
     <script src="~/js/main.js"></script>
     @RenderSection("Scripts", required: false)

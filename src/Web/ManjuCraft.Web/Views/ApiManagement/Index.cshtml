@@ -1,0 +1,178 @@
+@using ManjuCraft.Domain.Models
+@{
+    ViewData["Title"] = "API 管理";
+    var providers = ViewBag.Providers as List<ApiProvider> ?? new();
+}
+
+<div class="container" style="max-width:1100px;">
+    <div class="page-header">
+        <h2>API 管理</h2>
+        <button class="btn btn-primary btn-sm" onclick="showAddModal()">&#43; 新增 API</button>
+    </div>
+
+    <div id="providerList">
+        @if (providers.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">\uD83D\uDD28</div>
+                <p>暂无 API 提供者，点击「新增」添加</p>
+            </div>
+        }
+        else
+        {
+            foreach (var p in providers)
+            {
+                string capIcon, capDesc;
+                switch (p.Capability)
+                {
+                    case AiCapability.TextToText:
+                        capIcon = "\uD83E\uDD16"; capDesc = "LLM 对话"; break;
+                    case AiCapability.TextToImage:
+                        capIcon = "\uD83C\uDFA8"; capDesc = "文生图"; break;
+                    case AiCapability.TextToAudio:
+                        capIcon = "\uD83C\uDFA5"; capDesc = "文生音频"; break;
+                    case AiCapability.TextToVideo:
+                        capIcon = "\uD83C\uDFA9"; capDesc = "文生视频"; break;
+                    case AiCapability.ImageToVideo:
+                        capIcon = "\uD83C\uDFAF"; capDesc = "图生视频"; break;
+                    default:
+                        capIcon = "\uD83D\uDD28"; capDesc = ""; break;
+                }
+                <div class="res-item">
+                    <div class="res-icon">@capIcon</div>
+                    <div class="res-info">
+                        <h4>@p.Name</h4>
+                        <p>@capDesc | @(p.ApiUrl ?? "\u2014") | @(p.Model ?? "\u2014")</p>
+                    </div>
+                    <div class="res-actions">
+                        <button class="btn btn-ghost btn-sm" data-action="edit" data-id="@p.Id">&#9998; 编辑</button>
+                        <button class="btn btn-ghost btn-sm" style="color:var(--danger);" data-action="delete" data-id="@p.Id" data-name="@p.Name">&#128465; 删除</button>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<div class="modal-overlay" id="providerModal">
+    <div class="modal modal-medium">
+        <div class="modal-header">
+            <h3 id="providerModalTitle">新增 API</h3>
+            <button class="modal-close" onclick="hideModal('providerModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editProviderId">
+            <div class="form-group"><label>名称 *</label><input type="text" id="providerName" placeholder="如 DeepSeek、ComfyUI"></div>
+            <div class="form-group"><label>能力类型 *</label>
+                <select id="providerCapability">
+                    <option value="1">TextToText (LLM 对话)</option>
+                    <option value="2">TextToImage (文生图)</option>
+                    <option value="3">TextToAudio (文生音频)</option>
+                    <option value="4">TextToVideo (文生视频)</option>
+                    <option value="5">ImageToVideo (图生视频)</option>
+                </select>
+            </div>
+            <div class="form-group"><label>API 地址 *</label><input type="text" id="providerApiUrl" placeholder="如 https://api.deepseek.com/v1"></div>
+            <div class="form-group"><label>API Key</label><input type="text" id="providerApiKey" placeholder="留空表示不需要鉴权"></div>
+            <div class="form-group"><label>模型名称 / 工作流</label><input type="text" id="providerModel" placeholder="如 deepseek-v4-flash 或 LLM-QWEN.json"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="hideModal('providerModal')">取消</button>
+            <button class="btn btn-primary" onclick="saveProvider()">保存</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    var _providersData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(providers.Select(p => new {
+        id = p.Id,
+        name = p.Name,
+        capability = (int)p.Capability,
+        apiUrl = p.ApiUrl,
+        apiKey = p.ApiKey,
+        model = p.Model
+    })));
+
+    function showModal(id) { document.getElementById(id).classList.add('show'); }
+    function hideModal(id) { document.getElementById(id).classList.remove('show'); }
+    function showToast(msg, type) { console.log(type + ': ' + msg); }
+
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        var id = btn.dataset.id;
+        var action = btn.dataset.action;
+        if (action === 'edit') { showEditModal(id); }
+        else if (action === 'delete') { deleteRes(id); }
+    });
+
+    function showAddModal() {
+        document.getElementById('editProviderId').value = '';
+        document.getElementById('providerModalTitle').textContent = '\u65b0\u589e API';
+        document.getElementById('providerName').value = '';
+        document.getElementById('providerCapability').value = '1';
+        document.getElementById('providerApiUrl').value = '';
+        document.getElementById('providerApiKey').value = '';
+        document.getElementById('providerModel').value = '';
+        showModal('providerModal');
+    }
+
+    function showEditModal(id) {
+        var p = _providersData.find(function(x){ return x.id == id; });
+        if (!p) return;
+        document.getElementById('editProviderId').value = p.id;
+        document.getElementById('providerModalTitle').textContent = '\u7f16\u8f91 API';
+        document.getElementById('providerName').value = p.name || '';
+        document.getElementById('providerCapability').value = p.capability;
+        document.getElementById('providerApiUrl').value = p.apiUrl || '';
+        document.getElementById('providerApiKey').value = p.apiKey || '';
+        document.getElementById('providerModel').value = p.model || '';
+        showModal('providerModal');
+    }
+
+    function saveProvider() {
+        var id = document.getElementById('editProviderId').value;
+        var name = document.getElementById('providerName').value.trim();
+        var capability = document.getElementById('providerCapability').value;
+        var apiUrl = document.getElementById('providerApiUrl').value.trim();
+        var apiKey = document.getElementById('providerApiKey').value;
+        var model = document.getElementById('providerModel').value;
+        if (!name) { alert('\u8bf7\u8f93\u5165\u540d\u79f0'); return; }
+        if (!apiUrl) { alert('\u8bf7\u8f93\u5165 API \u5730\u5740'); return; }
+
+        var url = '@Url.Action("Add", "ApiManagement")';
+        if (id) { url = '@Url.Action("Edit", "ApiManagement")/' + id; }
+
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name, capability: capability, apiUrl: apiUrl, apiKey: apiKey || '', model: model })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res) {
+            if (res.success) {
+                hideModal('providerModal');
+                showToast('已保存', 'success');
+                location.reload();
+            } else {
+                alert('\u4fdd\u5b58\u5931\u8d25\uff1a' + (res.message || ''));
+            }
+        });
+    }
+
+    function deleteRes(id) {
+        var p = _providersData.find(function(x){ return x.id == id; });
+        var name = p ? p.name : '';
+        if (!confirm('\u786e\u8ba4\u5220\u9664\u300c' + name + '\u300d\uff1f')) return;
+        fetch('@Url.Action("Delete", "ApiManagement")?id=' + id, {
+            method: 'POST'
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res) {
+            if (res.success) { showToast('\u5df2\u5220\u9664', 'success'); location.reload(); }
+            else alert('\u5220\u9664\u5931\u8d25');
+        });
+    }
+</script>
+}

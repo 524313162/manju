@@ -7,8 +7,7 @@ namespace ManjuCraft.Domain.Models
         public long StoryId { get; set; }
 
         [Required]
-        [StringLength(32)]
-        public string ChapterNumber { get; set; }
+        public int ChapterNumber { get; set; }
 
         [Required]
         [StringLength(256)]
@@ -17,7 +16,7 @@ namespace ManjuCraft.Domain.Models
         [Required]
         public string Content { get; set; }
 
-        public int Order { get; set; }
+        public int SortOrder { get; set; }
 
         public Story Story { get; set; }
     }

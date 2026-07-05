@@ -22,7 +22,8 @@
                     创建于 @(new DateTime(1970, 1, 1).AddMilliseconds(project.CreatedTime).ToLocalTime().ToString("yyyy-MM-dd"))
                 </p>
                 <div class="project-actions">
-                    <button class="btn btn-primary btn-sm" onclick="goStory(@project.Id)" style="flex:1;">&#128214; 剧本创作</button>
+                    <button class="btn btn-primary btn-sm" onclick="goStory(@project.Id); selectProject(@project.Id);" style="flex:1;">&#128214; 剧本创作</button>
+                    <a class="btn btn-info btn-sm" href="@Url.Action("Index", "Assets", new { projectId = project.Id })" style="flex:1;text-align:center;">&#128196; 资产管理</a>
                     @if (hasStory.Contains(project.Id))
                     {
                         <a class="btn btn-info btn-sm" href="@Url.Action("Index", "Production", new { projectId = project.Id })" style="flex:1;text-align:center;">&#9654; 漫剧创作</a>
@@ -75,7 +76,12 @@
     var deleteTargetId = null;
 
     function goStory(projectId) {
+        localStorage.setItem('selectedProjectId', projectId);
         window.location.href = '@Url.Action("Index", "Story")?projectId=' + projectId;
+    }
+
+    function selectProject(projectId) {
+        localStorage.setItem('selectedProjectId', projectId);
     }
 
     function showCreateModal() {

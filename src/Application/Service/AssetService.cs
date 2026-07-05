@@ -12,10 +12,10 @@ namespace ManjuCraft.Application.Service
 
         public async Task<List<Asset>> GetByProjectAsync(long projectId, string? assetType = null)
         {
-            var query = _db.Assets.Where(a => a.ProjectId == projectId);
+            var query = _db.Assets.Where(a => a.ProjectId == projectId).AsQueryable();
             if (!string.IsNullOrEmpty(assetType))
                 query = query.Where(a => a.AssetType == assetType);
-            return await query.OrderBy(a => a.Order).ToListAsync();
+            return await query.Include(a => a.Resource).OrderBy(a => a.Order).ToListAsync();
         }
 
         public async Task<Asset> GetByIdAsync(long id)
