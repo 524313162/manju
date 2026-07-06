@@ -27,17 +27,9 @@ public class LtxController : ControllerBase
         [FromBody] LtxTextToVideoRequestDto dto,
         CancellationToken cancellationToken)
     {
-        var agent = _agentFactory.GetAgent("ltx-text-to-video");
+        var agent = (TextToVideoAgent)_agentFactory.GetAgent("ltx-text-to-video");
         var result = await agent.ExecuteAsync(dto, cancellationToken);
-
-        return Ok(new LtxVideoResponse
-        {
-            PromptId = result.PromptId,
-            VideoUrls = result.VideoUrls,
-            ExecutionTimeMs = result.ExecutionTimeMs,
-            Success = result.Success,
-            Error = result.Error
-        });
+        return Ok(result);
     }
 
     /// <summary>
@@ -49,16 +41,8 @@ public class LtxController : ControllerBase
         [FromBody] LtxImageToVideoRequestDto dto,
         CancellationToken cancellationToken)
     {
-        var agent = _agentFactory.GetAgent("ltx-image-to-video");
+        var agent = (ImageToVideoAgent)_agentFactory.GetAgent("ltx-image-to-video");
         var result = await agent.ExecuteAsync(dto, cancellationToken);
-
-        return Ok(new LtxVideoResponse
-        {
-            PromptId = result.PromptId,
-            VideoUrls = result.VideoUrls,
-            ExecutionTimeMs = result.ExecutionTimeMs,
-            Success = result.Success,
-            Error = result.Error
-        });
+        return Ok(result);
     }
 }

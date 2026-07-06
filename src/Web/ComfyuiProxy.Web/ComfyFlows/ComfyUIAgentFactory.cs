@@ -16,7 +16,7 @@ public class ComfyUIAgentFactory
     /// <summary>
     /// 根据工作流类型获取对应的 Agent
     /// </summary>
-    public IComfyUIAgent GetAgent(string workflowType)
+    public object GetAgent(string workflowType)
     {
         return workflowType.ToLowerInvariant() switch
         {

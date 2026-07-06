@@ -11,7 +11,7 @@ namespace ComfyuiProxy.Web.ComfyFlows;
 ///   - Node 201：反向提示词（negative_prompt）
 ///   - Node 202：角色提示词（character_prompt）
 /// </summary>
-public class CharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfileRequestDto>
+public class CharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfileRequestDto, CharacterProfileResponse>
 {
     public CharacterProfileAgent(ComfyuiProxyService proxyService, ILogger<CharacterProfileAgent> logger)
         : base(proxyService, logger) { }
@@ -27,5 +27,24 @@ public class CharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfileRequ
     {
 
         return string.Empty;
+    }
+
+    /// <summary>
+    /// 人物档案解析：从 historyItem 中提取图片 URL
+    /// </summary>
+    protected override void ParseOutputs(JsonObject historyItem, CharacterProfileResponse result)
+    {
+        // TODO: 根据 ComfyUI history 的实际结构提取图片 URL
+        // var outputs = historyItem["outputs"]?.AsObject();
+        // var images = outputs?["node_id"]?["images"]?.AsArray();
+        // if (images != null)
+        // {
+        //     foreach (var img in images)
+        //     {
+        //         var filename = img?["filename"]?.GetValue<string>();
+        //         var subfolder = img?["subfolder"]?.GetValue<string>();
+        //         result.ImageUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}");
+        //     }
+        // }
     }
 }

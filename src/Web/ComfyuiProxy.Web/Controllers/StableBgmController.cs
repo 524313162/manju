@@ -27,16 +27,8 @@ public class StableBgmController : ControllerBase
         [FromBody] StableBgmRequestDto dto,
         CancellationToken cancellationToken)
     {
-        var agent = _agentFactory.GetAgent("stable-bgm-generate");
+        var agent = (BgmGenerateAgent)_agentFactory.GetAgent("stable-bgm-generate");
         var result = await agent.ExecuteAsync(dto, cancellationToken);
-
-        return Ok(new StableBgmResponse
-        {
-            PromptId = result.PromptId,
-            AudioUrls = result.AudioUrls,
-            ExecutionTimeMs = result.ExecutionTimeMs,
-            Success = result.Success,
-            Error = result.Error
-        });
+        return Ok(result);
     }
 }

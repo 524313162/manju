@@ -27,17 +27,9 @@ public class ZImageController : ControllerBase
         [FromBody] ZImageTextToImageRequestDto dto,
         CancellationToken cancellationToken)
     {
-        var agent = _agentFactory.GetAgent("zimage-text-to-image");
+        var agent = (TextToImageAgent)_agentFactory.GetAgent("zimage-text-to-image");
         var result = await agent.ExecuteAsync(dto, cancellationToken);
-
-        return Ok(new ZImageTextToImageResponse
-        {
-            PromptId = result.PromptId,
-            ImageUrls = result.ImageUrls,
-            ExecutionTimeMs = result.ExecutionTimeMs,
-            Success = result.Success,
-            Error = result.Error
-        });
+        return Ok(result);
     }
 
     /// <summary>
@@ -49,16 +41,8 @@ public class ZImageController : ControllerBase
         [FromBody] ZImageCharacterProfileRequestDto dto,
         CancellationToken cancellationToken)
     {
-        var agent = _agentFactory.GetAgent("zimage-character-profile");
+        var agent = (CharacterProfileAgent)_agentFactory.GetAgent("zimage-character-profile");
         var result = await agent.ExecuteAsync(dto, cancellationToken);
-
-        return Ok(new CharacterProfileResponse
-        {
-            PromptId = result.PromptId,
-            ImageUrls = result.ImageUrls,
-            ExecutionTimeMs = result.ExecutionTimeMs,
-            Success = result.Success,
-            Error = result.Error
-        });
+        return Ok(result);
     }
 }

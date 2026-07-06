@@ -7,7 +7,7 @@ namespace ComfyuiProxy.Web.ComfyFlows;
 /// <summary>
 /// 20.LLM-QWen 大语言模型 Agent
 /// </summary>
-public class LlmQwenAgent : ComfyUIAgentBase<LlmQwenRequestDto>
+public class LlmQwenAgent : ComfyUIAgentBase<LlmQwenRequestDto, LlmQwenResponse>
 {
     public LlmQwenAgent(ComfyuiProxyService proxyService, ILogger<LlmQwenAgent> logger)
         : base(proxyService, logger) { }
@@ -25,37 +25,13 @@ public class LlmQwenAgent : ComfyUIAgentBase<LlmQwenRequestDto>
     }
 
     /// <summary>
-    /// LLM 特殊解析：提取文本输出
+    /// LLM 特殊解析：从 historyItem 中提取文本输出
     /// </summary>
-    protected override void ParseOutputs(JsonObject historyItem, WorkflowExecutionResult result)
+    protected override void ParseOutputs(JsonObject historyItem, LlmQwenResponse result)
     {
-        // 先调用基类解析
-        base.ParseOutputs(historyItem, result);
-
-        // LLM 的文本输出可能在 text 字段中
-        if (result.TextOutputs.Count == 0)
-        {
-            var outputs = historyItem["outputs"]?.AsObject();
-            if (outputs != null)
-            {
-                foreach (var (_, nodeOutput) in outputs)
-                {
-                    // 尝试从各种可能的字段提取文本
-                    var textFields = new[] { "text" };
-                    foreach (var field in textFields)
-                    {
-                        if (nodeOutput?[field] != null)
-                        {
-                            var text = nodeOutput[field]?[0]?.GetValue<string>();
-                            if (!string.IsNullOrEmpty(text))
-                            {
-                                result.TextOutputs.Add(text);
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // TODO: 根据 ComfyUI history 的实际结构解析文本输出
+        // 示例：从指定节点的 outputs.text 中提取
+        // var outputs = historyItem["outputs"]?.AsObject();
+        // result.Text = outputs?["node_id"]?["text"]?.GetValue<string>() ?? string.Empty;
     }
 }

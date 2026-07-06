@@ -7,7 +7,7 @@ namespace ComfyuiProxy.Web.ComfyFlows;
 /// <summary>
 /// 08.ACE-MUSIC 音乐生成 Agent
 /// </summary>
-public class MusicComposeAgent : ComfyUIAgentBase<AceMusicRequestDto>
+public class MusicComposeAgent : ComfyUIAgentBase<AceMusicRequestDto, AceMusicResponse>
 {
     public MusicComposeAgent(ComfyuiProxyService proxyService, ILogger<MusicComposeAgent> logger)
         : base(proxyService, logger) { }
@@ -20,5 +20,13 @@ public class MusicComposeAgent : ComfyUIAgentBase<AceMusicRequestDto>
     {
 
         return string.Empty;
+    }
+
+    /// <summary>
+    /// 音乐生成解析：从 historyItem 中提取音频 URL
+    /// </summary>
+    protected override void ParseOutputs(JsonObject historyItem, AceMusicResponse result)
+    {
+        // TODO: 根据 ComfyUI history 的实际结构提取音频 URL
     }
 }

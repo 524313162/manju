@@ -27,16 +27,8 @@ public class LlmQwenController : ControllerBase
         [FromBody] LlmQwenRequestDto dto,
         CancellationToken cancellationToken)
     {
-        var agent = _agentFactory.GetAgent("llm-qwen-execute");
+        var agent = (LlmQwenAgent)_agentFactory.GetAgent("llm-qwen-execute");
         var result = await agent.ExecuteAsync(dto, cancellationToken);
-
-        return Ok(new LlmQwenResponse
-        {
-            PromptId = result.PromptId,
-            Text = result.TextOutputs.Count > 0 ? result.TextOutputs[0] : string.Empty,
-            ExecutionTimeMs = result.ExecutionTimeMs,
-            Success = result.Success,
-            Error = result.Error
-        });
+        return Ok(result);
     }
 }
