@@ -61,7 +61,7 @@ public abstract class ComfyUIAgentBase : IComfyUIAgent
             InjectParameters(workflow, parameters);
 
             // 3. 将 UI 格式转换为 API 格式并序列化
-            var workflowJson = ComfyuiProxyService.ConvertUiWorkflowToApiJson(workflow);
+            var workflowJson = ComfyuiProxyService.ConvertUiWorkflowToApiJson(workflow);   
 
             // 4. 提交到 ComfyUI 执行
             _logger.LogInformation("[{WorkflowType}] 提交工作流到 ComfyUI", WorkflowType);

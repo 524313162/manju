@@ -425,6 +425,10 @@ public class ComfyuiProxyService
             var classType = nodeObj["type"]?.GetValue<string>();
             if (nodeId == null || string.IsNullOrEmpty(classType)) continue;
 
+            // 跳过纯 UI 注释节点，ComfyUI 不认识这些 class_type
+            if (classType is "MarkdownNote" or "Note" or "Reroute" or "PrimitiveNode")
+                continue;
+
             var apiNode = new JsonObject
             {
                 ["class_type"] = classType
@@ -461,7 +465,8 @@ public class ComfyuiProxyService
                                     var srcSlot = linkArr[2]?.GetValue<int>();
                                     if (srcNodeId != null && srcSlot != null)
                                     {
-                                        inputs[name] = new JsonArray { srcNodeId, srcSlot };
+                                        // ComfyUI 要求 link 中的 node_id 为字符串，整数会导致 KeyError
+                                        inputs[name] = new JsonArray { srcNodeId.Value.ToString(), srcSlot };
                                     }
                                     break;
                                 }

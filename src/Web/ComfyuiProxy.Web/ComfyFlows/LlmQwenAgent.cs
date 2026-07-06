@@ -63,12 +63,12 @@ public class LlmQwenAgent : ComfyUIAgentBase
                 foreach (var (_, nodeOutput) in outputs)
                 {
                     // 尝试从各种可能的字段提取文本
-                    var textFields = new[] { "text", "response", "output", "result", "string" };
+                    var textFields = new[] { "text" };
                     foreach (var field in textFields)
                     {
                         if (nodeOutput?[field] != null)
                         {
-                            var text = nodeOutput[field]?.GetValue<string>();
+                            var text = nodeOutput[field]?[0]?.GetValue<string>();
                             if (!string.IsNullOrEmpty(text))
                             {
                                 result.TextOutputs.Add(text);
