@@ -3,7 +3,7 @@ namespace ComfyuiProxy.Web.Models;
 /// <summary>
 /// 07.HIDREAM分镜 请求
 /// </summary>
-public class HiDreamStoryboardRequest
+public class HiDreamStoryboardRequestDto
 {
     /// <summary>提示词（必填）</summary>
     public string Prompt { get; set; } = string.Empty;

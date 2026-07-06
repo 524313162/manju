@@ -24,19 +24,11 @@ public class StableBgmController : ControllerBase
     /// </summary>
     [HttpPost("generate")]
     public async Task<ActionResult<StableBgmResponse>> Generate(
-        [FromBody] StableBgmRequest request,
+        [FromBody] StableBgmRequestDto dto,
         CancellationToken cancellationToken)
     {
         var agent = _agentFactory.GetAgent("stable-bgm-generate");
-        var parameters = new Dictionary<string, object>
-        {
-            ["prompt"] = request.Prompt
-        };
-
-        if (request.Duration.HasValue)
-            parameters["duration"] = request.Duration.Value;
-
-        var result = await agent.ExecuteAsync(parameters, cancellationToken);
+        var result = await agent.ExecuteAsync(dto, cancellationToken);
 
         return Ok(new StableBgmResponse
         {

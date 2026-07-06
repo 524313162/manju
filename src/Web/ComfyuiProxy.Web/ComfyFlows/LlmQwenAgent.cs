@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using ComfyuiProxy.Web.Models;
 using ComfyuiProxy.Web.Services;
 
 namespace ComfyuiProxy.Web.ComfyFlows;
@@ -6,7 +7,7 @@ namespace ComfyuiProxy.Web.ComfyFlows;
 /// <summary>
 /// 20.LLM-QWen 大语言模型 Agent
 /// </summary>
-public class LlmQwenAgent : ComfyUIAgentBase
+public class LlmQwenAgent : ComfyUIAgentBase<LlmQwenRequestDto>
 {
     public LlmQwenAgent(ComfyuiProxyService proxyService, ILogger<LlmQwenAgent> logger)
         : base(proxyService, logger) { }
@@ -14,12 +15,7 @@ public class LlmQwenAgent : ComfyUIAgentBase
     public override string WorkflowType => "llm-qwen-execute";
     public override string WorkflowFileName => "20.LLM-QWen.json";
 
-    public override void InjectParameters(JsonObject workflow, Dictionary<string, object> parameters)
-    {
-        // 不再使用，由 BuildWorkflowJsonAsync 完全接管
-    }
-
-    protected override async Task<string> BuildWorkflowJsonAsync(Dictionary<string, object> parameters)
+    protected override async Task<string> BuildWorkflowJsonAsync(LlmQwenRequestDto dto)
     {
         var workflow = await _proxyService.LoadWorkflowAsync(WorkflowFileName);
         if (workflow == null)
@@ -37,16 +33,15 @@ public class LlmQwenAgent : ComfyUIAgentBase
                 if (widgetsValues == null) continue;
 
                 // widgets_values[0] = system prompt（用户传入的 prompt 替换此位置）
-                if (parameters.TryGetValue("prompt", out var prompt) && widgetsValues.Count > 0)
-                    widgetsValues[0] = JsonValue.Create(prompt.ToString());
+                if (widgetsValues.Count > 0)
+                    widgetsValues[0] = JsonValue.Create(dto.Prompt);
 
                 // widgets_values[1] = max_length
-                if (parameters.TryGetValue("max_length", out var maxLength) && widgetsValues.Count > 1)
-                    widgetsValues[1] = JsonValue.Create(Convert.ToInt32(maxLength));
+                if (dto.MaxLength.HasValue && widgetsValues.Count > 1)
+                    widgetsValues[1] = JsonValue.Create(dto.MaxLength.Value);
             }
         }
-
-        return ComfyuiProxyService.ConvertUiWorkflowToApiJson(workflow);
+        return string.Empty;
     }
 
     /// <summary>

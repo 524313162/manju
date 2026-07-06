@@ -24,19 +24,11 @@ public class LlmQwenController : ControllerBase
     /// </summary>
     [HttpPost("execute")]
     public async Task<ActionResult<LlmQwenResponse>> Execute(
-        [FromBody] LlmQwenRequest request,
+        [FromBody] LlmQwenRequestDto dto,
         CancellationToken cancellationToken)
     {
         var agent = _agentFactory.GetAgent("llm-qwen-execute");
-        var parameters = new Dictionary<string, object>
-        {
-            ["prompt"] = request.Prompt
-        };
-
-        if (request.MaxLength.HasValue)
-            parameters["max_length"] = request.MaxLength.Value;
-
-        var result = await agent.ExecuteAsync(parameters, cancellationToken);
+        var result = await agent.ExecuteAsync(dto, cancellationToken);
 
         return Ok(new LlmQwenResponse
         {

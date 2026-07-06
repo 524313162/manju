@@ -24,21 +24,11 @@ public class ZImageController : ControllerBase
     /// </summary>
     [HttpPost("text-to-image")]
     public async Task<ActionResult<ZImageTextToImageResponse>> TextToImage(
-        [FromBody] ZImageTextToImageRequest request,
+        [FromBody] ZImageTextToImageRequestDto dto,
         CancellationToken cancellationToken)
     {
         var agent = _agentFactory.GetAgent("zimage-text-to-image");
-        var parameters = new Dictionary<string, object>
-        {
-            ["prompt"] = request.Prompt
-        };
-
-        if (request.Width.HasValue)
-            parameters["width"] = request.Width.Value;
-        if (request.Height.HasValue)
-            parameters["height"] = request.Height.Value;
-
-        var result = await agent.ExecuteAsync(parameters, cancellationToken);
+        var result = await agent.ExecuteAsync(dto, cancellationToken);
 
         return Ok(new ZImageTextToImageResponse
         {
@@ -56,18 +46,11 @@ public class ZImageController : ControllerBase
     /// </summary>
     [HttpPost("character-profile")]
     public async Task<ActionResult<CharacterProfileResponse>> CharacterProfile(
-        [FromBody] ZImageCharacterProfileRequest request,
+        [FromBody] ZImageCharacterProfileRequestDto dto,
         CancellationToken cancellationToken)
     {
         var agent = _agentFactory.GetAgent("zimage-character-profile");
-        var parameters = new Dictionary<string, object>
-        {
-            ["system_prompt"] = request.SystemPrompt,
-            ["character_prompt"] = request.CharacterPrompt,
-            ["negative_prompt"] = request.NegativePrompt
-        };
-
-        var result = await agent.ExecuteAsync(parameters, cancellationToken);
+        var result = await agent.ExecuteAsync(dto, cancellationToken);
 
         return Ok(new CharacterProfileResponse
         {

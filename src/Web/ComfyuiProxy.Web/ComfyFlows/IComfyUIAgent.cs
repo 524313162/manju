@@ -1,5 +1,3 @@
-using System.Text.Json.Nodes;
-
 namespace ComfyuiProxy.Web.ComfyFlows;
 
 /// <summary>
@@ -15,20 +13,12 @@ public interface IComfyUIAgent
     string WorkflowFileName { get; }
 
     /// <summary>
-    /// 将请求参数注入到工作流 JSON 模板（UI 格式，包含 nodes 数组）中
-    /// 子类应遍历 workflow["nodes"] 数组，按 type 匹配节点，修改 widgets_values
-    /// </summary>
-    /// <param name="workflow">UI 格式的工作流对象 { nodes: [...], ... }</param>
-    /// <param name="parameters">请求参数字典</param>
-    void InjectParameters(JsonObject workflow, Dictionary<string, object> parameters);
-
-    /// <summary>
     /// 执行工作流的完整流程
     /// </summary>
-    /// <param name="parameters">请求参数</param>
+    /// <param name="parameters">请求参数（各 Agent 对应的 Request DTO）</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>执行结果</returns>
     Task<WorkflowExecutionResult> ExecuteAsync(
-        Dictionary<string, object> parameters,
+        object parameters,
         CancellationToken cancellationToken = default);
 }

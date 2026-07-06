@@ -8,7 +8,8 @@ namespace ComfyuiProxy.Web.ComfyFlows;
 /// ComfyUI Agent 基类
 /// 提供公共的工作流执行逻辑：加载模板、注入参数、提交执行、等待结果、解析输出
 /// </summary>
-public abstract class ComfyUIAgentBase : IComfyUIAgent
+public abstract class ComfyUIAgentBase<TParams> : IComfyUIAgent
+    where TParams : class
 {
     protected readonly ComfyuiProxyService _proxyService;
     protected readonly ILogger _logger;
@@ -26,35 +27,19 @@ public abstract class ComfyUIAgentBase : IComfyUIAgent
     public abstract string WorkflowFileName { get; }
 
     /// <summary>
-    /// 将请求参数注入到工作流 JSON 模板（UI 格式，包含 nodes 数组）中
-    /// 子类应遍历 workflow["nodes"] 数组，按 type 匹配节点，修改 widgets_values
+    /// 构建工作流 JSON（加载模板 + 注入参数）
+    /// 子类必须实现此方法，直接返回 API 格式的 JSON 字符串
     /// </summary>
-    public abstract void InjectParameters(JsonObject workflow, Dictionary<string, object> parameters);
-
-    /// <summary>
-    /// 构建工作流 JSON（加载模板 + 注入参数 + 转 API 格式）
-    /// 默认实现适用于标准 UI 格式的工作流，子类可重写以处理特殊格式（如子图）
-    /// </summary>
-    protected virtual async Task<string> BuildWorkflowJsonAsync(Dictionary<string, object> parameters)
-    {
-        var workflow = await _proxyService.LoadWorkflowAsync(WorkflowFileName);
-        if (workflow == null)
-            throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
-
-        _logger.LogInformation("[{WorkflowType}] 注入参数到工作流", WorkflowType);
-        InjectParameters(workflow, parameters);
-
-        return ComfyuiProxyService.ConvertUiWorkflowToApiJson(workflow);
-    }
+    protected abstract Task<string> BuildWorkflowJsonAsync(TParams dto);
 
     /// <summary>
     /// 执行工作流的完整流程：构建 workflowJson → 提交执行 → 等待结果 → 解析输出
     /// </summary>
-    /// <param name="parameters">请求参数</param>
+    /// <param name="parameters">请求参数（各 Agent 对应的 Request DTO）</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>执行结果</returns>
     public async Task<WorkflowExecutionResult> ExecuteAsync(
-        Dictionary<string, object> parameters,
+        object parameters,
         CancellationToken cancellationToken = default)
     {
         var startTime = DateTime.UtcNow;
@@ -63,7 +48,7 @@ public abstract class ComfyUIAgentBase : IComfyUIAgent
         try
         {
             // 1. 构建工作流 JSON（加载模板 + 注入参数 + 转 API 格式）
-            var workflowJson = await BuildWorkflowJsonAsync(parameters);
+            var workflowJson = await BuildWorkflowJsonAsync((TParams)parameters);
 
             // 2. 提交到 ComfyUI 执行
             _logger.LogInformation("[{WorkflowType}] 提交工作流到 ComfyUI", WorkflowType);

@@ -368,20 +368,6 @@ public class ComfyuiProxyService
     }
 
     /// <summary>
-    /// 获取 ComfyUI 系统信息
-    /// </summary>
-    public async Task<string> GetSystemInfoAsync()
-    {
-        var baseUrl = GetBaseUrl();
-        var client = _httpClientFactory.CreateClient("http");
-
-        var response = await client.GetAsync($"{baseUrl}/system_info");
-        response.EnsureSuccessStatusCode();
-
-        return await response.Content.ReadAsStringAsync();
-    }
-
-    /// <summary>
     /// 加载工作流 JSON 文件（原始 UI 格式）
     /// </summary>
     /// <param name="workflowFileName">工作流文件名，如 "01.ZIMAGE-文生图.json"</param>
@@ -399,98 +385,6 @@ public class ComfyuiProxyService
 
         var json = await File.ReadAllTextAsync(filePath);
         return JsonSerializer.Deserialize<JsonObject>(json);
-    }
-
-    /// <summary>
-    /// 将 ComfyUI 的 UI 保存格式（nodes 数组）转换为 API 提交格式（节点字典）
-    /// UI 格式：{ "nodes": [ { "id": 3, "type": "CLIPTextEncode", "inputs": [...], "widgets_values": [...], ... } ] }
-    /// API 格式：{ "prompt": { "3": { "class_type": "CLIPTextEncode", "inputs": { "text": "hello", ... } }, ... } }
-    /// </summary>
-    public static string ConvertUiWorkflowToApiJson(JsonObject uiWorkflow)
-    {
-        var nodes = uiWorkflow["nodes"]?.AsArray();
-        if (nodes == null || nodes.Count == 0)
-        {
-            // 如果已经是 API 格式（没有 nodes 字段），直接包 prompt
-            return new JsonObject { ["prompt"] = uiWorkflow.DeepClone() }.ToJsonString();
-        }
-
-        var apiWorkflow = new JsonObject();
-
-        foreach (var node in nodes)
-        {
-            if (node is not JsonObject nodeObj) continue;
-
-            var nodeId = nodeObj["id"]?.GetValue<int>();
-            var classType = nodeObj["type"]?.GetValue<string>();
-            if (nodeId == null || string.IsNullOrEmpty(classType)) continue;
-
-            // 跳过纯 UI 注释节点，ComfyUI 不认识这些 class_type
-            if (classType is "MarkdownNote" or "Note" or "Reroute" or "PrimitiveNode")
-                continue;
-
-            var apiNode = new JsonObject
-            {
-                ["class_type"] = classType
-            };
-
-            var inputs = new JsonObject();
-            var inputList = nodeObj["inputs"]?.AsArray();
-            var widgetsValues = nodeObj["widgets_values"]?.AsArray();
-
-            if (inputList != null)
-            {
-                int widgetIndex = 0;
-                foreach (var input in inputList)
-                {
-                    if (input is not JsonObject inputObj) continue;
-                    var name = inputObj["name"]?.GetValue<string>();
-                    var link = inputObj["link"]?.GetValue<int?>();
-                    var isWidget = inputObj["widget"] != null;
-
-                    if (string.IsNullOrEmpty(name)) continue;
-
-                    if (link.HasValue && link.Value >= 0)
-                    {
-                        // 有连接的输入：存储为 [node_id, slot_index]
-                        var links = uiWorkflow["links"]?.AsArray();
-                        if (links != null)
-                        {
-                            foreach (var linkItem in links)
-                            {
-                                if (linkItem is not JsonArray linkArr) continue;
-                                if (linkArr.Count >= 3 && linkArr[0]?.GetValue<int>() == link.Value)
-                                {
-                                    var srcNodeId = linkArr[1]?.GetValue<int>();
-                                    var srcSlot = linkArr[2]?.GetValue<int>();
-                                    if (srcNodeId != null && srcSlot != null)
-                                    {
-                                        // ComfyUI 要求 link 中的 node_id 为字符串，整数会导致 KeyError
-                                        inputs[name] = new JsonArray { srcNodeId.Value.ToString(), srcSlot };
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    else if (isWidget && widgetsValues != null && widgetIndex < widgetsValues.Count)
-                    {
-                        // widget 输入：从 widgets_values 取值
-                        var widgetVal = widgetsValues[widgetIndex];
-                        if (widgetVal != null)
-                        {
-                            inputs[name] = widgetVal.DeepClone();
-                        }
-                        widgetIndex++;
-                    }
-                }
-            }
-
-            apiNode["inputs"] = inputs;
-            apiWorkflow[nodeId!.ToString()!] = apiNode;
-        }
-
-        return new JsonObject { ["prompt"] = apiWorkflow }.ToJsonString();
     }
 }
 

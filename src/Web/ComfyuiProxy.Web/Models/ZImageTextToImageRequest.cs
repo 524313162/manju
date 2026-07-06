@@ -3,7 +3,7 @@ namespace ComfyuiProxy.Web.Models;
 /// <summary>
 /// 01.ZIMAGE文生图 请求
 /// </summary>
-public class ZImageTextToImageRequest
+public class ZImageTextToImageRequestDto
 {
     /// <summary>提示词（必填）</summary>
     public string Prompt { get; set; } = string.Empty;

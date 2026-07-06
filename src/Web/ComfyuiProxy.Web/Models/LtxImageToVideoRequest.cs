@@ -3,7 +3,7 @@ namespace ComfyuiProxy.Web.Models;
 /// <summary>
 /// 04.LTX图生视频 请求
 /// </summary>
-public class LtxImageToVideoRequest
+public class LtxImageToVideoRequestDto
 {
     /// <summary>起始图片路径（必填）</summary>
     public string ImagePath { get; set; } = string.Empty;

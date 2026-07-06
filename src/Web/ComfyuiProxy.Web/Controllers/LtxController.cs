@@ -24,16 +24,11 @@ public class LtxController : ControllerBase
     /// </summary>
     [HttpPost("text-to-video")]
     public async Task<ActionResult<LtxVideoResponse>> TextToVideo(
-        [FromBody] LtxTextToVideoRequest request,
+        [FromBody] LtxTextToVideoRequestDto dto,
         CancellationToken cancellationToken)
     {
         var agent = _agentFactory.GetAgent("ltx-text-to-video");
-        var parameters = new Dictionary<string, object>
-        {
-            ["prompt"] = request.Prompt
-        };
-
-        var result = await agent.ExecuteAsync(parameters, cancellationToken);
+        var result = await agent.ExecuteAsync(dto, cancellationToken);
 
         return Ok(new LtxVideoResponse
         {
@@ -51,17 +46,11 @@ public class LtxController : ControllerBase
     /// </summary>
     [HttpPost("image-to-video")]
     public async Task<ActionResult<LtxVideoResponse>> ImageToVideo(
-        [FromBody] LtxImageToVideoRequest request,
+        [FromBody] LtxImageToVideoRequestDto dto,
         CancellationToken cancellationToken)
     {
         var agent = _agentFactory.GetAgent("ltx-image-to-video");
-        var parameters = new Dictionary<string, object>
-        {
-            ["prompt"] = request.Prompt,
-            ["image_path"] = request.ImagePath
-        };
-
-        var result = await agent.ExecuteAsync(parameters, cancellationToken);
+        var result = await agent.ExecuteAsync(dto, cancellationToken);
 
         return Ok(new LtxVideoResponse
         {

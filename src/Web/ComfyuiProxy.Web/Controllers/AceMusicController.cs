@@ -24,17 +24,11 @@ public class AceMusicController : ControllerBase
     /// </summary>
     [HttpPost("compose")]
     public async Task<ActionResult<AceMusicResponse>> Compose(
-        [FromBody] AceMusicRequest request,
+        [FromBody] AceMusicRequestDto dto,
         CancellationToken cancellationToken)
     {
         var agent = _agentFactory.GetAgent("ace-music-compose");
-        var parameters = new Dictionary<string, object>
-        {
-            ["prompt"] = request.Prompt,
-            ["lyrics"] = request.Lyrics
-        };
-
-        var result = await agent.ExecuteAsync(parameters, cancellationToken);
+        var result = await agent.ExecuteAsync(dto, cancellationToken);
 
         return Ok(new AceMusicResponse
         {

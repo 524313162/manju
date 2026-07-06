@@ -24,19 +24,11 @@ public class HiDreamController : ControllerBase
     /// </summary>
     [HttpPost("storyboard")]
     public async Task<ActionResult<StoryboardResponse>> Storyboard(
-        [FromBody] HiDreamStoryboardRequest request,
+        [FromBody] HiDreamStoryboardRequestDto dto,
         CancellationToken cancellationToken)
     {
         var agent = _agentFactory.GetAgent("hidream-storyboard");
-        var parameters = new Dictionary<string, object>
-        {
-            ["prompt"] = request.Prompt
-        };
-
-        if (!string.IsNullOrEmpty(request.ImagePath))
-            parameters["image_path"] = request.ImagePath;
-
-        var result = await agent.ExecuteAsync(parameters, cancellationToken);
+        var result = await agent.ExecuteAsync(dto, cancellationToken);
 
         return Ok(new StoryboardResponse
         {
