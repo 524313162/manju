@@ -21,26 +21,6 @@ public class LlmQwenAgent : ComfyUIAgentBase<LlmQwenRequestDto>
         if (workflow == null)
             throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
 
-        var nodes = workflow["nodes"]?.AsArray();
-        if (nodes != null)
-        {
-            foreach (var node in nodes)
-            {
-                if (node is not JsonObject nodeObj) continue;
-                if (nodeObj["type"]?.GetValue<string>() != "TextGenerate") continue;
-
-                var widgetsValues = nodeObj["widgets_values"]?.AsArray();
-                if (widgetsValues == null) continue;
-
-                // widgets_values[0] = system prompt（用户传入的 prompt 替换此位置）
-                if (widgetsValues.Count > 0)
-                    widgetsValues[0] = JsonValue.Create(dto.Prompt);
-
-                // widgets_values[1] = max_length
-                if (dto.MaxLength.HasValue && widgetsValues.Count > 1)
-                    widgetsValues[1] = JsonValue.Create(dto.MaxLength.Value);
-            }
-        }
         return string.Empty;
     }
 
