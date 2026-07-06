@@ -5,18 +5,12 @@ namespace ComfyuiProxy.Web.Models;
 /// </summary>
 public class ZImageTextToImageRequest
 {
-    /// <summary>正面提示词（必填）</summary>
+    /// <summary>提示词（必填）</summary>
     public string Prompt { get; set; } = string.Empty;
 
-    /// <summary>图像宽度，默认 1024</summary>
+    /// <summary>图像宽度，默认 16:9 比例宽（如 1024）</summary>
     public int? Width { get; set; }
 
-    /// <summary>图像高度，默认 1024</summary>
+    /// <summary>图像高度，默认 16:9 比例高（如 576）</summary>
     public int? Height { get; set; }
-
-    /// <summary>随机种子，默认 0（随机）</summary>
-    public int? Seed { get; set; }
-
-    /// <summary>采样步数，默认 8</summary>
-    public int? Steps { get; set; }
 }

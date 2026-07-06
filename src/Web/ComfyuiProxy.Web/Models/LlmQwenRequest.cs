@@ -5,9 +5,9 @@ namespace ComfyuiProxy.Web.Models;
 /// </summary>
 public class LlmQwenRequest
 {
-    /// <summary>提示词/系统提示词（必填）</summary>
+    /// <summary>提示词参数（必填）</summary>
     public string Prompt { get; set; } = string.Empty;
 
-    /// <summary>最大生成长度，默认 2048</summary>
-    public int? MaxLength { get; set; }
+    /// <summary>最大生成长度，默认 4096</summary>
+    public int? MaxLength { get; set; } = 4096;
 }

@@ -5,12 +5,9 @@ namespace ComfyuiProxy.Web.Models;
 /// </summary>
 public class HiDreamStoryboardRequest
 {
-    /// <summary>用户提示词（必填）</summary>
+    /// <summary>提示词（必填）</summary>
     public string Prompt { get; set; } = string.Empty;
 
-    /// <summary>是否切换到图片编辑模式，默认 false</summary>
-    public bool? SwitchToImageEdit { get; set; }
-
-    /// <summary>是否启用提示词优化，默认 false</summary>
-    public bool? EnablePromptRefine { get; set; }
+    /// <summary>参考图片路径（可选）</summary>
+    public string? ImagePath { get; set; }
 }

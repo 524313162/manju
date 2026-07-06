@@ -1,4 +1,6 @@
+using ComfyuiProxy.Web.ComfyFlows;
 using ComfyuiProxy.Web.Infrastructure;
+using ComfyuiProxy.Web.Services;
 using Polly;
 using Polly.Extensions.Http;
 
@@ -12,12 +14,28 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new() { Title = "ComfyUI 代理 API", Version = "v1" });
 });
 
-// 配置 HttpClient（直接注入，供 Controller 构造 Flow 类使用）
+// 配置 HttpClient（供 Agent 使用）
 builder.Services.AddHttpClient("http", ext =>
 {
     ext.Timeout = TimeSpan.FromMinutes(5);
 })
 .AddPolicyHandler(GetRetryPolicy());
+
+// 注册 ComfyUI 代理服务
+builder.Services.AddSingleton<ComfyuiProxyService>();
+
+// 注册所有 Agent
+builder.Services.AddTransient<TextToImageAgent>();
+builder.Services.AddTransient<CharacterProfileAgent>();
+builder.Services.AddTransient<TextToVideoAgent>();
+builder.Services.AddTransient<ImageToVideoAgent>();
+builder.Services.AddTransient<StoryboardAgent>();
+builder.Services.AddTransient<MusicComposeAgent>();
+builder.Services.AddTransient<BgmGenerateAgent>();
+builder.Services.AddTransient<LlmQwenAgent>();
+
+// 注册 Agent 工厂
+builder.Services.AddSingleton<ComfyUIAgentFactory>();
 
 // 配置健康检查
 builder.Services.AddHealthChecks()

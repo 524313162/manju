@@ -5,11 +5,11 @@ namespace ComfyuiProxy.Web.Models;
 /// </summary>
 public class ZImageCharacterProfileRequest
 {
-    /// <summary>角色正面提示词（必填）</summary>
-    public string Prompt { get; set; } = string.Empty;
+    /// <summary>系统提示词（必填）</summary>
+    public string SystemPrompt { get; set; } = string.Empty;
 
-    /// <summary>版面/布局提示词（必填）</summary>
-    public string LayoutPrompt { get; set; } = string.Empty;
+    /// <summary>人物提示词（必填）</summary>
+    public string CharacterPrompt { get; set; } = string.Empty;
 
     /// <summary>反向提示词（必填）</summary>
     public string NegativePrompt { get; set; } = string.Empty;
