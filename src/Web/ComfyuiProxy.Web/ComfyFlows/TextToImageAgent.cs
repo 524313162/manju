@@ -16,27 +16,43 @@ public class TextToImageAgent : ComfyUIAgentBase
 
     public override void InjectParameters(JsonObject workflow, Dictionary<string, object> parameters)
     {
-        // 遍历所有节点，找到需要注入参数的节点
-        foreach (var (nodeId, node) in workflow)
+        // 不再使用，由 BuildWorkflowJsonAsync 完全接管
+    }
+
+    protected override async Task<string> BuildWorkflowJsonAsync(Dictionary<string, object> parameters)
+    {
+        var workflow = await _proxyService.LoadWorkflowAsync(WorkflowFileName);
+        if (workflow == null)
+            throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
+
+        var nodes = workflow["nodes"]?.AsArray();
+        if (nodes != null)
         {
-            if (node is not JsonObject nodeObj) continue;
-
-            var classType = nodeObj["class_type"]?.GetValue<string>();
-
-            // 根据 class_type 注入参数到对应节点
-            switch (classType)
+            foreach (var node in nodes)
             {
-                case "CLIPTextEncode" when parameters.ContainsKey("prompt"):
-                    nodeObj["inputs"]!["text"] = JsonValue.Create(parameters["prompt"].ToString());
-                    break;
+                if (node is not JsonObject nodeObj) continue;
+                var type = nodeObj["type"]?.GetValue<string>();
 
-                case "EmptyLatentImage":
-                    if (parameters.TryGetValue("width", out var width))
-                        nodeObj["inputs"]!["width"] = JsonValue.Create(Convert.ToInt32(width));
-                    if (parameters.TryGetValue("height", out var height))
-                        nodeObj["inputs"]!["height"] = JsonValue.Create(Convert.ToInt32(height));
-                    break;
+                switch (type)
+                {
+                    case "CLIPTextEncode" when parameters.ContainsKey("prompt"):
+                        var widgetsValues = nodeObj["widgets_values"]?.AsArray();
+                        if (widgetsValues != null && widgetsValues.Count > 0)
+                            widgetsValues[0] = JsonValue.Create(parameters["prompt"].ToString());
+                        break;
+
+                    case "EmptyLatentImage":
+                        var vals = nodeObj["widgets_values"]?.AsArray();
+                        if (vals == null) break;
+                        if (parameters.TryGetValue("width", out var width) && vals.Count > 0)
+                            vals[0] = JsonValue.Create(Convert.ToInt32(width));
+                        if (parameters.TryGetValue("height", out var height) && vals.Count > 1)
+                            vals[1] = JsonValue.Create(Convert.ToInt32(height));
+                        break;
+                }
             }
         }
+
+        return ComfyuiProxyService.ConvertUiWorkflowToApiJson(workflow);
     }
 }

@@ -16,27 +16,60 @@ public class CharacterProfileAgent : ComfyUIAgentBase
 
     public override void InjectParameters(JsonObject workflow, Dictionary<string, object> parameters)
     {
-        foreach (var (nodeId, node) in workflow)
+        // 不再使用，由 BuildWorkflowJsonAsync 完全接管
+    }
+
+    /// <summary>
+    /// 构建工作流 JSON：加载模板 → 展开子图 → 注入参数 → 转 API 格式
+    /// </summary>
+    protected override async Task<string> BuildWorkflowJsonAsync(Dictionary<string, object> parameters)
+    {
+        var workflow = await _proxyService.LoadWorkflowAsync(WorkflowFileName);
+        if (workflow == null)
+            throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
+
+        // 工作流是 ComfyUI 子图格式，将子图内部的 nodes 和 links 提升到顶层
+        var subgraph = workflow["definitions"]?["subgraphs"]?.AsArray()?[0]?.AsObject();
+        if (subgraph != null)
         {
-            if (node is not JsonObject nodeObj) continue;
+            if (subgraph["nodes"] is JsonArray subgraphNodes)
+                workflow["nodes"] = subgraphNodes.DeepClone().AsArray();
+            if (subgraph["links"] is JsonArray subgraphLinks)
+                workflow["links"] = subgraphLinks.DeepClone().AsArray();
+        }
 
-            var classType = nodeObj["class_type"]?.GetValue<string>();
-
-            switch (classType)
+        // 注入参数到 CLIPTextEncode 节点
+        var nodes = workflow["nodes"]?.AsArray();
+        if (nodes != null)
+        {
+            foreach (var node in nodes)
             {
-                case "CLIPTextEncode":
-                    var text = nodeObj["inputs"]?["text"]?.GetValue<string>() ?? "";
-                    if (text.Contains("{system_prompt}") && parameters.TryGetValue("system_prompt", out var sp))
-                        nodeObj["inputs"]!["text"] = JsonValue.Create(text.Replace("{system_prompt}", sp.ToString()));
-                    else if (text.Contains("{character_prompt}") && parameters.TryGetValue("character_prompt", out var cp))
-                        nodeObj["inputs"]!["text"] = JsonValue.Create(text.Replace("{character_prompt}", cp.ToString()));
-                    break;
+                if (node is not JsonObject nodeObj) continue;
+                if (nodeObj["type"]?.GetValue<string>() != "CLIPTextEncode") continue;
 
-                case "CLIPTextEncode (negative)":
-                    if (parameters.TryGetValue("negative_prompt", out var np))
-                        nodeObj["inputs"]!["text"] = JsonValue.Create(np.ToString());
-                    break;
+                var widgetsValues = nodeObj["widgets_values"]?.AsArray();
+                if (widgetsValues == null || widgetsValues.Count == 0) continue;
+
+                var title = nodeObj["title"]?.GetValue<string>() ?? "";
+
+                switch (title)
+                {
+                    case "正向提示词":
+                        if (parameters.TryGetValue("system_prompt", out var sp))
+                            widgetsValues[0] = JsonValue.Create(sp.ToString());
+                        break;
+                    case "反向提示词":
+                        if (parameters.TryGetValue("negative_prompt", out var np))
+                            widgetsValues[0] = JsonValue.Create(np.ToString());
+                        break;
+                    case "角色提示词":
+                        if (parameters.TryGetValue("character_prompt", out var cp))
+                            widgetsValues[0] = JsonValue.Create(cp.ToString());
+                        break;
+                }
             }
         }
+
+        return ComfyuiProxyService.ConvertUiWorkflowToApiJson(workflow);
     }
 }

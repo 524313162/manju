@@ -32,11 +32,27 @@ public abstract class ComfyUIAgentBase : IComfyUIAgent
     public abstract void InjectParameters(JsonObject workflow, Dictionary<string, object> parameters);
 
     /// <summary>
-    /// 执行工作流的完整流程：加载模板 → 注入参数 → 提交执行 → 等待结果 → 解析输出
+    /// 构建工作流 JSON（加载模板 + 注入参数 + 转 API 格式）
+    /// 默认实现适用于标准 UI 格式的工作流，子类可重写以处理特殊格式（如子图）
+    /// </summary>
+    protected virtual async Task<string> BuildWorkflowJsonAsync(Dictionary<string, object> parameters)
+    {
+        var workflow = await _proxyService.LoadWorkflowAsync(WorkflowFileName);
+        if (workflow == null)
+            throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
+
+        _logger.LogInformation("[{WorkflowType}] 注入参数到工作流", WorkflowType);
+        InjectParameters(workflow, parameters);
+
+        return ComfyuiProxyService.ConvertUiWorkflowToApiJson(workflow);
+    }
+
+    /// <summary>
+    /// 执行工作流的完整流程：构建 workflowJson → 提交执行 → 等待结果 → 解析输出
     /// </summary>
     /// <param name="parameters">请求参数</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>执行结果（原始历史记录节点）</returns>
+    /// <returns>执行结果</returns>
     public async Task<WorkflowExecutionResult> ExecuteAsync(
         Dictionary<string, object> parameters,
         CancellationToken cancellationToken = default)
@@ -46,29 +62,15 @@ public abstract class ComfyUIAgentBase : IComfyUIAgent
 
         try
         {
-            // 1. 加载工作流模板
-            _logger.LogInformation("[{WorkflowType}] 加载工作流模板: {FileName}", WorkflowType, WorkflowFileName);
-            var workflow = await _proxyService.LoadWorkflowAsync(WorkflowFileName);
-            if (workflow == null)
-            {
-                result.Success = false;
-                result.Error = $"工作流文件不存在: {WorkflowFileName}";
-                return result;
-            }
+            // 1. 构建工作流 JSON（加载模板 + 注入参数 + 转 API 格式）
+            var workflowJson = await BuildWorkflowJsonAsync(parameters);
 
-            // 2. 注入参数（直接修改 UI 格式 workflow 的 nodes 数组中的 widgets_values）
-            _logger.LogInformation("[{WorkflowType}] 注入参数到工作流", WorkflowType);
-            InjectParameters(workflow, parameters);
-
-            // 3. 将 UI 格式转换为 API 格式并序列化
-            var workflowJson = ComfyuiProxyService.ConvertUiWorkflowToApiJson(workflow);   
-
-            // 4. 提交到 ComfyUI 执行
+            // 2. 提交到 ComfyUI 执行
             _logger.LogInformation("[{WorkflowType}] 提交工作流到 ComfyUI", WorkflowType);
             var promptId = await _proxyService.ExecuteWorkflowAsync(workflowJson);
             result.PromptId = promptId;
 
-            // 4. 等待执行完成
+            // 3. 等待执行完成
             _logger.LogInformation("[{WorkflowType}] 等待执行完成, prompt_id: {PromptId}", WorkflowType, promptId);
             var historyItem = await _proxyService.WaitForResultAsync(promptId, cancellationToken: cancellationToken);
             if (historyItem == null)
@@ -78,7 +80,7 @@ public abstract class ComfyUIAgentBase : IComfyUIAgent
                 return result;
             }
 
-            // 5. 解析输出
+            // 4. 解析输出
             ParseOutputs(historyItem, result);
 
             result.Success = true;
