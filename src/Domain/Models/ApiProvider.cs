@@ -20,7 +20,16 @@ namespace ManjuCraft.Domain.Models
         TextToVideo = 4,
 
         /// <summary>图片到视频</summary>
-        ImageToVideo = 5
+        ImageToVideo = 5,
+
+        /// <summary>图片编辑（含分镜生成、角色设定等）</summary>
+        ImageEdit = 6,
+
+        /// <summary>文生音频 - 音乐</summary>
+        TextToMusic = 7,
+
+        /// <summary>本地 ComfyUI - 通用工作流</summary>
+        ComfyUI = 100
     }
 
     /// <summary>

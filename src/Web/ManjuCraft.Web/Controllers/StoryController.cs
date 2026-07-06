@@ -14,14 +14,14 @@ public class StoryController : Controller
     private readonly IStoryService _storyService;
     private readonly IProjectService _projectService;
     private readonly IProjectDbContext _dbContext;
-    private readonly IAiClientRegistry _registry;
+    private readonly IAiAgentService _aiAgent;
 
-    public StoryController(IStoryService storyService, IProjectService projectService, IProjectDbContext dbContext, IAiClientRegistry registry)
+    public StoryController(IStoryService storyService, IProjectService projectService, IProjectDbContext dbContext, IAiAgentService aiAgent)
     {
         _storyService = storyService;
         _projectService = projectService;
         _dbContext = dbContext;
-        _registry = registry;
+        _aiAgent = aiAgent;
     }
 
     public async Task<IActionResult> Index(long projectId)
@@ -48,7 +48,7 @@ public class StoryController : Controller
             .Where(p => p.Capability == AiCapability.TextToText)
             .OrderByDescending(p => p.Id)
             .FirstOrDefaultAsync();
-        ViewBag.TextProvider = textProvider != null ? new { textProvider.Name, textProvider.Model, textProvider.ApiUrl } : null;
+        ViewBag.TextProvider = textProvider != null ? new { textProvider.Id, textProvider.Name, textProvider.Model, textProvider.ApiUrl } : null;
 
         ViewBag.Project = project;
         ViewBag.Story = story;
@@ -226,7 +226,6 @@ public class StoryController : Controller
                 await _storyService.UpdateAsync(story);
             }
 
-            // 导入 assets
             if (root.TryGetProperty("assets", out var assetsProp) && assetsProp.ValueKind == JsonValueKind.Object)
             {
                 await UpsertAssetGroup(assetsProp, "characters", projectId, AssetTypeEnum.Actor);
@@ -236,7 +235,6 @@ public class StoryController : Controller
                 await UpsertAssetGroup(assetsProp, "bgm", projectId, AssetTypeEnum.Bgm);
             }
 
-            // 导入 chapters
             if (root.TryGetProperty("chapters", out var chaptersProp) && chaptersProp.ValueKind == JsonValueKind.Array)
             {
                 var parsedChapters = chaptersProp.EnumerateArray().ToList();
@@ -309,6 +307,69 @@ public class StoryController : Controller
                 _dbContext.Assets.Add(asset);
             }
         }
+    }
+
+    [HttpPost]
+    [Route("[controller]/generate")]
+    public async Task<IActionResult> GenerateStory(string title, string prompt, string template, long providerId)
+    {
+        try
+        {
+            var fullSys = template ?? await GetTemplateContent("StoryGeneration");
+            var userPrompt = $"标题：{title}\n故事主题：{prompt}";
+
+            var result = await _aiAgent.ChatAsync(providerId, fullSys, userPrompt);
+            if (!result.success)
+                return Json(new { success = false, message = result.message });
+
+            return Json(new { success = true, data = result.data, storyId = 0L });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    [Route("[controller]/rewrite")]
+    public async Task<IActionResult> RewriteChapter(string content, string template, long providerId, string mode)
+    {
+        try
+        {
+            var templateType = mode == "expand" ? "StoryGeneration" : "RewriteStory";
+            var fullSys = template ?? await GetTemplateContent(templateType);
+
+            var modeLabel = mode switch
+            {
+                "expand" => "扩写",
+                "polish" => "润色",
+                "summary" => "精简",
+                _ => "改写"
+            };
+            var userPrompt = $"{modeLabel}要求：{content}";
+
+            var result = await _aiAgent.ChatAsync(providerId, fullSys, userPrompt);
+            if (!result.success)
+                return Json(new { success = false, message = result.message });
+
+            return Json(new { success = true, data = result.data });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
+
+    private async Task<string> GetTemplateContent(string templateType)
+    {
+        var t = await _dbContext.PromptTemplates
+            .Where(p => p.TemplateType == templateType && p.IsDefault)
+            .OrderBy(p => p.Id)
+            .FirstOrDefaultAsync();
+        if (t != null)
+            return t.Content;
+        t = await _dbContext.PromptTemplates.Where(p => p.TemplateType == templateType).OrderBy(p => p.Id).FirstOrDefaultAsync();
+        return t?.Content ?? string.Empty;
     }
 
     [HttpGet]

@@ -35,6 +35,12 @@
                         capIcon = "\uD83C\uDFA9"; capDesc = "文生视频"; break;
                     case AiCapability.ImageToVideo:
                         capIcon = "\uD83C\uDFAF"; capDesc = "图生视频"; break;
+                    case AiCapability.ImageEdit:
+                        capIcon = "\uD83D\uDD8B"; capDesc = "图片编辑"; break;
+                    case AiCapability.TextToMusic:
+                        capIcon = "\uD83C\uDFB5"; capDesc = "文生音乐"; break;
+                    case AiCapability.ComfyUI:
+                        capIcon = "\uD83D\uDD27"; capDesc = "ComfyUI 工作流"; break;
                     default:
                         capIcon = "\uD83D\uDD28"; capDesc = ""; break;
                 }
@@ -70,6 +76,9 @@
                     <option value="3">TextToAudio (文生音频)</option>
                     <option value="4">TextToVideo (文生视频)</option>
                     <option value="5">ImageToVideo (图生视频)</option>
+                    <option value="6">ImageEdit (图片编辑)</option>
+                    <option value="7">TextToMusic (文生音乐)</option>
+                    <option value="100">ComfyUI (ComfyUI 工作流)</option>
                 </select>
             </div>
             <div class="form-group"><label>API 地址 *</label><input type="text" id="providerApiUrl" placeholder="如 https://api.deepseek.com/v1"></div>

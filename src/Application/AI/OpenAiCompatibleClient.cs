@@ -5,18 +5,17 @@ using System.Text.Json;
 namespace ManjuCraft.Application.AI;
 
 /// <summary>
-/// Volcengine / Doubao 客户端
+/// OpenAI 兼容协议客户端 (DeepSeek / OpenAI / Silicon)
 /// </summary>
-public class VolcengineClient : IAiChatClient
+public class OpenAiCompatibleClient : IAiChatClient
 {
     private readonly HttpClient _http;
-    private readonly string _apiKey;
     private readonly string _model;
 
-    public VolcengineClient(string apiUrl, string apiKey, string model)
+    public OpenAiCompatibleClient(string apiUrl, string apiKey, string model)
     {
         _http = new HttpClient { BaseAddress = new Uri(apiUrl) };
-        _apiKey = apiKey;
+        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         _model = model;
     }
 
@@ -33,12 +32,11 @@ public class VolcengineClient : IAiChatClient
             stream = false
         });
         var content = new StringContent(body, Encoding.UTF8, "application/json");
-        _http.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
-        var response = await _http.PostAsync("/chat/completions", content, ct);
+        var response = await _http.PostAsync("/v1/chat/completions", content, ct);
         var text = await response.Content.ReadAsStringAsync(ct);
 
         if (!response.IsSuccessStatusCode)
-            throw new Exception($"Volcengine API error: {text}");
+            throw new Exception($"OpenAI API error: {text}");
 
         var j = JsonDocument.Parse(text);
         return j.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString()

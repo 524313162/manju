@@ -42,24 +42,38 @@ public static class DatabaseSeeder
 
         var toAdd = new List<ApiProvider>
         {
-            new() { Name = "DeepSeek",                        Capability = AiCapability.TextToText,  ApiUrl = "https://api.deepseek.com/v1",                              ApiKey = "", Model = "deepseek-v4-flash",                          CreatedTime = now, UpdatedTime = now },
-            new() { Name = "Qwen (通义千问)",                  Capability = AiCapability.TextToText,  ApiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",         ApiKey = "", Model = "qwen-plus",                                CreatedTime = now, UpdatedTime = now },
-            new() { Name = "GPT-4o (OpenAI)",                  Capability = AiCapability.TextToText,  ApiUrl = "https://api.openai.com/v1",                                 ApiKey = "", Model = "gpt-4o",                                   CreatedTime = now, UpdatedTime = now },
-            new() { Name = "Claude (Anthropic)",               Capability = AiCapability.TextToText,  ApiUrl = "https://api.anthropic.com/v1",                              ApiKey = "", Model = "claude-sonnet-4-20250514",                 CreatedTime = now, UpdatedTime = now },
-            new() { Name = "Gemini (Google)",                  Capability = AiCapability.TextToText,  ApiUrl = "https://generativelanguage.googleapis.com/v1beta/openai/",  ApiKey = "", Model = "gemini-2.0-flash",                       CreatedTime = now, UpdatedTime = now },
-            new() { Name = "Midjourney",                       Capability = AiCapability.TextToImage, ApiUrl = "https://api.midjourney.com/v1",                             ApiKey = "", Model = "midjourney-model-preview",                CreatedTime = now, UpdatedTime = now },
-            new() { Name = "DALL-E 3",                        Capability = AiCapability.TextToImage, ApiUrl = "https://api.openai.com/v1/images/generations",              ApiKey = "", Model = "dall-e-3",                                 CreatedTime = now, UpdatedTime = now },
-            new() { Name = "Firefly (Adobe)",                 Capability = AiCapability.TextToImage, ApiUrl = "https://firefly.adobe.com/api/v1",                          ApiKey = "", Model = "firefly-image-3",                         CreatedTime = now, UpdatedTime = now },
-            new() { Name = "Flux (Black-Forest-Labs)",         Capability = AiCapability.TextToImage, ApiUrl = "https://api.bfl.ml/v1",                                      ApiKey = "", Model = "flux-pro-v1.1",                            CreatedTime = now, UpdatedTime = now },
-            new() { Name = "Stable Diffusion XL",             Capability = AiCapability.TextToImage, ApiUrl = "https://api.stability.ai/v1/generation",                    ApiKey = "", Model = "stable-diffusion-xl-1024-v1-0",         CreatedTime = now, UpdatedTime = now },
-            new() { Name = "Suno AI",                         Capability = AiCapability.TextToAudio, ApiUrl = "https://api.suno.ai/v1",                                    ApiKey = "", Model = "suno-v3.5",                                CreatedTime = now, UpdatedTime = now },
-            new() { Name = "Udio",                            Capability = AiCapability.TextToAudio, ApiUrl = "https://api.udio.com/v1",                                   ApiKey = "", Model = "udio-v1",                                  CreatedTime = now, UpdatedTime = now },
-            new() { Name = "Kling AI",                        Capability = AiCapability.TextToVideo, ApiUrl = "https://api.klingai.com/v1",                                ApiKey = "", Model = "kling-v1-6",                             CreatedTime = now, UpdatedTime = now },
-            new() { Name = "Runway Gen-3",                    Capability = AiCapability.TextToVideo, ApiUrl = "https://api.runwayml.com/v1/generation",                    ApiKey = "", Model = "gen3a_turbo",                              CreatedTime = now, UpdatedTime = now },
-            new() { Name = "Pika Labs",                       Capability = AiCapability.TextToVideo, ApiUrl = "https://api.pika.art/v1",                                   ApiKey = "", Model = "pika-1.0",                                 CreatedTime = now, UpdatedTime = now },
-            new() { Name = "ComfyUI (Local)",                 Capability = AiCapability.TextToVideo, ApiUrl = "http://localhost:8188",                                      ApiKey = "", Model = "workflow/manjucraft-video.json",          CreatedTime = now, UpdatedTime = now },
-            new() { Name = "Kling Image-to-Video",            Capability = AiCapability.ImageToVideo, ApiUrl = "https://api.klingai.com/v1",                                ApiKey = "", Model = "kling-v1-6-img2video",               CreatedTime = now, UpdatedTime = now },
-            new() { Name = "Runway Image-to-Video",           Capability = AiCapability.ImageToVideo, ApiUrl = "https://api.runwayml.com/v1/generation",                    ApiKey = "", Model = "gen3a_turbo_img2video",              CreatedTime = now, UpdatedTime = now }
+            // ═══ DeepSeek ═══
+            new() { Name = "DeepSeek",                    Capability = AiCapability.TextToText, ApiUrl = "https://api.deepseek.com/v1",        ApiKey = "", Model = "deepseek-v4-flash",    CreatedTime = now, UpdatedTime = now },
+
+            // ═══ Qwen (通义千问) ═══
+            new() { Name = "Qwen (通义千问)",             Capability = AiCapability.TextToText, ApiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",  ApiKey = "", Model = "qwen-plus",            CreatedTime = now, UpdatedTime = now },
+
+            // ═══ Gemini (Google) ═══
+            new() { Name = "Gemini (Google)",             Capability = AiCapability.TextToText, ApiUrl = "https://generativelanguage.googleapis.com/v1beta/openai/",  ApiKey = "", Model = "gemini-2.0-flash",  CreatedTime = now, UpdatedTime = now },
+
+            // ═══ Suno AI (音乐生成) ═══
+            new() { Name = "Suno AI",                     Capability = AiCapability.TextToMusic, ApiUrl = "https://api.suno.ai/v1",             ApiKey = "", Model = "suno-v3.5",            CreatedTime = now, UpdatedTime = now },
+
+            // ═══ Kling AI (文生视频) ═══
+            new() { Name = "Kling AI",                    Capability = AiCapability.TextToVideo, ApiUrl = "https://api.klingai.com/v1",         ApiKey = "", Model = "kling-v1-6",           CreatedTime = now, UpdatedTime = now },
+
+            // ═══ ComfyUI (Local) - 8 个功能端点，每个端点对应一个 ApiProvider 记录 ═══
+            // 01. 文生图 (ZIMAGE)
+            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.TextToImage, ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "01.ZIMAGE-text-to-image.json",  CreatedTime = now, UpdatedTime = now },
+            // 02. 人物档案 (ZIMAGE)
+            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.ImageEdit, ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "02.ZIMAGE-character-profile.json", CreatedTime = now, UpdatedTime = now },
+            // 03. 文生视频 (LTX)
+            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.TextToVideo, ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "03.LTX-text-to-video.json",     CreatedTime = now, UpdatedTime = now },
+            // 04. 图生视频 (LTX)
+            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.ImageToVideo, ApiUrl = "http://localhost:8188",             ApiKey = "", Model = "04.LTX-image-to-video.json",    CreatedTime = now, UpdatedTime = now },
+            // 05. 分镜生成 (HiDream)
+            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.ImageEdit, ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "05.Hidream-storyboard.json",    CreatedTime = now, UpdatedTime = now },
+            // 06. 音乐生成 (ACE-MUSIC)
+            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.TextToMusic, ApiUrl = "http://localhost:8188",             ApiKey = "", Model = "06.ACE-music-compose.json",     CreatedTime = now, UpdatedTime = now },
+            // 07. BGM 生成 (Stable-BGM)
+            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.TextToAudio, ApiUrl = "http://localhost:8188",             ApiKey = "", Model = "07.Stable-bgm-generate.json",   CreatedTime = now, UpdatedTime = now },
+            // 08. 大语言模型 (LLM-QWen)
+            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.ComfyUI, ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "08.LLM-QWen.json",            CreatedTime = now, UpdatedTime = now },
         };
 
         var toInsert = toAdd.Where(p => !existingNames.Contains(p.Name)).ToList();

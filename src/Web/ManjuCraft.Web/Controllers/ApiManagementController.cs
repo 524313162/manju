@@ -80,11 +80,14 @@ public class ApiManagementController : Controller
     private static AiCapability ParseCapability(string cap)
     {
         var upper = cap?.ToLowerInvariant() ?? "";
-        if (upper.Contains("text")) return AiCapability.TextToText;
-        if (upper.Contains("image")) return AiCapability.TextToImage;
-        if (upper.Contains("audio")) return AiCapability.TextToAudio;
+        if (upper.Contains("texttoaudio") || upper.Contains("texttomusic") || upper.Contains("audio")) return AiCapability.TextToAudio;
+        if (upper.Contains("texttomusic")) return AiCapability.TextToMusic;
+        if (upper.Contains("imageedit")) return AiCapability.ImageEdit;
+        if (upper.Contains("imagetovideo")) return AiCapability.ImageToVideo;
+        if (upper.Contains("texttoimage")) return AiCapability.TextToImage;
+        if (upper.Contains("texttotext") || upper.Contains("comfy")) return AiCapability.TextToText;
+        if (upper.Contains("comfy") || upper.Contains("workflow")) return AiCapability.ComfyUI;
         if (upper.Contains("video")) return AiCapability.TextToVideo;
-        if (upper.Contains("comfy")) return AiCapability.ImageToVideo;
         return AiCapability.TextToText;
     }
 }

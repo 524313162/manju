@@ -108,34 +108,25 @@
      </div>
  </div>
 
-   <div class="modal-overlay" id="rewriteModal">
-       <div class="modal" style="width:720px;">
-           <h3>&#9889; AI 改写/扩写</h3>
-           <input type="hidden" id="rewriteChapterIdx">
-           <div class="form-group">
-               <label>改写方式</label>
-               <select id="rewriteMode" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:14px;">
-                   <option value="rewrite">改写（保留原意，优化表达）</option>
-                   <option value="expand">扩写（在原有内容基础上展开）</option>
-                   <option value="polish">润色（提升文笔，增加细节）</option>
-                   <option value="summary">精简（压缩内容，提取要点）</option>
-               </select>
-           </div>
-           <div class="form-group">
-               <label>原文内容（可手动修改）</label>
-               <textarea id="rewriteOriginal" rows="8" placeholder="原文内容..."></textarea>
-           </div>
-           <div class="form-group">
-               <label>提示词模板（可编辑）</label>
-               <textarea id="rewriteTemplate" rows="6" placeholder="加载提示词模板..."></textarea>
-           </div>
-           <div id="rewriteResult" style="display:none;"></div>
-           <div class="form-actions">
-               <button class="btn btn-ghost" onclick="hideModal('rewriteModal')">取消</button>
-               <button class="btn btn-primary" id="rewriteGoBtn" onclick="doRewrite()">开始改写</button>
-           </div>
-       </div>
-    </div>
+    <div class="modal-overlay" id="rewriteModal">
+        <div class="modal" style="width:720px;">
+            <h3>&#9889; AI 改写/扩写</h3>
+            <input type="hidden" id="rewriteChapterIdx">
+            <div class="form-group">
+                <label>原文内容（可手动修改）</label>
+                <textarea id="rewriteOriginal" rows="10" placeholder="原文内容..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>提示词模板（可编辑）</label>
+                <textarea id="rewriteTemplate" rows="6" placeholder="加载提示词模板..."></textarea>
+            </div>
+            <div id="rewriteResult" style="display:none;"></div>
+            <div class="form-actions">
+                <button class="btn btn-ghost" onclick="hideModal('rewriteModal')">取消</button>
+                <button class="btn btn-primary" id="rewriteGoBtn" onclick="doRewrite()">开始改写</button>
+            </div>
+        </div>
+     </div>
 
 @section Scripts {
  <script>
@@ -147,12 +138,13 @@
 
      (function(){ init(); })();
 
-        function init() {
-            loadChapters();
-            render();
-            loadProviderList();
-            loadTemplates();
-        }
+      function init() {
+          var savedProviderId = localStorage.getItem('story_providerId');
+          loadChapters();
+          render();
+          loadProviderList(savedProviderId);
+          loadTemplates();
+      }
 
      function loadChapters() {
          fetch('/Story/GetChapters?storyId=' + storyId)
@@ -168,45 +160,47 @@
              .catch(function(){ chapters = []; render(); });
      }
 
-     function loadProviderList() {
-         fetch('/api/v1/providers/list')
-             .then(function(r){ return r.json(); })
-             .then(function(res){
-                 var list = res.data || [];
-                 allProviders = list;
-                 var sel = document.getElementById('providerSelect');
-                 var textProviders = list.filter(function(p){ return p.capability === 1; });
-                 if (textProviders.length === 0) {
-                     sel.innerHTML = '<option value="">未找到文本生成提供者，请到设置 → API 管理中添加</option>';
-                     return;
-                 }
-                 var html = '';
-                 textProviders.forEach(function(p) {
-                     var selAttr = currentProvider && currentProvider.id === p.id ? ' selected' : '';
-                     html += '<option value="' + p.id + '"' + selAttr + '>' + p.name + ' [' + (p.model || '') + ']</option>';
-                 });
-                 sel.innerHTML = html;
-                 sel.addEventListener('change', onProviderChange);
-                 onProviderChange();
-             })
-             .catch(function(){
-                 if (currentProvider) {
-                     document.getElementById('providerSelect').innerHTML = '<option value="' + currentProvider.id + '" selected>' + currentProvider.name + '</option>';
-                     onProviderChange();
-                 }
-             });
-     }
+      function loadProviderList(savedProviderId) {
+          fetch('/api/v1/providers/list')
+              .then(function(r){ return r.json(); })
+              .then(function(res){
+                  var list = res.data || [];
+                  allProviders = list;
+                  var sel = document.getElementById('providerSelect');
+                  var textProviders = list.filter(function(p){ return p.capability === 1; });
+                  if (textProviders.length === 0) {
+                      sel.innerHTML = '<option value="">未找到文本生成提供者，请到设置 → API 管理中添加</option>';
+                      return;
+                  }
+                  var html = '';
+                  var preSelected = savedProviderId || (currentProvider && currentProvider.id);
+                  textProviders.forEach(function(p) {
+                      var selAttr = preSelected && preSelected == p.id ? ' selected' : '';
+                      html += '<option value="' + p.id + '"' + selAttr + '>' + p.name + ' [' + (p.model || '') + ']</option>';
+                  });
+                  sel.innerHTML = html;
+                  sel.addEventListener('change', onProviderChange);
+                  onProviderChange();
+              })
+              .catch(function(){
+                  if (currentProvider) {
+                      document.getElementById('providerSelect').innerHTML = '<option value="' + currentProvider.id + '" selected>' + currentProvider.name + '</option>';
+                      onProviderChange();
+                  }
+              });
+      }
 
-     function onProviderChange() {
-         var sel = document.getElementById('providerSelect');
-         var val = sel.value;
-         var p = allProviders.find(function(x){ return x.id == val; });
-         if (!p) return;
-         currentProvider = p;
-         document.getElementById('providerInfo').style.display = 'block';
-         document.getElementById('providerName').textContent = p.name;
-         if (p.model) document.getElementById('providerModel').textContent = '模型: ' + p.model;
-     }
+      function onProviderChange() {
+          var sel = document.getElementById('providerSelect');
+          var val = sel.value;
+          var p = allProviders.find(function(x){ return x.id == val; });
+          if (!p) return;
+          currentProvider = p;
+          localStorage.setItem('story_providerId', p.id);
+          document.getElementById('providerInfo').style.display = 'block';
+          document.getElementById('providerName').textContent = p.name;
+          if (p.model) document.getElementById('providerModel').textContent = '模型: ' + p.model;
+      }
 
      function render() {
          document.getElementById('pCount').textContent = chapters.length + ' 章节';
@@ -305,18 +299,20 @@
             document.getElementById('genResult').style.display = 'block';
             document.getElementById('genResult').innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></div><p style="margin-top:10px;color:var(--text2);font-size:13px;">AI 正在生成剧本，请稍候...</p></div>';
 
-            var data = new FormData();
-            data.append('title', title);
-            data.append('prompt', prompt);
+            var params = new URLSearchParams();
+            params.append('title', title);
+            params.append('prompt', prompt);
+            params.append('template', template || '');
+            params.append('providerId', currentProvider.id);
 
-             fetch('/api/v1/ai/story/generate', { method: 'POST', body: data })
+            fetch('/Story/generate', { method: 'POST', body: params })
                 .then(function(r) { return r.json(); })
                 .then(function(res) {
                     if (res.success) {
                         parseAndSave(res.data);
                     } else {
                         document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;">'
-                            + '<p style="font-size:13px;font-weight:700;color:var(--danger);">生成失败：' + (res.message || res.data || '未知错误') + '</p></div>';
+                            + '<p style="font-size:13px;font-weight:700;color:var(--danger);">生成失败：' + (res.message || '未知错误') + '</p></div>';
                         document.getElementById('genGoBtn').disabled = false;
                         document.getElementById('genGoBtn').textContent = '重新生成';
                     }
@@ -584,27 +580,28 @@
             var idx = parseInt(document.getElementById('rewriteChapterIdx').value);
             var c = chapters[idx];
             var content = document.getElementById('rewriteOriginal').value.trim();
-            var mode = document.getElementById('rewriteMode')?.value || 'rewrite';
             var template = document.getElementById('rewriteTemplate').value.trim();
+            var mode = document.getElementById('rewriteMode')?.value || 'rewrite';
             if (!content) { alert('请输入要改写的内容'); return; }
             if (!currentProvider || !currentProvider.id) {
                 alert('请先选择 AI 提供者');
                 return;
             }
+
             document.getElementById('rewriteGoBtn').disabled = true;
             document.getElementById('rewriteGoBtn').textContent = '改写中...';
             document.getElementById('rewriteResult').style.display = 'block';
             document.getElementById('rewriteResult').innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></div><p style="margin-top:10px;color:var(--text2);font-size:13px;">AI 正在改写，请稍候...</p></div>';
-            var data = new FormData();
-            data.append('prompt', content);
-            data.append('originalStory', c.content || '');
-            data.append('mode', mode);
-            if (template) {
-                data.append('template', template);
-            }
-            fetch('/api/v1/ai/story/rewrite', {
+
+            var params = new URLSearchParams();
+            params.append('content', content);
+            params.append('template', template || '');
+            params.append('providerId', currentProvider.id);
+            params.append('mode', mode);
+
+            fetch('/Story/rewrite', {
                 method: 'POST',
-                body: data
+                body: params
             })
             .then(function(r) { return r.json(); })
             .then(function(res) {

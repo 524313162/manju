@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using ManjuCraft.Application.Service;
 using ManjuCraft.Application.AI;
 using ManjuCraft.Infrastructure;
-using ManjuCraft.Web.Services;
 using Serilog;
 
 namespace ManjuCraft.Web;
@@ -42,14 +41,12 @@ public class Program
         builder.Services.AddScoped<IShotFrameService, ShotFrameService>();
         builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();
 
+        builder.Services.AddHttpClient("ai_agent");
         builder.Services.AddHttpClient();
-        builder.Services.AddHttpClient("ComfyuiProxy");
+        builder.Services.AddScoped<IAiAgentService, AiAgentService>();
+        builder.Services.AddScoped<IAiChatClientFactory, AiChatClientFactory>();
 
-        builder.Services.AddScoped<ComfyuiProxyApi>();
-        builder.Services.AddScoped<IAiClientRegistry, AiClientRegistry>();
-
-        builder.Services.AddScoped<IAiTextService, AiTextService>();
-        builder.Services.AddScoped<IAiMediaService, AiMediaService>();
+        builder.Services.AddSingleton<ManjuCraft.Web.LLM.IComfyuiProxyClient, ManjuCraft.Web.LLM.ComfyuiProxyClient>();
 
         builder.Services.AddControllersWithViews();
         builder.Services.AddHttpContextAccessor();

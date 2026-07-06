@@ -1,19 +1,18 @@
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
 namespace ManjuCraft.Application.AI;
 
 /// <summary>
-/// Volcengine / Doubao 客户端
+/// Dashscope / Qwen 客户端
 /// </summary>
-public class VolcengineClient : IAiChatClient
+public class DashscopeClient : IAiChatClient
 {
     private readonly HttpClient _http;
     private readonly string _apiKey;
     private readonly string _model;
 
-    public VolcengineClient(string apiUrl, string apiKey, string model)
+    public DashscopeClient(string apiUrl, string apiKey, string model)
     {
         _http = new HttpClient { BaseAddress = new Uri(apiUrl) };
         _apiKey = apiKey;
@@ -25,23 +24,26 @@ public class VolcengineClient : IAiChatClient
         var body = JsonSerializer.Serialize(new
         {
             model = _model,
-            messages = new[]
+            input = new
             {
-                new { role = "system", content = systemPrompt },
-                new { role = "user", content = userPrompt }
+                messages = new[]
+                {
+                    new { role = "system", content = systemPrompt },
+                    new { role = "user", content = userPrompt }
+                }
             },
-            stream = false
+            parameters = new { stream = false }
         });
         var content = new StringContent(body, Encoding.UTF8, "application/json");
-        _http.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
-        var response = await _http.PostAsync("/chat/completions", content, ct);
+        _http.DefaultRequestHeaders.Add("X-DashScope-API-Key", _apiKey);
+        var response = await _http.PostAsync("/api/v1/services/aigc/text-generation/generation", content, ct);
         var text = await response.Content.ReadAsStringAsync(ct);
 
         if (!response.IsSuccessStatusCode)
-            throw new Exception($"Volcengine API error: {text}");
+            throw new Exception($"Dashscope API error: {text}");
 
         var j = JsonDocument.Parse(text);
-        return j.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString()
+        return j.RootElement.GetProperty("output").GetProperty("text").GetString()
             ?? throw new Exception("API returned empty response");
     }
 }
