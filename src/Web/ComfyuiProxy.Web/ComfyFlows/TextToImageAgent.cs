@@ -17,27 +17,58 @@ public class TextToImageAgent : ComfyUIAgentBase<ZImageTextToImageRequestDto, ZI
 
     protected override async Task<string> BuildWorkflowJsonAsync(ZImageTextToImageRequestDto dto)
     {
-        // TODO 根据 WorkflowFileName 具体的内容进行读取,正对当前这个工作流的进行参数适配
+        var workflow = await _proxyService.LoadWorkflowAsync(WorkflowFileName);
+        if (workflow == null)
+            throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
 
-        return string.Empty;
+        var apiPrompt = ConvertToApiFormat(workflow!);
+        var promptObj = apiPrompt["prompt"]?.AsObject();
+        if (promptObj == null)
+            throw new InvalidOperationException("API prompt 格式异常: 缺少 prompt 字段");
+
+        var textToImageNode = promptObj["57"]?.AsObject();
+        if (textToImageNode != null)
+        {
+            var inputs = textToImageNode["inputs"]?.AsObject();
+            if (inputs != null)
+            {
+                inputs["text"] = dto.Prompt;
+                inputs["width"] = dto.Width ?? 1024;
+                inputs["height"] = dto.Height ?? 576;
+            }
+        }
+
+        return apiPrompt.ToJsonString();
     }
 
-    /// <summary>
-    /// 文生图解析：从 historyItem 中提取图片 URL
-    /// </summary>
     protected override void ParseOutputs(JsonObject historyItem, ZImageTextToImageResponse result)
     {
-        // TODO: 根据 ComfyUI history 的实际结构提取图片 URL
-        // var outputs = historyItem["outputs"]?.AsObject();
-        // var images = outputs?["node_id"]?["images"]?.AsArray();
-        // if (images != null)
-        // {
-        //     foreach (var img in images)
-        //     {
-        //         var filename = img?["filename"]?.GetValue<string>();
-        //         var subfolder = img?["subfolder"]?.GetValue<string>();
-        //         result.ImageUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}");
-        //     }
-        // }
+        var outputs = historyItem["outputs"]?.AsObject();
+        if (outputs == null)
+            return;
+
+        foreach (var kvp in outputs)
+        {
+            var nodeOutput = kvp.Value?.AsObject();
+            if (nodeOutput == null) continue;
+
+            var className = nodeOutput["class_type"]?.GetValue<string>();
+            if (className != "SaveImage") continue;
+
+            var images = nodeOutput["images"]?.AsArray();
+            if (images == null) continue;
+
+            foreach (var img in images)
+            {
+                var imgObj = img?.AsObject();
+                if (imgObj == null) continue;
+                var filename = imgObj["filename"]?.GetValue<string>();
+                var subfolder = imgObj["subfolder"]?.GetValue<string>();
+                if (!string.IsNullOrEmpty(filename))
+                {
+                    result.ImageUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}");
+                }
+            }
+        }
     }
 }

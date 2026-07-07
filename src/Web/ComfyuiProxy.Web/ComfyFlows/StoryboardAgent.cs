@@ -15,19 +15,59 @@ public class StoryboardAgent : ComfyUIAgentBase<HiDreamStoryboardRequestDto, Sto
     public override string WorkflowType => "hidream-storyboard";
     public override string WorkflowFileName => "07.HIDREAM-分镜.json";
 
-
     protected override async Task<string> BuildWorkflowJsonAsync(HiDreamStoryboardRequestDto dto)
     {
-        // TODO 根据 WorkflowFileName 具体的内容进行读取,正对当前这个工作流的进行参数适配
+        var workflow = await _proxyService.LoadWorkflowAsync(WorkflowFileName);
+        if (workflow == null)
+            throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
 
-        return string.Empty;
+        var apiPrompt = ConvertToApiFormat(workflow!);
+        var promptObj = apiPrompt["prompt"]?.AsObject();
+        if (promptObj == null)
+            throw new InvalidOperationException("API prompt 格式异常: 缺少 prompt 字段");
+
+        // 注入 CLIPTextEncode (node 110) 的 text 参数
+        var clipTextNode = promptObj["110"]?.AsObject();
+        if (clipTextNode != null)
+        {
+            var inputs = clipTextNode["inputs"]?.AsObject();
+            if (inputs != null)
+            {
+                inputs["text"] = dto.Prompt;
+            }
+        }
+
+        return apiPrompt.ToJsonString();
     }
 
-    /// <summary>
-    /// 分镜解析：从 historyItem 中提取图片 URL
-    /// </summary>
     protected override void ParseOutputs(JsonObject historyItem, StoryboardResponse result)
     {
-        // TODO: 根据 ComfyUI history 的实际结构提取图片 URL
+        var outputs = historyItem["outputs"]?.AsObject();
+        if (outputs == null)
+            return;
+
+        foreach (var kvp in outputs)
+        {
+            var nodeOutput = kvp.Value?.AsObject();
+            if (nodeOutput == null) continue;
+
+            var className = nodeOutput["class_type"]?.GetValue<string>();
+            if (className != "SaveImage") continue;
+
+            var images = nodeOutput["images"]?.AsArray();
+            if (images == null) continue;
+
+            foreach (var img in images)
+            {
+                var imgObj = img?.AsObject();
+                if (imgObj == null) continue;
+                var filename = imgObj["filename"]?.GetValue<string>();
+                var subfolder = imgObj["subfolder"]?.GetValue<string>();
+                if (!string.IsNullOrEmpty(filename))
+                {
+                    result.ImageUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}");
+                }
+            }
+        }
     }
 }

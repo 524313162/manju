@@ -6,10 +6,6 @@ namespace ComfyuiProxy.Web.ComfyFlows;
 
 /// <summary>
 /// 02.ZIMAGE 人物档案 Agent
-/// 工作流结构：外层节点包含一个子图（subgraph），内部有 3 个 CLIPTextEncode 节点：
-///   - Node 200：正向提示词（system_prompt）
-///   - Node 201：反向提示词（negative_prompt）
-///   - Node 202：角色提示词（character_prompt）
 /// </summary>
 public class CharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfileRequestDto, CharacterProfileResponse>
 {
@@ -19,33 +15,64 @@ public class CharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfileRequ
     public override string WorkflowType => "zimage-character-profile";
     public override string WorkflowFileName => "02.ZIMAGE-人物档案.json";
 
-
-    /// <summary>
-    /// 构建工作流 JSON：加载模板 → 展开子图 → 注入参数 → 转 API 格式
-    /// </summary>
     protected override async Task<string> BuildWorkflowJsonAsync(ZImageCharacterProfileRequestDto dto)
     {
-        // TODO 根据 WorkflowFileName 具体的内容进行读取,正对当前这个工作流的进行参数适配
+        var workflow = await _proxyService.LoadWorkflowAsync(WorkflowFileName);
+        if (workflow == null)
+            throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
 
-        return string.Empty;
+        var apiPrompt = ConvertToApiFormat(workflow!);
+        var promptObj = apiPrompt["prompt"]?.AsObject();
+        if (promptObj == null)
+            throw new InvalidOperationException("API prompt 格式异常: 缺少 prompt 字段");
+
+        var generateNode = promptObj["57"]?.AsObject();
+        if (generateNode != null)
+        {
+            var inputs = generateNode["inputs"]?.AsObject();
+            if (inputs != null)
+            {
+                inputs["clip_name"] = "qwen_3_4b.safetensors";
+                inputs["unet_name"] = "z_image_turbo_bf16.safetensors";
+                inputs["vae_name"] = "ae.safetensors";
+                inputs["width"] = 576;
+                inputs["height"] = 1024;
+                inputs["seed"] = 0;
+                inputs["steps"] = 4;
+            }
+        }
+
+        return apiPrompt.ToJsonString();
     }
 
-    /// <summary>
-    /// 人物档案解析：从 historyItem 中提取图片 URL
-    /// </summary>
     protected override void ParseOutputs(JsonObject historyItem, CharacterProfileResponse result)
     {
-        // TODO: 根据 ComfyUI history 的实际结构提取图片 URL
-        // var outputs = historyItem["outputs"]?.AsObject();
-        // var images = outputs?["node_id"]?["images"]?.AsArray();
-        // if (images != null)
-        // {
-        //     foreach (var img in images)
-        //     {
-        //         var filename = img?["filename"]?.GetValue<string>();
-        //         var subfolder = img?["subfolder"]?.GetValue<string>();
-        //         result.ImageUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}");
-        //     }
-        // }
+        var outputs = historyItem["outputs"]?.AsObject();
+        if (outputs == null)
+            return;
+
+        foreach (var kvp in outputs)
+        {
+            var nodeOutput = kvp.Value?.AsObject();
+            if (nodeOutput == null) continue;
+
+            var className = nodeOutput["class_type"]?.GetValue<string>();
+            if (className != "SaveImage") continue;
+
+            var images = nodeOutput["images"]?.AsArray();
+            if (images == null) continue;
+
+            foreach (var img in images)
+            {
+                var imgObj = img?.AsObject();
+                if (imgObj == null) continue;
+                var filename = imgObj["filename"]?.GetValue<string>();
+                var subfolder = imgObj["subfolder"]?.GetValue<string>();
+                if (!string.IsNullOrEmpty(filename))
+                {
+                    result.ImageUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}");
+                }
+            }
+        }
     }
 }

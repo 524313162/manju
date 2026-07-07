@@ -17,16 +17,58 @@ public class ImageToVideoAgent : ComfyUIAgentBase<LtxImageToVideoRequestDto, Ltx
 
     protected override async Task<string> BuildWorkflowJsonAsync(LtxImageToVideoRequestDto dto)
     {
-        // TODO 根据 WorkflowFileName 具体的内容进行读取,正对当前这个工作流的进行参数适配
+        var workflow = await _proxyService.LoadWorkflowAsync(WorkflowFileName);
+        if (workflow == null)
+            throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
 
-        return string.Empty;
+        var apiPrompt = ConvertToApiFormat(workflow!);
+        var promptObj = apiPrompt["prompt"]?.AsObject();
+        if (promptObj == null)
+            throw new InvalidOperationException("API prompt 格式异常: 缺少 prompt 字段");
+
+        // 注入 text 参数到 LTX 模型节点 (node 269)
+        var ltxNode = promptObj["269"]?.AsObject();
+        if (ltxNode != null)
+        {
+            var inputs = ltxNode["inputs"]?.AsObject();
+            if (inputs != null)
+            {
+                inputs["value"] = dto.ImagePath;
+                inputs["value_1"] = dto.Prompt;
+            }
+        }
+
+        return apiPrompt.ToJsonString();
     }
 
-    /// <summary>
-    /// 图生视频解析：从 historyItem 中提取视频 URL
-    /// </summary>
     protected override void ParseOutputs(JsonObject historyItem, LtxVideoResponse result)
     {
-        // TODO: 根据 ComfyUI history 的实际结构提取视频 URL
+        var outputs = historyItem["outputs"]?.AsObject();
+        if (outputs == null)
+            return;
+
+        foreach (var kvp in outputs)
+        {
+            var nodeOutput = kvp.Value?.AsObject();
+            if (nodeOutput == null) continue;
+
+            var className = nodeOutput["class_type"]?.GetValue<string>();
+            if (className != "SaveVideo") continue;
+
+            var images = nodeOutput["images"]?.AsArray();
+            if (images == null) continue;
+
+            foreach (var video in images)
+            {
+                var videoObj = video?.AsObject();
+                if (videoObj == null) continue;
+                var filename = videoObj["filename"]?.GetValue<string>();
+                var subfolder = videoObj["subfolder"]?.GetValue<string>();
+                if (!string.IsNullOrEmpty(filename))
+                {
+                    result.VideoUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}");
+                }
+            }
+        }
     }
 }
