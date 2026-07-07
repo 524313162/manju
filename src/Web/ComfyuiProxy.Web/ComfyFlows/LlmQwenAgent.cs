@@ -1,12 +1,9 @@
+using ComfyuiProxy.Web.Services;
 using System.Text.Json.Nodes;
 using ComfyuiProxy.Web.Models;
-using ComfyuiProxy.Web.Services;
 
 namespace ComfyuiProxy.Web.ComfyFlows;
 
-/// <summary>
-/// 20.LLM-QWen 大语言模型 Agent
-/// </summary>
 public class LlmQwenAgent : ComfyUIAgentBase<LlmQwenRequestDto, LlmQwenResponse>
 {
     public LlmQwenAgent(ComfyuiProxyService proxyService, ILogger<LlmQwenAgent> logger)
@@ -21,15 +18,12 @@ public class LlmQwenAgent : ComfyUIAgentBase<LlmQwenRequestDto, LlmQwenResponse>
         if (workflow == null)
             throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
 
-        // 1. 通用转换：UI 格式 -> API 格式
         var apiPrompt = ConvertToApiFormat(workflow!);
 
-        // 2. 注入动态参数
         var promptObj = apiPrompt["prompt"]?.AsObject();
         if (promptObj == null)
             throw new InvalidOperationException("API prompt 格式异常: 缺少 prompt 字段");
 
-        // 注入到 TextGenerate 节点 (node 7)
         var textGenNode = promptObj["7"]?.AsObject();
         if (textGenNode != null)
         {
@@ -44,6 +38,108 @@ public class LlmQwenAgent : ComfyUIAgentBase<LlmQwenRequestDto, LlmQwenResponse>
         return apiPrompt.ToJsonString();
     }
 
+    protected override JsonObject ConvertToApiFormat(JsonObject uiWorkflow)
+    {
+        var uiOnlyTypes = new HashSet<string> { "MarkdownNote", "Note", "PrimitiveNode" };
+
+        var apiPrompt = new JsonObject();
+        var apiNodes = new JsonObject();
+        var nodesArray = uiWorkflow["nodes"]?.AsArray();
+        if (nodesArray == null)
+            throw new InvalidOperationException("工作流文件中未找到 nodes 数组");
+
+        var linkIndex = new Dictionary<int, JsonArray>();
+        var linksArray = uiWorkflow["links"]?.AsArray();
+        if (linksArray != null)
+        {
+            foreach (var linkEntry in linksArray)
+            {
+                if (linkEntry == null) continue;
+                var linkArr = linkEntry.AsArray();
+                var linkId = linkArr[0]?.GetValue<int>();
+                if (linkId.HasValue)
+                {
+                    linkIndex[linkId.Value] = linkArr;
+                }
+            }
+        }
+
+        foreach (var node in nodesArray)
+        {
+            if (node == null) continue;
+            var nodeObj = node.AsObject();
+            var nodeId = nodeObj["id"]?.GetValue<int>();
+            if (nodeId == null) continue;
+
+            var classType = nodeObj["type"]?.GetValue<string>() ?? string.Empty;
+
+            if (uiOnlyTypes.Contains(classType))
+                continue;
+
+            var apiNode = new JsonObject();
+            var inputs = new JsonObject();
+
+            apiNode["class_type"] = classType;
+
+            if (nodeObj["_meta"] != null)
+            {
+                apiNode["_meta"] = nodeObj["_meta"]!;
+            }
+
+            var widgetIndex = 0;
+            var inputsArray = nodeObj["inputs"]?.AsArray();
+
+            if (inputsArray != null)
+            {
+                foreach (var input in inputsArray)
+                {
+                    if (input == null) continue;
+                    var inputObj = input.AsObject();
+                    var inputName = inputObj["name"]?.GetValue<string>();
+                    if (string.IsNullOrEmpty(inputName)) continue;
+
+                    var link = inputObj["link"];
+                    if (link != null)
+                    {
+                        var linkId = link.GetValue<int>();
+                        if (linkIndex.TryGetValue(linkId, out var linkArr))
+                        {
+                            var fromNodeId = linkArr[1]!.ToString()!;
+                            var fromSlot = linkArr[2]!;
+
+                            var linkInfoArr = new JsonArray { fromNodeId };
+                            if (fromSlot.GetValueKind() == System.Text.Json.JsonValueKind.Number)
+                                linkInfoArr.Add(fromSlot.GetValue<int>());
+                            else
+                                linkInfoArr.Add(fromSlot.GetValue<string>());
+
+                            inputs[inputName] = linkInfoArr;
+                        }
+                    }
+                    else
+                    {
+                        var widget = inputObj["widget"];
+                        if (widget != null)
+                        {
+                            var wv = nodeObj["widgets_values"]?.AsArray();
+                            if (wv != null && widgetIndex < wv.Count)
+                            {
+                                inputs[inputName] = wv[widgetIndex]?.DeepClone();
+                            }
+                            widgetIndex++;
+                        }
+                    }
+                }
+            }
+
+            apiNode["inputs"] = inputs;
+            apiNodes[$"{nodeId}"] = apiNode;
+        }
+
+        apiPrompt["prompt"] = apiNodes;
+        return apiPrompt;
+    }
+
     protected override void ParseOutputs(JsonObject historyItem, LlmQwenResponse result)
     {
         var outputs = historyItem["outputs"]?.AsObject();
@@ -55,10 +151,7 @@ public class LlmQwenAgent : ComfyUIAgentBase<LlmQwenRequestDto, LlmQwenResponse>
             var nodeOutput = kvp.Value?.AsObject();
             if (nodeOutput == null) continue;
 
-            var className = nodeOutput["class_type"]?.GetValue<string>();
-            if (className != "TextGenerate") continue;
-
-            var generatedText = nodeOutput["generated_text"]?.GetValue<string>();
+            var generatedText = nodeOutput["text"]?[0]?.GetValue<string>();
             if (!string.IsNullOrEmpty(generatedText))
             {
                 result.Text = generatedText;
