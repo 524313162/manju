@@ -81,9 +81,16 @@
                     <option value="100">ComfyUI (ComfyUI 工作流)</option>
                 </select>
             </div>
+            <div class="form-group"><label>底层类型 *</label>
+                <select id="providerType" onchange="toggleModelField()">
+                    <option value="1">LLM (标准 API)</option>
+                    <option value="2">ComfyUI (工作流)</option>
+                </select>
+            </div>
+            <div class="form-group"><label>名称 *</label><input type="text" id="providerName" placeholder="如 DeepSeek、ComfyUI"></div>
             <div class="form-group"><label>API 地址 *</label><input type="text" id="providerApiUrl" placeholder="如 https://api.deepseek.com/v1"></div>
             <div class="form-group"><label>API Key</label><input type="text" id="providerApiKey" placeholder="留空表示不需要鉴权"></div>
-            <div class="form-group"><label>模型名称 / 工作流</label><input type="text" id="providerModel" placeholder="如 deepseek-v4-flash 或 LLM-QWEN.json"></div>
+            <div class="form-group" id="modelField"><label>模型名称 / 工作流</label><input type="text" id="providerModel" placeholder="如 deepseek-v4-flash 或 LLM-QWEN.json"></div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-ghost" onclick="hideModal('providerModal')">取消</button>
@@ -98,6 +105,7 @@
         id = p.Id,
         name = p.Name,
         capability = (int)p.Capability,
+        type = (int)p.Type,
         apiUrl = p.ApiUrl,
         apiKey = p.ApiKey,
         model = p.Model
@@ -106,6 +114,16 @@
     function showModal(id) { document.getElementById(id).classList.add('show'); }
     function hideModal(id) { document.getElementById(id).classList.remove('show'); }
     function showToast(msg, type) { console.log(type + ': ' + msg); }
+
+    function toggleModelField() {
+        var type = document.getElementById('providerType').value;
+        var modelField = document.getElementById('modelField');
+        if (type === '2') {
+            modelField.style.display = 'none';
+        } else {
+            modelField.style.display = '';
+        }
+    }
 
     document.addEventListener('click', function(e) {
         var btn = e.target.closest('[data-action]');
@@ -119,11 +137,13 @@
     function showAddModal() {
         document.getElementById('editProviderId').value = '';
         document.getElementById('providerModalTitle').textContent = '\u65b0\u589e API';
-        document.getElementById('providerName').value = '';
         document.getElementById('providerCapability').value = '1';
+        document.getElementById('providerType').value = '1';
+        document.getElementById('providerName').value = '';
         document.getElementById('providerApiUrl').value = '';
         document.getElementById('providerApiKey').value = '';
         document.getElementById('providerModel').value = '';
+        toggleModelField();
         showModal('providerModal');
     }
 
@@ -132,11 +152,13 @@
         if (!p) return;
         document.getElementById('editProviderId').value = p.id;
         document.getElementById('providerModalTitle').textContent = '\u7f16\u8f91 API';
-        document.getElementById('providerName').value = p.name || '';
         document.getElementById('providerCapability').value = p.capability;
+        document.getElementById('providerType').value = p.type;
+        document.getElementById('providerName').value = p.name || '';
         document.getElementById('providerApiUrl').value = p.apiUrl || '';
         document.getElementById('providerApiKey').value = p.apiKey || '';
         document.getElementById('providerModel').value = p.model || '';
+        toggleModelField();
         showModal('providerModal');
     }
 
@@ -144,6 +166,7 @@
         var id = document.getElementById('editProviderId').value;
         var name = document.getElementById('providerName').value.trim();
         var capability = document.getElementById('providerCapability').value;
+        var type = document.getElementById('providerType').value;
         var apiUrl = document.getElementById('providerApiUrl').value.trim();
         var apiKey = document.getElementById('providerApiKey').value;
         var model = document.getElementById('providerModel').value;
@@ -156,7 +179,7 @@
         fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name, capability: capability, apiUrl: apiUrl, apiKey: apiKey || '', model: model })
+            body: JSON.stringify({ name: name, capability: capability, type: type, apiUrl: apiUrl, apiKey: apiKey || '', model: model })
         })
         .then(function(r){ return r.json(); })
         .then(function(res) {

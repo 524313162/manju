@@ -32,6 +32,7 @@ public class ApiManagementController : Controller
         {
             Name = dto.Name,
             Capability = ParseCapability(dto.Capability),
+            Type = ParseProviderType(dto.Type),
             ApiUrl = dto.ApiUrl,
             ApiKey = dto.ApiKey,
             Model = dto.Model
@@ -49,6 +50,7 @@ public class ApiManagementController : Controller
 
         existing.Name = dto.Name;
         existing.Capability = ParseCapability(dto.Capability);
+        existing.Type = ParseProviderType(dto.Type);
         existing.ApiUrl = dto.ApiUrl;
         existing.ApiKey = dto.ApiKey;
         existing.Model = dto.Model;
@@ -85,9 +87,15 @@ public class ApiManagementController : Controller
         if (upper.Contains("imageedit")) return AiCapability.ImageEdit;
         if (upper.Contains("imagetovideo")) return AiCapability.ImageToVideo;
         if (upper.Contains("texttoimage")) return AiCapability.TextToImage;
-        if (upper.Contains("texttotext") || upper.Contains("comfy")) return AiCapability.TextToText;
-        if (upper.Contains("comfy") || upper.Contains("workflow")) return AiCapability.ComfyUI;
         if (upper.Contains("video")) return AiCapability.TextToVideo;
+        if (upper.Contains("comfy") || upper.Contains("workflow")) return AiCapability.ComfyUI;
         return AiCapability.TextToText;
+    }
+
+    private static ProviderType ParseProviderType(string type)
+    {
+        var upper = type?.ToLowerInvariant() ?? "";
+        if (upper == "2" || upper.Contains("comfy")) return ProviderType.ComfyUI;
+        return ProviderType.LLM;
     }
 }

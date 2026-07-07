@@ -33,6 +33,18 @@ namespace ManjuCraft.Domain.Models
     }
 
     /// <summary>
+    /// API 提供者底层类型
+    /// </summary>
+    public enum ProviderType
+    {
+        /// <summary>标准 LLM API（OpenAI/Dashscope/Gemini 等兼容协议）</summary>
+        LLM = 1,
+
+        /// <summary>ComfyUI 工作流代理</summary>
+        ComfyUI = 2
+    }
+
+    /// <summary>
     /// API 提供者 — 纯连接配置
     /// </summary>
     public class ApiProvider : BaseEntity
@@ -46,6 +58,12 @@ namespace ManjuCraft.Domain.Models
         /// </summary>
         [Required]
         public AiCapability Capability { get; set; }
+
+        /// <summary>
+        /// 底层类型（区分 ComfyUI 工作 Flow 还是标准 LLM API）
+        /// </summary>
+        [Required]
+        public ProviderType Type { get; set; }
 
         [Required]
         [StringLength(512)]

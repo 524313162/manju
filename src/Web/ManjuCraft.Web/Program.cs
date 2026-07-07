@@ -46,8 +46,6 @@ public class Program
         builder.Services.AddScoped<IAiAgentService, AiAgentService>();
         builder.Services.AddScoped<IAiChatClientFactory, AiChatClientFactory>();
 
-        builder.Services.AddSingleton<ManjuCraft.Web.LLM.IComfyuiProxyClient, ManjuCraft.Web.LLM.ComfyuiProxyClient>();
-
         builder.Services.AddControllersWithViews();
         builder.Services.AddHttpContextAccessor();
 

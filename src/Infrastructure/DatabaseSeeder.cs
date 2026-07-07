@@ -35,48 +35,38 @@ public static class DatabaseSeeder
     private static async Task SeedApiProvidersAsync(ProjectDbContext db)
     {
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        // Only seed if deepseek doesn't exist (most specific check)
-        var existingNames = db.ApiProviders.Select(p => p.Name).ToList();
-
-        List<string> newNames = new(); // Track for logging if needed
+        var existingKeys = (from p in db.ApiProviders
+                            select new { p.Name, p.Capability, p.Model }).ToList();
 
         var toAdd = new List<ApiProvider>
         {
             // ═══ DeepSeek ═══
-            new() { Name = "DeepSeek",                    Capability = AiCapability.TextToText, ApiUrl = "https://api.deepseek.com/v1",        ApiKey = "", Model = "deepseek-v4-flash",    CreatedTime = now, UpdatedTime = now },
+            new() { Name = "DeepSeek (DeepSeek-R1)",       Capability = AiCapability.TextToText, Type = ProviderType.LLM,      ApiUrl = "https://api.deepseek.com/v1",        ApiKey = "", Model = "deepseek-v4-flash",    CreatedTime = now, UpdatedTime = now },
 
             // ═══ Qwen (通义千问) ═══
-            new() { Name = "Qwen (通义千问)",             Capability = AiCapability.TextToText, ApiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",  ApiKey = "", Model = "qwen-plus",            CreatedTime = now, UpdatedTime = now },
+            new() { Name = "Qwen (通义千问)",              Capability = AiCapability.TextToText, Type = ProviderType.LLM,      ApiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",  ApiKey = "", Model = "qwen-plus",            CreatedTime = now, UpdatedTime = now },
 
             // ═══ Gemini (Google) ═══
-            new() { Name = "Gemini (Google)",             Capability = AiCapability.TextToText, ApiUrl = "https://generativelanguage.googleapis.com/v1beta/openai/",  ApiKey = "", Model = "gemini-2.0-flash",  CreatedTime = now, UpdatedTime = now },
+            new() { Name = "Gemini (Google)",              Capability = AiCapability.TextToText, Type = ProviderType.LLM,      ApiUrl = "https://generativelanguage.googleapis.com/v1beta/openai/",  ApiKey = "", Model = "gemini-2.0-flash",  CreatedTime = now, UpdatedTime = now },
 
             // ═══ Suno AI (音乐生成) ═══
-            new() { Name = "Suno AI",                     Capability = AiCapability.TextToMusic, ApiUrl = "https://api.suno.ai/v1",             ApiKey = "", Model = "suno-v3.5",            CreatedTime = now, UpdatedTime = now },
+            new() { Name = "Suno AI",                      Capability = AiCapability.TextToMusic, Type = ProviderType.LLM,      ApiUrl = "https://api.suno.ai/v1",             ApiKey = "", Model = "suno-v3.5",            CreatedTime = now, UpdatedTime = now },
 
             // ═══ Kling AI (文生视频) ═══
-            new() { Name = "Kling AI",                    Capability = AiCapability.TextToVideo, ApiUrl = "https://api.klingai.com/v1",         ApiKey = "", Model = "kling-v1-6",           CreatedTime = now, UpdatedTime = now },
+            new() { Name = "Kling AI (快手可灵)",           Capability = AiCapability.TextToVideo, Type = ProviderType.LLM,      ApiUrl = "https://api.klingai.com/v1",         ApiKey = "", Model = "kling-v1-6",           CreatedTime = now, UpdatedTime = now },
 
-            // ═══ ComfyUI (Local) - 8 个功能端点，每个端点对应一个 ApiProvider 记录 ═══
-            // 01. 文生图 (ZIMAGE)
-            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.TextToImage, ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "01.ZIMAGE-text-to-image.json",  CreatedTime = now, UpdatedTime = now },
-            // 02. 人物档案 (ZIMAGE)
-            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.ImageEdit, ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "02.ZIMAGE-character-profile.json", CreatedTime = now, UpdatedTime = now },
-            // 03. 文生视频 (LTX)
-            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.TextToVideo, ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "03.LTX-text-to-video.json",     CreatedTime = now, UpdatedTime = now },
-            // 04. 图生视频 (LTX)
-            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.ImageToVideo, ApiUrl = "http://localhost:8188",             ApiKey = "", Model = "04.LTX-image-to-video.json",    CreatedTime = now, UpdatedTime = now },
-            // 05. 分镜生成 (HiDream)
-            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.ImageEdit, ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "05.Hidream-storyboard.json",    CreatedTime = now, UpdatedTime = now },
-            // 06. 音乐生成 (ACE-MUSIC)
-            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.TextToMusic, ApiUrl = "http://localhost:8188",             ApiKey = "", Model = "06.ACE-music-compose.json",     CreatedTime = now, UpdatedTime = now },
-            // 07. BGM 生成 (Stable-BGM)
-            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.TextToAudio, ApiUrl = "http://localhost:8188",             ApiKey = "", Model = "07.Stable-bgm-generate.json",   CreatedTime = now, UpdatedTime = now },
-            // 08. 大语言模型 (LLM-QWen)
-            new() { Name = "ComfyUI (Local)",             Capability = AiCapability.ComfyUI, ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "08.LLM-QWen.json",            CreatedTime = now, UpdatedTime = now },
+            // ═══ ComfyUI (Local) - 每个工作流独立记录 ═══
+            new() { Name = "ComfyUI (Local) - 文生图",     Capability = AiCapability.TextToImage, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "01.ZIMAGE-text-to-image.json",  CreatedTime = now, UpdatedTime = now },
+            new() { Name = "ComfyUI (Local) - 人物档案",   Capability = AiCapability.ImageEdit, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "02.ZIMAGE-character-profile.json", CreatedTime = now, UpdatedTime = now },
+            new() { Name = "ComfyUI (Local) - 文生视频",   Capability = AiCapability.TextToVideo, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "03.LTX-text-to-video.json",     CreatedTime = now, UpdatedTime = now },
+            new() { Name = "ComfyUI (Local) - 图生视频",   Capability = AiCapability.ImageToVideo, Type = ProviderType.ComfyUI, ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "04.LTX-image-to-video.json",    CreatedTime = now, UpdatedTime = now },
+            new() { Name = "ComfyUI (Local) - 分镜生成",   Capability = AiCapability.ImageEdit, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "05.Hidream-storyboard.json",    CreatedTime = now, UpdatedTime = now },
+            new() { Name = "ComfyUI (Local) - 音乐生成",   Capability = AiCapability.TextToMusic, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "06.ACE-music-compose.json",     CreatedTime = now, UpdatedTime = now },
+            new() { Name = "ComfyUI (Local) - BGM生成",    Capability = AiCapability.TextToAudio, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "07.Stable-bgm-generate.json",   CreatedTime = now, UpdatedTime = now },
+            new() { Name = "ComfyUI (Local) - LLM对话",    Capability = AiCapability.ComfyUI, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "08.LLM-QWen.json",            CreatedTime = now, UpdatedTime = now },
         };
 
-        var toInsert = toAdd.Where(p => !existingNames.Contains(p.Name)).ToList();
+        var toInsert = toAdd.Where(p => !existingKeys.Any(e => e.Name == p.Name && e.Capability == p.Capability && e.Model == p.Model)).ToList();
 
         if (toInsert.Any())
         {

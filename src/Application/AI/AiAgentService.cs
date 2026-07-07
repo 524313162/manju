@@ -1,6 +1,7 @@
 using ManjuCraft.Domain.Models;
 using ManjuCraft.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -22,12 +23,14 @@ public class AiAgentService : IAiAgentService
     private readonly IProjectDbContext _db;
     private readonly IAiChatClientFactory _clientFactory;
     private readonly HttpClient _http;
+    private readonly string _comfyuiProxyUrl;
 
-    public AiAgentService(IProjectDbContext db, IAiChatClientFactory clientFactory, IHttpClientFactory httpClientFactory)
+    public AiAgentService(IProjectDbContext db, IAiChatClientFactory clientFactory, IHttpClientFactory httpClientFactory, IConfiguration configuration)
     {
         _db = db;
         _clientFactory = clientFactory;
         _http = httpClientFactory.CreateClient("ai_agent");
+        _comfyuiProxyUrl = configuration.GetValue<string>("ComfyuiProxy:ApiUrl") ?? "http://localhost:8288";
     }
 
     public Task<ApiProvider?> GetProviderAsync(long providerId, CancellationToken ct = default)
@@ -45,6 +48,29 @@ public class AiAgentService : IAiAgentService
         var provider = await GetProviderAsync(providerId, ct);
         if (provider == null)
             return (false, null, "未找到指定的 API 提供者");
+
+        // ComfyUI(Proxy) — 走 ComfyUI 代理 LLM
+        if (provider.Type == Domain.Models.ProviderType.ComfyUI)
+        {
+            try
+            {
+                var combinedPrompt = string.IsNullOrEmpty(systemPrompt)
+                    ? userPrompt
+                    : $"{systemPrompt}\n\n{userPrompt}";
+                var payload = new { prompt = combinedPrompt };
+                var json = JsonSerializer.Serialize(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var res = await _http.PostAsync($"{_comfyuiProxyUrl.TrimEnd('/')}/api/comfyui/llm-qwen/execute", content, ct);
+                res.EnsureSuccessStatusCode();
+                var text = await res.Content.ReadAsStringAsync(ct);
+                var result = JsonSerializer.Deserialize<LlmProxyResponse>(text);
+                return (true, result?.Text, null);
+            }
+            catch (Exception ex)
+            {
+                return (false, null, ex.Message);
+            }
+        }
 
         var client = _clientFactory.Create(provider);
         if (client == null)
@@ -70,10 +96,7 @@ public class AiAgentService : IAiAgentService
         if (provider == null)
             return (false, null, "未找到图像生成提供者（需 Capability=TextToImage 或 ComfyUI）");
 
-        var name = (provider.Name ?? "").ToLowerInvariant();
-
-        // ComfyUI (Local) — 走本地 ComfyUI proxy
-        if (name.Contains("comfyui"))
+        if (provider.Type == Domain.Models.ProviderType.ComfyUI)
         {
             return await GenerateImageViaComfyui(proxyUrl: "http://localhost:8288", prompt, width, height, seed);
         }
@@ -91,14 +114,12 @@ public class AiAgentService : IAiAgentService
         if (provider == null)
             return (false, null, "未找到视频生成提供者（需 Capability=TextToVideo 或 ComfyUI）");
 
-        var name = (provider.Name ?? "").ToLowerInvariant();
-
-        if (name.Contains("comfyui"))
+        if (provider.Type == Domain.Models.ProviderType.ComfyUI)
         {
             return await GenerateVideoViaComfyui(proxyUrl: "http://localhost:8288", prompt, imageUrl);
         }
 
-        if (name.Contains("kling"))
+        if (provider.Name?.ToLowerInvariant().Contains("kling") == true)
         {
             return await GenerateVideoViaKling(provider, prompt, ct);
         }
@@ -120,14 +141,12 @@ public class AiAgentService : IAiAgentService
         if (provider == null)
             return (false, null, "未找到音频生成提供者（需 Capability=TextToAudio/TextToMusic 或 ComfyUI）");
 
-        var name = (provider.Name ?? "").ToLowerInvariant();
-
-        if (name.Contains("comfyui"))
+        if (provider.Type == Domain.Models.ProviderType.ComfyUI)
         {
             return await GenerateAudioViaComfyui(proxyUrl: "http://localhost:8288", prompt ?? tags ?? "");
         }
 
-        if (name.Contains("suno"))
+        if (provider.Name?.ToLowerInvariant().Contains("suno") == true)
         {
             return await GenerateAudioViaSuno(provider, prompt, tags, ct);
         }
@@ -346,5 +365,10 @@ public class AiAgentService : IAiAgentService
     private class ComfyProxyResult
     {
         public string? Url { get; set; }
+    }
+
+    private class LlmProxyResponse
+    {
+        public string? Text { get; set; }
     }
 }

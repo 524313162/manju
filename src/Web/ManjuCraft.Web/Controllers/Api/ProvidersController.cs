@@ -33,6 +33,7 @@ public class ProvidersController : ControllerBase
         {
             Name = req.Name,
             Capability = ParseCapability(req.Capability),
+            Type = ParseProviderType(req.Type),
             ApiUrl = req.ApiUrl,
             ApiKey = req.ApiKey,
             Model = req.Model
@@ -51,6 +52,7 @@ public class ProvidersController : ControllerBase
 
         existing.Name = req.Name;
         existing.Capability = ParseCapability(req.Capability);
+        existing.Type = ParseProviderType(req.Type);
         existing.ApiUrl = req.ApiUrl;
         existing.ApiKey = req.ApiKey;
         existing.Model = req.Model;
@@ -101,9 +103,15 @@ public class ProvidersController : ControllerBase
         if (upper.Contains("imageedit")) return AiCapability.ImageEdit;
         if (upper.Contains("imagetovideo")) return AiCapability.ImageToVideo;
         if (upper.Contains("texttoimage")) return AiCapability.TextToImage;
-        if (upper.Contains("texttotext") || upper.Contains("comfy")) return AiCapability.TextToText;
-        if (upper.Contains("comfy") || upper.Contains("workflow")) return AiCapability.ComfyUI;
         if (upper.Contains("video")) return AiCapability.TextToVideo;
+        if (upper.Contains("comfy") || upper.Contains("workflow")) return AiCapability.ComfyUI;
         return AiCapability.TextToText;
+    }
+
+    private static ProviderType ParseProviderType(string type)
+    {
+        var upper = type?.ToLowerInvariant() ?? "";
+        if (upper == "2" || upper.Contains("comfy")) return ProviderType.ComfyUI;
+        return ProviderType.LLM;
     }
 }
