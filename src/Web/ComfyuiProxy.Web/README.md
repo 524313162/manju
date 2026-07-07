@@ -4,20 +4,68 @@
 
 ComfyUI 代理服务提供统一的 Web API 接口，通过加载 ComfyUI 工作流模板、注入参数并自动封装为 `{ "prompt": { nodes... } }` 格式提交执行，支持多种生成任务。
 
-## API 列表
+## 工作流程
 
-所有接口均为 **POST**，返回 `ComfyUIResponseBase` 派生类型。
+提交工作流后立即返回 `promptId`，不等待执行完成，由外部轮询获取结果：
 
-### 基础响应字段（所有接口共有）
+1. **`POST` 对应生成接口** — 提交工作流，返回 `{ promptId, workflowType }`
+2. **`GET /api/comfyui/result/{promptId}?workflowType=xxx`** — 轮询查询结果
+3. **`POST /api/comfyui/interrupt`** — 中断当前正在执行的任务
+4. **`POST /api/comfyui/queue/delete`** — 删除队列中等待的任务
+5. **`DELETE /api/comfyui/history/{promptId}`** — 清除执行记录
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `promptId` | string | ComfyUI 提示词 ID |
-| `success` | bool | 是否成功 |
-| `error` | string? | 错误信息（失败时） |
-| `executionTimeMs` | number | 执行耗时（毫秒） |
+## 通用管理接口
+
+### 查询结果
+
+**`GET /api/comfyui/result/{promptId}?workflowType=xxx`**
+
+- 任务未完成：`{ "success": false, "error": "未找到结果，任务可能还在执行中" }`
+- 任务完成：`{ "success": true, "promptId": "...", "outputs": { ... } }`
+
+`workflowType` 为提交时返回的值。
+
+### 中断当前任务
+
+**`POST /api/comfyui/interrupt`**
+
+中断 ComfyUI 当前正在 GPU 上运行的任务。不需要 promptId。
+
+### 删除队列任务
+
+**`POST /api/comfyui/queue/delete`**
+
+```json
+{ "promptIds": ["prompt_id_1", "prompt_id_2"] }
+```
+
+删除还在排队等待的任务（已在运行的不会被删除）。
+
+### 删除历史记录
+
+**`DELETE /api/comfyui/history/{promptId}`**
+
+删除执行记录，不影响已生成的输出文件。
+
+### 上传图片
+
+**`POST /api/comfyui/upload`** (Content-Type: `multipart/form-data`)
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `image` | file | 是 | 图片文件 |
+| `subfolder` | string | 否 | ComfyUI 子目录，留空为根目录 |
+
+响应（ComfyUI 原样返回）：
+```json
+{ "name": "my_image.png", "subfolder": "", "type": "input" }
+```
 
 ---
+
+## 生成接口
+
+所有生成接口均为 **POST**，返回 `{ promptId: string, workflowType: string }`。
 
 ### 1. 文生图 (ZIMAGE)
 
@@ -38,7 +86,7 @@ ComfyUI 代理服务提供统一的 Web API 接口，通过加载 ComfyUI 工作
 | `width` | int | 否 | 1024 | 图像宽度（≤0 时使用默认值） |
 | `height` | int | 否 | 768 | 图像高度（≤0 时使用默认值） |
 
-响应额外字段：`imageUrls: string[]`
+`workflowType`：`zimage-text-to-image`
 
 ---
 
@@ -63,7 +111,7 @@ ComfyUI 代理服务提供统一的 Web API 接口，通过加载 ComfyUI 工作
 | `width` | int | 否 | 1792 | 生成宽度（≤0 时使用默认值） |
 | `height` | int | 否 | 1024 | 生成高度（≤0 时使用默认值） |
 
-响应额外字段：`imageUrls: string[]`
+`workflowType`：`zimage-character-profile`
 
 ---
 
@@ -74,8 +122,12 @@ ComfyUI 代理服务提供统一的 Web API 接口，通过加载 ComfyUI 工作
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
 | `prompt` | string | 是 | - | 提示词 |
+| `width` | int | 否 | 1280 | 视频宽度 |
+| `height` | int | 否 | 720 | 视频高度 |
+| `duration` | int | 否 | 5 | 时长（秒） |
+| `fps` | int | 否 | 25 | 帧率 |
 
-响应额外字段：`videoUrls: string[]`
+`workflowType`：`ltx-text-to-video`
 
 ---
 
@@ -85,10 +137,14 @@ ComfyUI 代理服务提供统一的 Web API 接口，通过加载 ComfyUI 工作
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| `imagePath` | string | 是 | - | 起始图片路径 |
-| `prompt` | string | 是 | - | 提示词 |
+| `imagePath` | string | 是 | - | 已上传的文件名（通过上传接口获取） |
+| `prompt` | string | 否 | "" | 提示词 |
+| `width` | int | 否 | 1280 | 视频宽度 |
+| `height` | int | 否 | 720 | 视频高度 |
+| `duration` | int | 否 | 3 | 时长（秒） |
+| `fps` | int | 否 | 25 | 帧率 |
 
-响应额外字段：`videoUrls: string[]`
+`workflowType`：`ltx-image-to-video`
 
 ---
 
@@ -101,7 +157,7 @@ ComfyUI 代理服务提供统一的 Web API 接口，通过加载 ComfyUI 工作
 | `prompt` | string | 是 | - | 提示词 |
 | `imagePath` | string? | 否 | null | 参考图片路径（可选） |
 
-响应额外字段：`imageUrls: string[]`
+`workflowType`：`hidream-storyboard`
 
 ---
 
@@ -112,8 +168,8 @@ ComfyUI 代理服务提供统一的 Web API 接口，通过加载 ComfyUI 工作
 请求示例：
 ```json
 {
-  "prompt": "深夜氛围感慢拍，80 拍，厚重闷音 808 贝斯，暗调湿润合成音效，清冷原生颗粒沙哑女主唱，微弱回声衬音，暗光居家混音，静谧小众氛围感，松弛气声低语，轻脆击弦贝斯，饱满低频基底，冷感电影叙事质感，无人工打磨 AI 机械人声",
-  "lyrics": "[Verse 1]\n窗台月色落满旧相框\n你说温柔能抵过风浪\n..." 
+  "prompt": "深夜氛围感慢拍，80 拍，厚重闷音 808 贝斯...",
+  "lyrics": "[Verse 1]\n窗台月色落满旧相框\n..."
 }
 ```
 
@@ -125,11 +181,11 @@ ComfyUI 代理服务提供统一的 Web API 接口，通过加载 ComfyUI 工作
 | `timesignature` | string | 否 | "4" | 拍号（如 "4" 表示 4/4 拍） |
 | `language` | string | 否 | "zh" | 歌词语言 |
 | `keyscale` | string | 否 | "E minor" | 调式/音阶 |
-| `seconds` | double? | 否 | null | 生成时长（秒），不传则根据 BPM 和歌词字数自动计算 |
+| `seconds` | double? | 否 | null | 生成时长（秒），不传则自动计算 |
 
-时长计算公式：`seconds = (歌词字数 / (BPM × 2)) × 60`
+时长公式：`seconds = (歌词字数 / (BPM × 2)) × 60`
 
-响应额外字段：`audioUrls: string[]`
+`workflowType`：`ace-music-compose`
 
 ---
 
@@ -150,7 +206,7 @@ ComfyUI 代理服务提供统一的 Web API 接口，通过加载 ComfyUI 工作
 | `prompt` | string | 是 | - | 音乐描述 |
 | `duration` | float? | 否 | 150 | 音频时长（秒） |
 
-响应额外字段：`audioUrls: string[]`
+`workflowType`：`stable-bgm-generate`
 
 ---
 
@@ -171,4 +227,4 @@ ComfyUI 代理服务提供统一的 Web API 接口，通过加载 ComfyUI 工作
 | `prompt` | string | 是 | - | 提示词 |
 | `maxLength` | int? | 否 | 2048 | 最大生成长度 |
 
-响应额外字段：`text: string`
+`workflowType`：`llm-qwen-execute`

@@ -18,14 +18,12 @@ public class LtxImageToVideoAgent : ComfyUIAgentBase<LtxImageToVideoRequestDto, 
         if (workflow == null)
             throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
 
-        var ltxNode = workflow["269"]?.AsObject();
-        if (ltxNode != null)
+        var imageNode = workflow["269"]?.AsObject();
+        if (imageNode != null)
         {
-            var inputs = ltxNode["inputs"]?.AsObject();
+            var inputs = imageNode["inputs"]?.AsObject();
             if (inputs != null)
-            {
                 inputs["image"] = dto.ImagePath;
-            }
         }
 
         var promptNode = workflow["320:319"]?.AsObject();
@@ -33,9 +31,39 @@ public class LtxImageToVideoAgent : ComfyUIAgentBase<LtxImageToVideoRequestDto, 
         {
             var inputs = promptNode["inputs"]?.AsObject();
             if (inputs != null)
-            {
                 inputs["value"] = dto.Prompt;
-            }
+        }
+
+        var widthNode = workflow["320:312"]?.AsObject();
+        if (widthNode != null)
+        {
+            var inputs = widthNode["inputs"]?.AsObject();
+            if (inputs != null)
+                inputs["value"] = dto.Width;
+        }
+
+        var heightNode = workflow["320:299"]?.AsObject();
+        if (heightNode != null)
+        {
+            var inputs = heightNode["inputs"]?.AsObject();
+            if (inputs != null)
+                inputs["value"] = dto.Height;
+        }
+
+        var fpsNode = workflow["320:300"]?.AsObject();
+        if (fpsNode != null)
+        {
+            var inputs = fpsNode["inputs"]?.AsObject();
+            if (inputs != null)
+                inputs["value"] = dto.Fps;
+        }
+
+        var durationNode = workflow["320:301"]?.AsObject();
+        if (durationNode != null)
+        {
+            var inputs = durationNode["inputs"]?.AsObject();
+            if (inputs != null)
+                inputs["value"] = dto.Duration;
         }
 
         return workflow.ToJsonString();
@@ -52,21 +80,19 @@ public class LtxImageToVideoAgent : ComfyUIAgentBase<LtxImageToVideoRequestDto, 
             var nodeOutput = kvp.Value?.AsObject();
             if (nodeOutput == null) continue;
 
-            var className = nodeOutput["class_type"]?.GetValue<string>();
-            if (className != "SaveVideo") continue;
+            var videoArray = nodeOutput["images"]?.AsArray();
+            if (videoArray == null) continue;
 
-            var images = nodeOutput["images"]?.AsArray();
-            if (images == null) continue;
-
-            foreach (var video in images)
+            foreach (var video in videoArray)
             {
                 var videoObj = video?.AsObject();
                 if (videoObj == null) continue;
                 var filename = videoObj["filename"]?.GetValue<string>();
                 var subfolder = videoObj["subfolder"]?.GetValue<string>();
+                var type = videoObj["type"]?.GetValue<string>() ?? "output";
                 if (!string.IsNullOrEmpty(filename))
                 {
-                    result.VideoUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}");
+                    result.VideoUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}&type={type}");
                 }
             }
         }

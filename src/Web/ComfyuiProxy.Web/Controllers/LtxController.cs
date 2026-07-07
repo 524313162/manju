@@ -4,9 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ComfyuiProxy.Web.Controllers;
 
-/// <summary>
-/// LTX 工作流控制器（文生视频 + 图生视频）
-/// </summary>
 [ApiController]
 [Route("api/comfyui/ltx")]
 public class LtxController : ControllerBase
@@ -18,31 +15,21 @@ public class LtxController : ControllerBase
         _agentFactory = agentFactory;
     }
 
-    /// <summary>
-    /// 文生视频
-    /// POST /api/comfyui/ltx/text-to-video
-    /// </summary>
     [HttpPost("text-to-video")]
-    public async Task<ActionResult<LtxVideoResponse>> TextToVideo(
-        [FromBody] LtxTextToVideoRequestDto dto,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<object>> TextToVideo(
+        [FromBody] LtxTextToVideoRequestDto dto)
     {
         var agent = (LtxTextToVideoAgent)_agentFactory.GetAgent("ltx-text-to-video");
-        var result = await agent.ExecuteAsync(dto, cancellationToken);
-        return Ok(result);
+        var promptId = await agent.SubmitAsync(dto);
+        return Ok(new { promptId, workflowType = "ltx-text-to-video" });
     }
 
-    /// <summary>
-    /// 图生视频
-    /// POST /api/comfyui/ltx/image-to-video
-    /// </summary>
     [HttpPost("image-to-video")]
-    public async Task<ActionResult<LtxVideoResponse>> ImageToVideo(
-        [FromBody] LtxImageToVideoRequestDto dto,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<object>> ImageToVideo(
+        [FromBody] LtxImageToVideoRequestDto dto)
     {
         var agent = (LtxImageToVideoAgent)_agentFactory.GetAgent("ltx-image-to-video");
-        var result = await agent.ExecuteAsync(dto, cancellationToken);
-        return Ok(result);
+        var promptId = await agent.SubmitAsync(dto);
+        return Ok(new { promptId, workflowType = "ltx-image-to-video" });
     }
 }

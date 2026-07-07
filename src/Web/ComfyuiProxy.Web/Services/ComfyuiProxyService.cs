@@ -105,6 +105,62 @@ public class ComfyuiProxyService
 
 
     /// <summary>
+    /// 中断当前正在执行的任务
+    /// </summary>
+    public async Task InterruptAsync()
+    {
+        var baseUrl = GetBaseUrl();
+        var client = _httpClientFactory.CreateClient("http");
+        var response = await client.PostAsync($"{baseUrl}/interrupt", new StringContent(""));
+        response.EnsureSuccessStatusCode();
+        _logger.LogInformation("已中断 ComfyUI 当前任务");
+    }
+
+    /// <summary>
+    /// 删除队列中等待的任务
+    /// </summary>
+    public async Task DeleteFromQueueAsync(IEnumerable<string> promptIds)
+    {
+        var baseUrl = GetBaseUrl();
+        var client = _httpClientFactory.CreateClient("http");
+        var deletePayload = JsonSerializer.Serialize(new { delete = promptIds });
+        var content = new StringContent(deletePayload, Encoding.UTF8, "application/json");
+        var response = await client.PostAsync($"{baseUrl}/queue", content);
+        response.EnsureSuccessStatusCode();
+        _logger.LogInformation("已从队列删除 {Count} 个任务", promptIds.Count());
+    }
+
+    /// <summary>
+    /// 查询历史记录
+    /// </summary>
+    public async Task<JsonObject?> GetHistoryAsync(string promptId)
+    {
+        var baseUrl = GetBaseUrl();
+        var client = _httpClientFactory.CreateClient("http");
+        var response = await client.GetAsync($"{baseUrl}/history/{promptId}");
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var historyBody = await response.Content.ReadAsStringAsync();
+        var history = JsonSerializer.Deserialize<JsonObject>(historyBody);
+        if (history != null && history.ContainsKey(promptId))
+            return history[promptId]?.AsObject();
+        return null;
+    }
+
+    /// <summary>
+    /// 删除历史记录
+    /// </summary>
+    public async Task DeleteHistoryAsync(string promptId)
+    {
+        var baseUrl = GetBaseUrl();
+        var client = _httpClientFactory.CreateClient("http");
+        var response = await client.DeleteAsync($"{baseUrl}/history/{promptId}");
+        response.EnsureSuccessStatusCode();
+        _logger.LogInformation("已删除历史记录: {PromptId}", promptId);
+    }
+
+    /// <summary>
     /// 上传文件到 ComfyUI
     /// </summary>
     public async Task<string> UploadFileAsync(string filePath, string? subfolder = null, bool overwrite = false)
@@ -122,7 +178,7 @@ public class ComfyuiProxyService
 
         form.Add(new StringContent(overwrite ? "true" : "false"), "overwrite");
 
-        var response = await client.PostAsync($"{baseUrl}/upload", form);
+        var response = await client.PostAsync($"{baseUrl}/upload/image", form);
         response.EnsureSuccessStatusCode();
 
         var responseBody = await response.Content.ReadAsStringAsync();

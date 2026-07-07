@@ -4,9 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ComfyuiProxy.Web.Controllers;
 
-/// <summary>
-/// STABLE-BGM 背景音乐生成控制器
-/// </summary>
 [ApiController]
 [Route("api/comfyui/stable-bgm")]
 public class StableBgmController : ControllerBase
@@ -18,17 +15,12 @@ public class StableBgmController : ControllerBase
         _agentFactory = agentFactory;
     }
 
-    /// <summary>
-    /// 背景音乐生成
-    /// POST /api/comfyui/stable-bgm/generate
-    /// </summary>
     [HttpPost("generate")]
-    public async Task<ActionResult<StableBgmResponse>> Generate(
-        [FromBody] StableBgmRequestDto dto,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<object>> Generate(
+        [FromBody] StableBgmRequestDto dto)
     {
         var agent = (StableBgmAgent)_agentFactory.GetAgent("stable-bgm-generate");
-        var result = await agent.ExecuteAsync(dto, cancellationToken);
-        return Ok(result);
+        var promptId = await agent.SubmitAsync(dto);
+        return Ok(new { promptId, workflowType = "stable-bgm-generate" });
     }
 }

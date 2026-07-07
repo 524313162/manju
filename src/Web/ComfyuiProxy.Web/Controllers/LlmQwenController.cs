@@ -4,9 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ComfyuiProxy.Web.Controllers;
 
-/// <summary>
-/// LLM-QWen 大语言模型控制器
-/// </summary>
 [ApiController]
 [Route("api/comfyui/llm-qwen")]
 public class LlmQwenController : ControllerBase
@@ -18,17 +15,12 @@ public class LlmQwenController : ControllerBase
         _agentFactory = agentFactory;
     }
 
-    /// <summary>
-    /// 执行 LLM 推理
-    /// POST /api/comfyui/llm-qwen/execute
-    /// </summary>
     [HttpPost("execute")]
-    public async Task<ActionResult<LlmQwenResponse>> Execute(
-        [FromBody] LlmQwenRequestDto dto,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<object>> Execute(
+        [FromBody] LlmQwenRequestDto dto)
     {
         var agent = (LlmQwenAgent)_agentFactory.GetAgent("llm-qwen-execute");
-        var result = await agent.ExecuteAsync(dto, cancellationToken);
-        return Ok(result);
+        var promptId = await agent.SubmitAsync(dto);
+        return Ok(new { promptId, workflowType = "llm-qwen-execute" });
     }
 }

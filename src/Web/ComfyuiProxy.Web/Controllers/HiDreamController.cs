@@ -4,9 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ComfyuiProxy.Web.Controllers;
 
-/// <summary>
-/// HIDREAM 分镜控制器
-/// </summary>
 [ApiController]
 [Route("api/comfyui/hidream")]
 public class HiDreamController : ControllerBase
@@ -18,17 +15,12 @@ public class HiDreamController : ControllerBase
         _agentFactory = agentFactory;
     }
 
-    /// <summary>
-    /// 分镜生成
-    /// POST /api/comfyui/hidream/storyboard
-    /// </summary>
     [HttpPost("storyboard")]
-    public async Task<ActionResult<StoryboardResponse>> Storyboard(
-        [FromBody] HiDreamStoryboardRequestDto dto,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<object>> Storyboard(
+        [FromBody] HiDreamStoryboardRequestDto dto)
     {
         var agent = (HiDreamStoryboardAgent)_agentFactory.GetAgent("hidream-storyboard");
-        var result = await agent.ExecuteAsync(dto, cancellationToken);
-        return Ok(result);
+        var promptId = await agent.SubmitAsync(dto);
+        return Ok(new { promptId, workflowType = "hidream-storyboard" });
     }
 }

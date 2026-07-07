@@ -4,9 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ComfyuiProxy.Web.Controllers;
 
-/// <summary>
-/// ZIMAGE 工作流控制器（文生图 + 人物档案）
-/// </summary>
 [ApiController]
 [Route("api/comfyui/zimage")]
 public class ZImageController : ControllerBase
@@ -18,31 +15,21 @@ public class ZImageController : ControllerBase
         _agentFactory = agentFactory;
     }
 
-    /// <summary>
-    /// 文生图
-    /// POST /api/comfyui/zimage/text-to-image
-    /// </summary>
     [HttpPost("text-to-image")]
-    public async Task<ActionResult<ZImageTextToImageResponse>> TextToImage(
-        [FromBody] ZImageTextToImageRequestDto dto,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<object>> TextToImage(
+        [FromBody] ZImageTextToImageRequestDto dto)
     {
         var agent = (ZImageTextToImageAgent)_agentFactory.GetAgent("zimage-text-to-image");
-        var result = await agent.ExecuteAsync(dto, cancellationToken);
-        return Ok(result);
+        var promptId = await agent.SubmitAsync(dto);
+        return Ok(new { promptId, workflowType = "zimage-text-to-image" });
     }
 
-    /// <summary>
-    /// 人物档案
-    /// POST /api/comfyui/zimage/character-profile
-    /// </summary>
     [HttpPost("character-profile")]
-    public async Task<ActionResult<CharacterProfileResponse>> CharacterProfile(
-        [FromBody] ZImageCharacterProfileRequestDto dto,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<object>> CharacterProfile(
+        [FromBody] ZImageCharacterProfileRequestDto dto)
     {
         var agent = (ZImageCharacterProfileAgent)_agentFactory.GetAgent("zimage-character-profile");
-        var result = await agent.ExecuteAsync(dto, cancellationToken);
-        return Ok(result);
+        var promptId = await agent.SubmitAsync(dto);
+        return Ok(new { promptId, workflowType = "zimage-character-profile" });
     }
 }
