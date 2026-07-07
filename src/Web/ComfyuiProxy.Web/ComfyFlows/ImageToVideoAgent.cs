@@ -17,6 +17,7 @@ public class ImageToVideoAgent : ComfyUIAgentBase<LtxImageToVideoRequestDto, Ltx
 
     protected override async Task<string> BuildWorkflowJsonAsync(LtxImageToVideoRequestDto dto)
     {
+        // TODO 根据 WorkflowFileName 具体的内容进行读取,正对当前这个工作流的进行参数适配
 
         return string.Empty;
     }

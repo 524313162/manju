@@ -162,14 +162,3 @@ public class ComfyuiProxyService
         return JsonSerializer.Deserialize<JsonObject>(json);
     }
 }
-
-/// <summary>
-/// ComfyUI 任务状态枚举
-/// </summary>
-public enum ComfyuiTaskStatus
-{
-    NotFound,
-    Pending,
-    Running,
-    Completed
-}

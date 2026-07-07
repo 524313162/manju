@@ -25,6 +25,7 @@ public class CharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfileRequ
     /// </summary>
     protected override async Task<string> BuildWorkflowJsonAsync(ZImageCharacterProfileRequestDto dto)
     {
+        // TODO 根据 WorkflowFileName 具体的内容进行读取,正对当前这个工作流的进行参数适配
 
         return string.Empty;
     }
