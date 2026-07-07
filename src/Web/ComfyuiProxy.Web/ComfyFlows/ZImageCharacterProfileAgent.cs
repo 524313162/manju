@@ -18,19 +18,44 @@ public class ZImageCharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfi
         if (workflow == null)
             throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
 
-        var generateNode = workflow["57:200"]?.AsObject();
-        if (generateNode != null)
+        var systemNode = workflow["57:200"]?.AsObject();
+        if (systemNode != null)
         {
-            var inputs = generateNode["inputs"]?.AsObject();
+            var inputs = systemNode["inputs"]?.AsObject();
             if (inputs != null)
             {
-                inputs["clip_name"] = "qwen_3_4b.safetensors";
-                inputs["unet_name"] = "z_image_turbo_bf16.safetensors";
-                inputs["vae_name"] = "ae.safetensors";
-                inputs["width"] = 576;
-                inputs["height"] = 1024;
-                inputs["seed"] = 0;
-                inputs["steps"] = 4;
+                inputs["text"] = dto.SystemPrompt;
+            }
+        }
+
+        var characterNode = workflow["57:202"]?.AsObject();
+        if (characterNode != null)
+        {
+            var inputs = characterNode["inputs"]?.AsObject();
+            if (inputs != null)
+            {
+                inputs["text"] = dto.CharacterPrompt;
+            }
+        }
+
+        var negativeNode = workflow["57:201"]?.AsObject();
+        if (negativeNode != null)
+        {
+            var inputs = negativeNode["inputs"]?.AsObject();
+            if (inputs != null)
+            {
+                inputs["text"] = dto.NegativePrompt;
+            }
+        }
+
+        var latentNode = workflow["57:72"]?.AsObject();
+        if (latentNode != null)
+        {
+            var inputs = latentNode["inputs"]?.AsObject();
+            if (inputs != null)
+            {
+                inputs["width"] = dto.Width;
+                inputs["height"] = dto.Height;
             }
         }
 
@@ -48,9 +73,6 @@ public class ZImageCharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfi
             var nodeOutput = kvp.Value?.AsObject();
             if (nodeOutput == null) continue;
 
-            var className = nodeOutput["class_type"]?.GetValue<string>();
-            if (className != "SaveImage") continue;
-
             var images = nodeOutput["images"]?.AsArray();
             if (images == null) continue;
 
@@ -60,9 +82,10 @@ public class ZImageCharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfi
                 if (imgObj == null) continue;
                 var filename = imgObj["filename"]?.GetValue<string>();
                 var subfolder = imgObj["subfolder"]?.GetValue<string>();
+                var type = imgObj["type"]?.GetValue<string>() ?? "output";
                 if (!string.IsNullOrEmpty(filename))
                 {
-                    result.ImageUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}");
+                    result.ImageUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}&type={type}");
                 }
             }
         }

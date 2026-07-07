@@ -52,21 +52,19 @@ public class StableBgmAgent : ComfyUIAgentBase<StableBgmRequestDto, StableBgmRes
             var nodeOutput = kvp.Value?.AsObject();
             if (nodeOutput == null) continue;
 
-            var className = nodeOutput["class_type"]?.GetValue<string>();
-            if (className != "SaveAudioMP3") continue;
+            var audioArray = nodeOutput["audio"]?.AsArray();
+            if (audioArray == null) continue;
 
-            var images = nodeOutput["images"]?.AsArray();
-            if (images == null) continue;
-
-            foreach (var audio in images)
+            foreach (var audio in audioArray)
             {
                 var audioObj = audio?.AsObject();
                 if (audioObj == null) continue;
                 var filename = audioObj["filename"]?.GetValue<string>();
                 var subfolder = audioObj["subfolder"]?.GetValue<string>();
+                var type = audioObj["type"]?.GetValue<string>() ?? "output";
                 if (!string.IsNullOrEmpty(filename))
                 {
-                    result.AudioUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}");
+                    result.AudioUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}&type={type}");
                 }
             }
         }

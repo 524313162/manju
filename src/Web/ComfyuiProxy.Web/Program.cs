@@ -51,17 +51,17 @@ if (app.Environment.IsDevelopment())
 }
 
 // 添加中间件，在非开发环境时返回系统时间
-app.Use(async (context, next) =>
-{
-    var environment = context.RequestServices.GetRequiredService<IConfiguration>()["ASPNETCORE_ENVIRONMENT"];
-    if (!string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase) && context.Request.Path == "/")
-    {
-        context.Response.ContentType = "text/plain";
-        await context.Response.WriteAsync(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"));
-        return;
-    }
-    await next();
-});
+//app.Use(async (context, next) =>
+//{
+//    var environment = context.RequestServices.GetRequiredService<IConfiguration>()["ASPNETCORE_ENVIRONMENT"];
+//    if (!string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase) && context.Request.Path == "/")
+//    {
+//        context.Response.ContentType = "text/plain";
+//        await context.Response.WriteAsync(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"));
+//        return;
+//    }
+//    await next();
+//});
 
 app.UseHttpsRedirection();
 app.UseAuthorization();

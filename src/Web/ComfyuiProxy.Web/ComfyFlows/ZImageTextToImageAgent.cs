@@ -34,8 +34,8 @@ public class ZImageTextToImageAgent : ComfyUIAgentBase<ZImageTextToImageRequestD
             var inputs = emptyLatentNode["inputs"]?.AsObject();
             if (inputs != null)
             {
-                inputs["width"] = dto.Width ?? 1024;
-                inputs["height"] = dto.Height ?? 576;
+                inputs["width"] = dto.Width;
+                inputs["height"] = dto.Height;
             }
         }
 
@@ -53,9 +53,6 @@ public class ZImageTextToImageAgent : ComfyUIAgentBase<ZImageTextToImageRequestD
             var nodeOutput = kvp.Value?.AsObject();
             if (nodeOutput == null) continue;
 
-            var className = nodeOutput["class_type"]?.GetValue<string>();
-            if (className != "SaveImage") continue;
-
             var images = nodeOutput["images"]?.AsArray();
             if (images == null) continue;
 
@@ -65,9 +62,10 @@ public class ZImageTextToImageAgent : ComfyUIAgentBase<ZImageTextToImageRequestD
                 if (imgObj == null) continue;
                 var filename = imgObj["filename"]?.GetValue<string>();
                 var subfolder = imgObj["subfolder"]?.GetValue<string>();
+                var type = imgObj["type"]?.GetValue<string>() ?? "output";
                 if (!string.IsNullOrEmpty(filename))
                 {
-                    result.ImageUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}");
+                    result.ImageUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}&type={type}");
                 }
             }
         }
