@@ -27,7 +27,7 @@ public class AceMusicController : ControllerBase
         [FromBody] AceMusicRequestDto dto,
         CancellationToken cancellationToken)
     {
-        var agent = (MusicComposeAgent)_agentFactory.GetAgent("ace-music-compose");
+        var agent = (AceMusicAgent)_agentFactory.GetAgent("ace-music-compose");
         var result = await agent.ExecuteAsync(dto, cancellationToken);
         return Ok(result);
     }

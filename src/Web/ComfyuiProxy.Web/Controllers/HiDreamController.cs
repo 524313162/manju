@@ -27,7 +27,7 @@ public class HiDreamController : ControllerBase
         [FromBody] HiDreamStoryboardRequestDto dto,
         CancellationToken cancellationToken)
     {
-        var agent = (StoryboardAgent)_agentFactory.GetAgent("hidream-storyboard");
+        var agent = (HiDreamStoryboardAgent)_agentFactory.GetAgent("hidream-storyboard");
         var result = await agent.ExecuteAsync(dto, cancellationToken);
         return Ok(result);
     }

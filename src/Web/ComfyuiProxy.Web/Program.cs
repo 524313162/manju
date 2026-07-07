@@ -25,13 +25,13 @@ builder.Services.AddHttpClient("http", ext =>
 builder.Services.AddSingleton<ComfyuiProxyService>();
 
 // 注册所有 Agent
-builder.Services.AddTransient<TextToImageAgent>();
-builder.Services.AddTransient<CharacterProfileAgent>();
-builder.Services.AddTransient<TextToVideoAgent>();
-builder.Services.AddTransient<ImageToVideoAgent>();
-builder.Services.AddTransient<StoryboardAgent>();
-builder.Services.AddTransient<MusicComposeAgent>();
-builder.Services.AddTransient<BgmGenerateAgent>();
+builder.Services.AddTransient<ZImageTextToImageAgent>();
+builder.Services.AddTransient<ZImageCharacterProfileAgent>();
+builder.Services.AddTransient<LtxTextToVideoAgent>();
+builder.Services.AddTransient<LtxImageToVideoAgent>();
+builder.Services.AddTransient<HiDreamStoryboardAgent>();
+builder.Services.AddTransient<AceMusicAgent>();
+builder.Services.AddTransient<StableBgmAgent>();
 builder.Services.AddTransient<LlmQwenAgent>();
 
 // 注册 Agent 工厂

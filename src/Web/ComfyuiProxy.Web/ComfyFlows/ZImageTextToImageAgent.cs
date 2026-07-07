@@ -4,30 +4,21 @@ using ComfyuiProxy.Web.Services;
 
 namespace ComfyuiProxy.Web.ComfyFlows;
 
-/// <summary>
-/// 07.HIDREAM 分镜 Agent
-/// </summary>
-public class StoryboardAgent : ComfyUIAgentBase<HiDreamStoryboardRequestDto, StoryboardResponse>
+public class ZImageTextToImageAgent : ComfyUIAgentBase<ZImageTextToImageRequestDto, ZImageTextToImageResponse>
 {
-    public StoryboardAgent(ComfyuiProxyService proxyService, ILogger<StoryboardAgent> logger)
+    public ZImageTextToImageAgent(ComfyuiProxyService proxyService, ILogger<ZImageTextToImageAgent> logger)
         : base(proxyService, logger) { }
 
-    public override string WorkflowType => "hidream-storyboard";
-    public override string WorkflowFileName => "07.HIDREAM-分镜.json";
+    public override string WorkflowType => "zimage-text-to-image";
+    public override string WorkflowFileName => "01.ZIMAGE文生图.json";
 
-    protected override async Task<string> BuildWorkflowJsonAsync(HiDreamStoryboardRequestDto dto)
+    protected override async Task<string> BuildWorkflowJsonAsync(ZImageTextToImageRequestDto dto)
     {
         var workflow = await _proxyService.LoadWorkflowAsync(WorkflowFileName);
         if (workflow == null)
             throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
 
-        var apiPrompt = ConvertToApiFormat(workflow!);
-        var promptObj = apiPrompt["prompt"]?.AsObject();
-        if (promptObj == null)
-            throw new InvalidOperationException("API prompt 格式异常: 缺少 prompt 字段");
-
-        // 注入 CLIPTextEncode (node 110) 的 text 参数
-        var clipTextNode = promptObj["110"]?.AsObject();
+        var clipTextNode = workflow["57:27"]?.AsObject();
         if (clipTextNode != null)
         {
             var inputs = clipTextNode["inputs"]?.AsObject();
@@ -37,10 +28,21 @@ public class StoryboardAgent : ComfyUIAgentBase<HiDreamStoryboardRequestDto, Sto
             }
         }
 
-        return apiPrompt.ToJsonString();
+        var emptyLatentNode = workflow["57:13"]?.AsObject();
+        if (emptyLatentNode != null)
+        {
+            var inputs = emptyLatentNode["inputs"]?.AsObject();
+            if (inputs != null)
+            {
+                inputs["width"] = dto.Width ?? 1024;
+                inputs["height"] = dto.Height ?? 576;
+            }
+        }
+
+        return workflow.ToJsonString();
     }
 
-    protected override void ParseOutputs(JsonObject historyItem, StoryboardResponse result)
+    protected override void ParseOutputs(JsonObject historyItem, ZImageTextToImageResponse result)
     {
         var outputs = historyItem["outputs"]?.AsObject();
         if (outputs == null)

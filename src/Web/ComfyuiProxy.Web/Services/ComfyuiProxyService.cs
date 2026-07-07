@@ -31,19 +31,8 @@ public class ComfyuiProxyService
     public string GetBaseUrl() =>
         _configuration["ComfyUI:Url"] ?? DefaultComfyuiUrl;
 
-    /// <summary>获取工作流文件存放目录</summary>
-    public string GetWorkflowsDir()
-    {
-        var dir = _configuration["ComfyUI:WorkflowsDir"];
-        if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
-            return dir;
-
-        // 默认路径：相对于项目目录
-        var defaultDir = Path.Combine(Directory.GetCurrentDirectory(), "Workflows");
-        if (!Directory.Exists(defaultDir))
-            Directory.CreateDirectory(defaultDir);
-        return defaultDir;
-    }
+    public string GetWorkflowsDir() =>
+        Path.Combine(AppContext.BaseDirectory, "workflows");
 
     /// <summary>
     /// 执行工作流：提交 JSON 到 ComfyUI 的 /prompt 接口

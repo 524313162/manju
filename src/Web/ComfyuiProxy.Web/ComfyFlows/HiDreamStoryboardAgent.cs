@@ -4,48 +4,34 @@ using ComfyuiProxy.Web.Services;
 
 namespace ComfyuiProxy.Web.ComfyFlows;
 
-/// <summary>
-/// 02.ZIMAGE 人物档案 Agent
-/// </summary>
-public class CharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfileRequestDto, CharacterProfileResponse>
+public class HiDreamStoryboardAgent : ComfyUIAgentBase<HiDreamStoryboardRequestDto, StoryboardResponse>
 {
-    public CharacterProfileAgent(ComfyuiProxyService proxyService, ILogger<CharacterProfileAgent> logger)
+    public HiDreamStoryboardAgent(ComfyuiProxyService proxyService, ILogger<HiDreamStoryboardAgent> logger)
         : base(proxyService, logger) { }
 
-    public override string WorkflowType => "zimage-character-profile";
-    public override string WorkflowFileName => "02.ZIMAGE-人物档案.json";
+    public override string WorkflowType => "hidream-storyboard";
+    public override string WorkflowFileName => "07.HIDREAM-分镜.json";
 
-    protected override async Task<string> BuildWorkflowJsonAsync(ZImageCharacterProfileRequestDto dto)
+    protected override async Task<string> BuildWorkflowJsonAsync(HiDreamStoryboardRequestDto dto)
     {
         var workflow = await _proxyService.LoadWorkflowAsync(WorkflowFileName);
         if (workflow == null)
             throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
 
-        var apiPrompt = ConvertToApiFormat(workflow!);
-        var promptObj = apiPrompt["prompt"]?.AsObject();
-        if (promptObj == null)
-            throw new InvalidOperationException("API prompt 格式异常: 缺少 prompt 字段");
-
-        var generateNode = promptObj["57"]?.AsObject();
-        if (generateNode != null)
+        var promptNode = workflow["171"]?.AsObject();
+        if (promptNode != null)
         {
-            var inputs = generateNode["inputs"]?.AsObject();
+            var inputs = promptNode["inputs"]?.AsObject();
             if (inputs != null)
             {
-                inputs["clip_name"] = "qwen_3_4b.safetensors";
-                inputs["unet_name"] = "z_image_turbo_bf16.safetensors";
-                inputs["vae_name"] = "ae.safetensors";
-                inputs["width"] = 576;
-                inputs["height"] = 1024;
-                inputs["seed"] = 0;
-                inputs["steps"] = 4;
+                inputs["value"] = dto.Prompt;
             }
         }
 
-        return apiPrompt.ToJsonString();
+        return workflow.ToJsonString();
     }
 
-    protected override void ParseOutputs(JsonObject historyItem, CharacterProfileResponse result)
+    protected override void ParseOutputs(JsonObject historyItem, StoryboardResponse result)
     {
         var outputs = historyItem["outputs"]?.AsObject();
         if (outputs == null)

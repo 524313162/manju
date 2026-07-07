@@ -27,7 +27,7 @@ public class StableBgmController : ControllerBase
         [FromBody] StableBgmRequestDto dto,
         CancellationToken cancellationToken)
     {
-        var agent = (BgmGenerateAgent)_agentFactory.GetAgent("stable-bgm-generate");
+        var agent = (StableBgmAgent)_agentFactory.GetAgent("stable-bgm-generate");
         var result = await agent.ExecuteAsync(dto, cancellationToken);
         return Ok(result);
     }

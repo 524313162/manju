@@ -4,54 +4,44 @@ using ComfyuiProxy.Web.Services;
 
 namespace ComfyuiProxy.Web.ComfyFlows;
 
-/// <summary>
-/// 08.ACE-MUSIC 音乐生成 Agent
-/// </summary>
-public class MusicComposeAgent : ComfyUIAgentBase<AceMusicRequestDto, AceMusicResponse>
+public class StableBgmAgent : ComfyUIAgentBase<StableBgmRequestDto, StableBgmResponse>
 {
-    public MusicComposeAgent(ComfyuiProxyService proxyService, ILogger<MusicComposeAgent> logger)
+    public StableBgmAgent(ComfyuiProxyService proxyService, ILogger<StableBgmAgent> logger)
         : base(proxyService, logger) { }
 
-    public override string WorkflowType => "ace-music-compose";
-    public override string WorkflowFileName => "08.ACE-MUSIC-音乐生成.json";
+    public override string WorkflowType => "stable-bgm-generate";
+    public override string WorkflowFileName => "09.STABLE-BGM.json";
 
-    protected override async Task<string> BuildWorkflowJsonAsync(AceMusicRequestDto dto)
+    protected override async Task<string> BuildWorkflowJsonAsync(StableBgmRequestDto dto)
     {
         var workflow = await _proxyService.LoadWorkflowAsync(WorkflowFileName);
         if (workflow == null)
             throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
 
-        var apiPrompt = ConvertToApiFormat(workflow!);
-        var promptObj = apiPrompt["prompt"]?.AsObject();
-        if (promptObj == null)
-            throw new InvalidOperationException("API prompt 格式异常: 缺少 prompt 字段");
-
-        var textEncodeNode = promptObj["94"]?.AsObject();
-        if (textEncodeNode != null)
+        var bgmNode = workflow["52:31"]?.AsObject();
+        if (bgmNode != null)
         {
-            var inputs = textEncodeNode["inputs"]?.AsObject();
+            var inputs = bgmNode["inputs"]?.AsObject();
             if (inputs != null)
             {
-                inputs["tags"] = dto.Prompt;
-                inputs["lyrics"] = dto.Lyrics;
+                inputs["value"] = dto.Prompt;
             }
         }
 
-        // 将 tags 也注入到 KSampler (node 3) 的采样参数中
-        var kSamplerNode = promptObj["98"]?.AsObject();
-        if (kSamplerNode != null)
+        var durationNode = workflow["52:36"]?.AsObject();
+        if (durationNode != null)
         {
-            var inputs = kSamplerNode["inputs"]?.AsObject();
+            var inputs = durationNode["inputs"]?.AsObject();
             if (inputs != null)
             {
-                inputs["seconds"] = dto.Lyrics.Length / 10 + 15;
+                inputs["value"] = dto.Duration ?? 150;
             }
         }
 
-        return apiPrompt.ToJsonString();
+        return workflow.ToJsonString();
     }
 
-    protected override void ParseOutputs(JsonObject historyItem, AceMusicResponse result)
+    protected override void ParseOutputs(JsonObject historyItem, StableBgmResponse result)
     {
         var outputs = historyItem["outputs"]?.AsObject();
         if (outputs == null)

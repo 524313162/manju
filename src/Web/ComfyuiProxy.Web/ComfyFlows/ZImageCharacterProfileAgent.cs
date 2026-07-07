@@ -4,44 +4,40 @@ using ComfyuiProxy.Web.Services;
 
 namespace ComfyuiProxy.Web.ComfyFlows;
 
-/// <summary>
-/// 01.ZIMAGE 文生图 Agent
-/// </summary>
-public class TextToImageAgent : ComfyUIAgentBase<ZImageTextToImageRequestDto, ZImageTextToImageResponse>
+public class ZImageCharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfileRequestDto, CharacterProfileResponse>
 {
-    public TextToImageAgent(ComfyuiProxyService proxyService, ILogger<TextToImageAgent> logger)
+    public ZImageCharacterProfileAgent(ComfyuiProxyService proxyService, ILogger<ZImageCharacterProfileAgent> logger)
         : base(proxyService, logger) { }
 
-    public override string WorkflowType => "zimage-text-to-image";
-    public override string WorkflowFileName => "01.ZIMAGE-文生图.json";
+    public override string WorkflowType => "zimage-character-profile";
+    public override string WorkflowFileName => "02.ZIMAGE-人物档案.json";
 
-    protected override async Task<string> BuildWorkflowJsonAsync(ZImageTextToImageRequestDto dto)
+    protected override async Task<string> BuildWorkflowJsonAsync(ZImageCharacterProfileRequestDto dto)
     {
         var workflow = await _proxyService.LoadWorkflowAsync(WorkflowFileName);
         if (workflow == null)
             throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
 
-        var apiPrompt = ConvertToApiFormat(workflow!);
-        var promptObj = apiPrompt["prompt"]?.AsObject();
-        if (promptObj == null)
-            throw new InvalidOperationException("API prompt 格式异常: 缺少 prompt 字段");
-
-        var textToImageNode = promptObj["57"]?.AsObject();
-        if (textToImageNode != null)
+        var generateNode = workflow["57:200"]?.AsObject();
+        if (generateNode != null)
         {
-            var inputs = textToImageNode["inputs"]?.AsObject();
+            var inputs = generateNode["inputs"]?.AsObject();
             if (inputs != null)
             {
-                inputs["text"] = dto.Prompt;
-                inputs["width"] = dto.Width ?? 1024;
-                inputs["height"] = dto.Height ?? 576;
+                inputs["clip_name"] = "qwen_3_4b.safetensors";
+                inputs["unet_name"] = "z_image_turbo_bf16.safetensors";
+                inputs["vae_name"] = "ae.safetensors";
+                inputs["width"] = 576;
+                inputs["height"] = 1024;
+                inputs["seed"] = 0;
+                inputs["steps"] = 4;
             }
         }
 
-        return apiPrompt.ToJsonString();
+        return workflow.ToJsonString();
     }
 
-    protected override void ParseOutputs(JsonObject historyItem, ZImageTextToImageResponse result)
+    protected override void ParseOutputs(JsonObject historyItem, CharacterProfileResponse result)
     {
         var outputs = historyItem["outputs"]?.AsObject();
         if (outputs == null)

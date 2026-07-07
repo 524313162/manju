@@ -27,7 +27,7 @@ public class ZImageController : ControllerBase
         [FromBody] ZImageTextToImageRequestDto dto,
         CancellationToken cancellationToken)
     {
-        var agent = (TextToImageAgent)_agentFactory.GetAgent("zimage-text-to-image");
+        var agent = (ZImageTextToImageAgent)_agentFactory.GetAgent("zimage-text-to-image");
         var result = await agent.ExecuteAsync(dto, cancellationToken);
         return Ok(result);
     }
@@ -41,7 +41,7 @@ public class ZImageController : ControllerBase
         [FromBody] ZImageCharacterProfileRequestDto dto,
         CancellationToken cancellationToken)
     {
-        var agent = (CharacterProfileAgent)_agentFactory.GetAgent("zimage-character-profile");
+        var agent = (ZImageCharacterProfileAgent)_agentFactory.GetAgent("zimage-character-profile");
         var result = await agent.ExecuteAsync(dto, cancellationToken);
         return Ok(result);
     }

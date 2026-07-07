@@ -4,16 +4,13 @@ using ComfyuiProxy.Web.Services;
 
 namespace ComfyuiProxy.Web.ComfyFlows;
 
-/// <summary>
-/// 03.LTX 文生视频 Agent
-/// </summary>
-public class TextToVideoAgent : ComfyUIAgentBase<LtxTextToVideoRequestDto, LtxVideoResponse>
+public class LtxTextToVideoAgent : ComfyUIAgentBase<LtxTextToVideoRequestDto, LtxVideoResponse>
 {
-    public TextToVideoAgent(ComfyuiProxyService proxyService, ILogger<TextToVideoAgent> logger)
+    public LtxTextToVideoAgent(ComfyuiProxyService proxyService, ILogger<LtxTextToVideoAgent> logger)
         : base(proxyService, logger) { }
 
     public override string WorkflowType => "ltx-text-to-video";
-    public override string WorkflowFileName => "03.LTX-文生视频.json";
+    public override string WorkflowFileName => "03.LTX文生视频.json";
 
     protected override async Task<string> BuildWorkflowJsonAsync(LtxTextToVideoRequestDto dto)
     {
@@ -21,12 +18,7 @@ public class TextToVideoAgent : ComfyUIAgentBase<LtxTextToVideoRequestDto, LtxVi
         if (workflow == null)
             throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
 
-        var apiPrompt = ConvertToApiFormat(workflow!);
-        var promptObj = apiPrompt["prompt"]?.AsObject();
-        if (promptObj == null)
-            throw new InvalidOperationException("API prompt 格式异常: 缺少 prompt 字段");
-
-        var ltxNode = promptObj["267"]?.AsObject();
+        var ltxNode = workflow["267:266"]?.AsObject();
         if (ltxNode != null)
         {
             var inputs = ltxNode["inputs"]?.AsObject();
@@ -36,7 +28,7 @@ public class TextToVideoAgent : ComfyUIAgentBase<LtxTextToVideoRequestDto, LtxVi
             }
         }
 
-        return apiPrompt.ToJsonString();
+        return workflow.ToJsonString();
     }
 
     protected override void ParseOutputs(JsonObject historyItem, LtxVideoResponse result)
