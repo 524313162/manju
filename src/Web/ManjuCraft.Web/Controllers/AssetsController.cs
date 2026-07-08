@@ -140,14 +140,25 @@ public class AssetsController : Controller
     {
         long? projectId = null;
         long assetId = 0;
+        string fileUrl = null;
 
-        foreach (var key in Request.Form.Keys)
+        var hasFileUpload = Request.Form.Files.Count > 0;
+
+        if (!hasFileUpload)
         {
-            switch (key.ToLower())
+            string body;
+            using (var reader = new StreamReader(Request.Body))
             {
-                case "projectid": projectId = long.TryParse(Request.Form[key], out var pid) ? pid : null; break;
-                case "assetid": assetId = long.TryParse(Request.Form[key], out var aid) ? aid : 0L; break;
+                body = await reader.ReadToEndAsync();
             }
+            body = body.Trim();
+            if (string.IsNullOrEmpty(body))
+                return Content(ToJson(false, "参数错误"));
+
+            using var doc = JsonDocument.Parse(body);
+            var root = doc.RootElement;
+            assetId = root.TryGetProperty("assetId", out var idProp) ? idProp.GetInt64() : 0L;
+            fileUrl = root.TryGetProperty("fileUrl", out var urlProp) ? urlProp.GetString() : null;
         }
 
         if (assetId <= 0)
@@ -157,12 +168,102 @@ public class AssetsController : Controller
         if (asset == null)
             return Content(ToJson(false, "资产不存在"));
 
-        var file = Request.Form.Files.GetFile("uploadFile");
-        if (file == null || file.Length == 0)
-            return Content(ToJson(false, "请选择文件"));
+        if (hasFileUpload)
+        {
+            var file = Request.Form.Files.GetFile("uploadFile");
+            if (file == null || file.Length == 0)
+                return Content(ToJson(false, "请选择文件"));
 
-        await SaveResourceForAssetAsync(asset, file);
+            await SaveResourceForAssetAsync(asset, file);
+            return Content(ToJson(true));
+        }
+        else if (!string.IsNullOrEmpty(fileUrl))
+        {
+            await SaveResourceFromUrlAsync(asset, fileUrl);
+            return Content(ToJson(true));
+        }
+        else
+        {
+            return Content(ToJson(false, "请提供文件"));
+        }
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> ReplaceAudio()
+    {
+        await ReplaceResourceAsync();
         return Content(ToJson(true));
+    }
+
+    private async Task ReplaceResourceAsync()
+    {
+        long assetId = 0;
+        string fileUrl = null;
+
+        string body;
+        using (var reader = new StreamReader(Request.Body))
+        {
+            body = await reader.ReadToEndAsync();
+        }
+        body = body.Trim();
+        if (string.IsNullOrEmpty(body))
+            return;
+
+        using var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+        assetId = root.TryGetProperty("assetId", out var idProp) ? idProp.GetInt64() : 0L;
+        fileUrl = root.TryGetProperty("fileUrl", out var urlProp) ? urlProp.GetString() : null;
+
+        if (assetId <= 0 || string.IsNullOrEmpty(fileUrl))
+            return;
+
+        var asset = await _assetService.GetByIdAsync(assetId);
+        if (asset == null)
+            return;
+
+        await SaveResourceFromUrlAsync(asset, fileUrl);
+    }
+
+    private async Task SaveResourceFromUrlAsync(Asset asset, string fileUrl)
+    {
+        await DeleteResourceForAssetAsync(asset.Id);
+
+        var ext = System.IO.Path.GetExtension(new Uri(fileUrl).AbsolutePath).ToLowerInvariant();
+        if (string.IsNullOrEmpty(ext))
+        {
+            var contentType = "text/plain";
+            switch (asset.AssetType)
+            {
+                case AssetTypeEnum.Actor:
+                case AssetTypeEnum.Scene:
+                case AssetTypeEnum.Prop:
+                    contentType = "image/png";
+                    ext = ".png";
+                    break;
+                case AssetTypeEnum.Bgm:
+                    contentType = "audio/mpeg";
+                    ext = ".mp3";
+                    break;
+            }
+        }
+
+        using var http = new HttpClient();
+        var bytes = await http.GetByteArrayAsync(fileUrl);
+
+        var assetTypeStr = asset.AssetType.ToString().ToLower();
+        var path = await _fileStorageService.SaveAssetAsync(asset.ProjectId, assetTypeStr, asset.Id, bytes, ext);
+
+        var ctx = HttpContext.RequestServices.GetRequiredService<ManjuCraft.Infrastructure.ProjectDbContext>();
+        var resource = new Resource
+        {
+            MediaType = asset.AssetType == AssetTypeEnum.Bgm ? "audio" : "image",
+            FilePath = path
+        };
+        ctx.Resources.Add(resource);
+        await ctx.SaveChangesAsync();
+
+        asset.ResourceId = resource.Id;
+        await ctx.SaveChangesAsync();
     }
 
     private async Task SaveResourceForAssetAsync(Asset asset, IFormFile file)

@@ -15,13 +15,15 @@ public class StoryController : Controller
     private readonly IProjectService _projectService;
     private readonly IProjectDbContext _dbContext;
     private readonly IAiAgentService _aiAgent;
+    private readonly IAiProxyService _proxy;
 
-    public StoryController(IStoryService storyService, IProjectService projectService, IProjectDbContext dbContext, IAiAgentService aiAgent)
+    public StoryController(IStoryService storyService, IProjectService projectService, IProjectDbContext dbContext, IAiAgentService aiAgent, IAiProxyService proxy)
     {
         _storyService = storyService;
         _projectService = projectService;
         _dbContext = dbContext;
         _aiAgent = aiAgent;
+        _proxy = proxy;
     }
 
     public async Task<IActionResult> Index(long projectId)
@@ -316,13 +318,13 @@ public class StoryController : Controller
         try
         {
             var fullSys = template ?? await GetTemplateContent("StoryGeneration");
-            var userPrompt = $"标题：{title}\n故事主题：{prompt}";
+            var userMsg = $"标题：{title}\n故事主题：{prompt}";
 
-            var result = await _aiAgent.ChatAsync(providerId, fullSys, userPrompt);
+            var result = await _proxy.ChatAsync(fullSys, userMsg, 8192);
             if (!result.success)
-                return Json(new { success = false, message = result.message });
+                return Json(new { success = false, message = result.message ?? "生成失败" });
 
-            return Json(new { success = true, data = result.data, storyId = 0L });
+            return Json(new { success = true, data = result.text, message = string.Empty });
         }
         catch (Exception ex)
         {
@@ -346,13 +348,13 @@ public class StoryController : Controller
                 "summary" => "精简",
                 _ => "改写"
             };
-            var userPrompt = $"{modeLabel}要求：{content}";
+            var userMsg = $"{modeLabel}要求：{content}";
 
-            var result = await _aiAgent.ChatAsync(providerId, fullSys, userPrompt);
+            var result = await _proxy.ChatAsync(fullSys, userMsg, 8192);
             if (!result.success)
-                return Json(new { success = false, message = result.message });
+                return Json(new { success = false, message = result.message ?? "改写失败" });
 
-            return Json(new { success = true, data = result.data });
+            return Json(new { success = true, data = result.text, message = string.Empty });
         }
         catch (Exception ex)
         {

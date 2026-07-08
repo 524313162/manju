@@ -169,8 +169,21 @@
                     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
                     + '<strong style="font-size:14px;">分镜 ' + (si+1) + ' — ' + (shot.shotName || shot.shotNumber || '') + '</strong>'
                     + '<div style="display:flex;gap:4px;">'
+                    + '<button class="btn btn-info btn-sm" onclick="generateStoryboardShot(' + si + ')">&#127912; 生成分镜图</button>'
                     + '<button class="btn btn-info btn-sm" onclick="generateShotVideo(' + si + ')">&#127909; 生成视频</button>'
                     + '</div></div>';
+
+                var genStatus = [];
+                if (shot.generatingStoryboard) genStatus.push('<span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></span> 生成分镜图...');
+                if (shot.generatingVideo) genStatus.push('生成视频中...');
+                if (shot.generatingFrame) genStatus.push('生成首帧图...');
+                if (genStatus.length > 0) {
+                    h += '<div style="text-align:center;padding:12px;background:var(--bg);border-radius:6px;margin-bottom:10px;color:var(--text2);font-size:13px;">' + genStatus.join(' | ') + '</div>';
+                }
+
+                if (shot.storyboardUrl) {
+                    h += '<div style="margin-bottom:10px;"><img src="' + shot.storyboardUrl + '" style="width:100%;max-height:280px;object-fit:cover;border-radius:8px;" onclick="showImagePreview(\'' + shot.storyboardUrl + '\')"></div>';
+                }
 
                 if (frames.length > 0) {
                     h += '<div style="display:flex;gap:8px;overflow-x:auto;padding:8px 0;">';
@@ -190,8 +203,9 @@
                     h += '</div>';
                 }
 
-                if (!f || !f.hasImage) {
-                    h += '<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="generateFrameImage(' + si + ', -1)">&#127912; 生成首帧图</button>';
+                var hasFramesWithImage = frames.some(function(ff) { return ff.hasImage; });
+                if (!hasFramesWithImage) {
+                    h += '<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="generateFrameImage(' + si + ', 0)">&#127912; 生成首帧图</button>';
                 }
 
                 h += '</div>';
@@ -228,10 +242,14 @@
         renderShotsTab();
 
         var chapter = chapters[currentChapterIdx];
-        var data = new FormData();
-        data.append('content', chapter.content);
+        var systemPrompt = '你是一个专业的漫剧分镜师。请将章节内容拆分为多个分镜脚本。每个分镜包含：shotNumber(分镜编号), shotName(分镜名称), shotSize(景别:全景/中景/特写), cameraMovement(运镜:固定/前推/平移/环绕), duration(时长秒), frames(帧数组,含frameType:First/Middle/Last, description, hasImage:false)。\n\n输出严格的 JSON 数组，格式如：[{"shotNumber":"SH001","shotName":"场景一","shotSize":"全景","cameraMovement":"固定","duration":5,"frames":[{"frameType":"First","description":"描述1","startTime":0,"duration":2,"order":0,"hasImage":false},{"frameType":"Middle","description":"描述2","startTime":2,"duration":2.5,"order":1,"hasImage":false},{"frameType":"Last","description":"描述3","startTime":4.5,"duration":3.5,"order":2,"hasImage":false}]}]。注意：只返回 JSON 数组，不要其他内容。';
+        var userMessage = '请为以下章节内容生成分镜脚本：\n\n' + chapter.content;
 
-        fetch('/api/v1/ai/story/generate', { method: 'POST', body: data })
+        fetch('/api/v1/ai/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userPrompt: userMessage, systemPrompt: systemPrompt, maxLength: 8192 })
+        })
             .then(function(r){ return r.json(); })
             .then(function(res) {
                 if (res && res.success) {
@@ -240,16 +258,27 @@
                         var match = text.match(/```(?:json)?\s*([\s\S]*?)```/);
                         var jsonText = match ? match[1].trim() : text;
                         var parsed = JSON.parse(jsonText);
-                        var chapterData = parsed.chapters || parsed.Chapters || [];
-                        if (chapterData.length > 0) {
-                            var subChap = chapterData[currentChapterIdx] || chapterData[0];
-                            if (subChap.shots) {
-                                shotState[currentChapterIdx] = { shots: subChap.shots };
-                                render();
-                                return;
-                            }
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            var shots = parsed.map(function(s, i) {
+                                return {
+                                    shotNumber: s.shotNumber || 'SH' + String(i+1).padStart(3,'0'),
+                                    shotName: s.shotName || '分镜 ' + (i+1),
+                                    shotSize: s.shotSize || '',
+                                    cameraMovement: s.cameraMovement || '',
+                                    duration: s.duration || 5,
+                                    frames: (s.frames || []).map(function(f) {
+                                        return { ...f, hasImage: false };
+                                    }),
+                                    hasFirstFrame: false, hasVideo: false
+                                };
+                            });
+                            shotState[currentChapterIdx] = { shots: shots };
+                            render();
+                            return;
                         }
-                    } catch(e) {}
+                    } catch(e) {
+                        console.error('解析分镜 JSON 失败:', e);
+                    }
                 }
                 generateDemoShots(chapter);
             })
@@ -280,20 +309,214 @@
     }
 
     function generateShotVideo(shotIdx) {
-        showToast('正在生成视频...', 'info');
-        setTimeout(function(){ showToast('视频生成完成！', 'success'); }, 2000);
+        var state = shotState[currentChapterIdx];
+        var shot = state.shots[shotIdx];
+        if (!shot) return;
+
+        showToast('正在生成分镜视频...', 'info');
+        shotState[currentChapterIdx].shots[shotIdx].generatingVideo = true;
+        renderShotsTab();
+
+        var systemPrompt = '你是一个视频生成助手。';
+        var userMessage = shot.frames ? shot.frames.map(function(f){ return f.description; }).join('\n') : '';
+
+        fetch('/api/v1/ai/video/text-to-video', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: userMessage })
+        })
+            .then(function(r){ return r.json(); })
+            .then(function(res) {
+                if (res && res.success && res.data) {
+                    var videoUrl = null;
+                    if (res.data.urls && res.data.urls.length > 0) {
+                        videoUrl = res.data.urls[0];
+                    } else if (res.data.url) {
+                        videoUrl = res.data.url;
+                    }
+                    if (videoUrl) {
+                        shotState[currentChapterIdx].shots[shotIdx].videoUrl = videoUrl;
+                        shotState[currentChapterIdx].shots[shotIdx].generatingVideo = false;
+                        renderShotsTab();
+                        showToast('视频生成完成！', 'success');
+                        return;
+                    }
+                    if (res.data.promptId) {
+                        pollAiResultForShot(res.data.promptId, 'text-to-video', shotIdx, 'video');
+                        return;
+                    }
+                }
+                shotState[currentChapterIdx].shots[shotIdx].generatingVideo = false;
+                renderShotsTab();
+                alert('视频生成失败: ' + (res && res.message ? res.message : '未知错误'));
+            })
+            .catch(function(err) {
+                shotState[currentChapterIdx].shots[shotIdx].generatingVideo = false;
+                renderShotsTab();
+                alert('请求失败: ' + err.message);
+            });
+    }
+
+    function generateStoryboardShot(shotIdx) {
+        var state = shotState[currentChapterIdx];
+        var shot = state.shots[shotIdx];
+        if (!shot) return;
+
+        showToast('正在生成分镜图...', 'info');
+        shotState[currentChapterIdx].shots[shotIdx].generatingStoryboard = true;
+        renderShotsTab();
+
+        var description = '';
+        if (shot.frames && shot.frames.length > 0) {
+            description = shot.frames.map(function(f){ return f.description || ''; }).join('; ');
+        }
+        if (!description) description = shot.shotName || shot.shotNumber || '';
+
+        fetch('/api/v1/ai/storyboard/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: description, width: 1024, height: 576 })
+        })
+            .then(function(r){ return r.json(); })
+            .then(function(res) {
+                if (res && res.success && res.data) {
+                    var imgUrl = null;
+                    if (res.data.urls && res.data.urls.length > 0) {
+                        imgUrl = res.data.urls[0];
+                    } else if (res.data.url) {
+                        imgUrl = res.data.url;
+                    } else if (res.data.imageUrls && res.data.imageUrls.length > 0) {
+                        imgUrl = res.data.imageUrls[0];
+                    }
+                    if (imgUrl) {
+                        shotState[currentChapterIdx].shots[shotIdx].storyboardUrl = imgUrl;
+                        shotState[currentChapterIdx].shots[shotIdx].generatingStoryboard = false;
+                        renderShotsTab();
+                        showToast('分镜图生成完成！', 'success');
+                        return;
+                    }
+                    if (res.data.promptId) {
+                        pollAiResultForShot(res.data.promptId, 'hidream-storyboard', shotIdx, 'storyboard');
+                        return;
+                    }
+                }
+                shotState[currentChapterIdx].shots[shotIdx].generatingStoryboard = false;
+                renderShotsTab();
+                alert('分镜图生成失败: ' + (res && res.message ? res.message : '未知错误'));
+            })
+            .catch(function(err) {
+                shotState[currentChapterIdx].shots[shotIdx].generatingStoryboard = false;
+                renderShotsTab();
+                alert('请求失败: ' + err.message);
+            });
+    }
+
+    function pollAiResultForShot(promptId, workflowType, shotIdx, resultType) {
+        var pollCount = 0;
+        var maxPolls = 120;
+        var interval = 5000;
+
+        var timer = setInterval(function() {
+            pollCount++;
+            fetch('/api/v1/ai/result/' + promptId + '?workflowType=' + encodeURIComponent(workflowType))
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res && res.success && res.data) {
+                        clearInterval(timer);
+                        var url = null;
+                        if (res.data.urls && res.data.urls.length > 0) {
+                            url = res.data.urls[0];
+                        } else if (res.data.url) {
+                            url = res.data.url;
+                        }
+                        if (url) {
+                            if (resultType === 'video') {
+                                shotState[currentChapterIdx].shots[shotIdx].videoUrl = url;
+                            } else if (resultType === 'frame') {
+                                shotState[currentChapterIdx].shots[shotIdx].frames[0].imagePath = url;
+                                shotState[currentChapterIdx].shots[shotIdx].frames[0].hasImage = true;
+                                shotState[currentChapterIdx].shots[shotIdx].hasFirstFrame = true;
+                            } else if (resultType === 'storyboard') {
+                                shotState[currentChapterIdx].shots[shotIdx].storyboardUrl = url;
+                            }
+                            shotState[currentChapterIdx].shots[shotIdx]['generating' + resultType.charAt(0).toUpperCase() + resultType.slice(1)] = false;
+                            renderShotsTab();
+                            if (resultType === 'video') {
+                                showToast('视频生成完成！', 'success');
+                            } else if (resultType === 'frame') {
+                                showToast('帧图片生成完成！', 'success');
+                            } else {
+                                showToast('分镜图生成完成！', 'success');
+                            }
+                        }
+                    }
+                    if (pollCount >= maxPolls) {
+                        clearInterval(timer);
+                        renderShotsTab();
+                        alert('生成超时，promptId: ' + promptId);
+                    }
+                })
+                .catch(function() {
+                    if (pollCount >= maxPolls) clearInterval(timer);
+                });
+        }, interval);
     }
 
     function generateFrameImage(shotIdx, frameIdx) {
+        var state = shotState[currentChapterIdx];
+        var shot = state.shots[shotIdx];
+        if (!shot) return;
+
+        var targetFrame = frameIdx >= 0 ? shot.frames[frameIdx] : null;
+        var prompt = targetFrame ? targetFrame.description : (shot.frames && shot.frames[0] ? shot.frames[0].description : '');
+        if (!prompt) { alert('无法获取提示词'); return; }
+
         showToast('正在生成帧图片...', 'info');
-        setTimeout(function(){
-            if (shotState[currentChapterIdx] && shotState[currentChapterIdx].shots[shotIdx]) {
-                shotState[currentChapterIdx].shots[shotIdx].frames[frameIdx].hasImage = true;
-                shotState[currentChapterIdx].shots[shotIdx].hasFirstFrame = true;
-            }
-            renderShotsTab();
-            showToast('帧图片生成完成！', 'success');
-        }, 2000);
+        shotState[currentChapterIdx].shots[shotIdx].generatingFrame = true;
+        renderShotsTab();
+
+        fetch('/api/v1/ai/image/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: prompt, width: 1024, height: 576 })
+        })
+            .then(function(r){ return r.json(); })
+            .then(function(res) {
+                if (res && res.success && res.data) {
+                    var imgUrl = null;
+                    if (res.data.urls && res.data.urls.length > 0) {
+                        imgUrl = res.data.urls[0];
+                    } else if (res.data.url) {
+                        imgUrl = res.data.url;
+                    } else if (res.data.imageUrls && res.data.imageUrls.length > 0) {
+                        imgUrl = res.data.imageUrls[0];
+                    }
+                    if (imgUrl) {
+                        var fi = targetFrame ? frameIdx : 0;
+                        if (shot.frames[fi]) {
+                            shot.frames[fi].imagePath = imgUrl;
+                            shot.frames[fi].hasImage = true;
+                        }
+                        shot.hasFirstFrame = true;
+                        shotState[currentChapterIdx].shots[shotIdx].generatingFrame = false;
+                        renderShotsTab();
+                        showToast('帧图片生成完成！', 'success');
+                        return;
+                    }
+                    if (res.data.promptId) {
+                        pollAiResultForShot(res.data.promptId, 'text-to-image', shotIdx, 'frame');
+                        return;
+                    }
+                }
+                shotState[currentChapterIdx].shots[shotIdx].generatingFrame = false;
+                renderShotsTab();
+                alert('图片生成失败: ' + (res && res.message ? res.message : '未知错误'));
+            })
+            .catch(function(err) {
+                shotState[currentChapterIdx].shots[shotIdx].generatingFrame = false;
+                renderShotsTab();
+                alert('请求失败: ' + err.message);
+            });
     }
 
     function showFrameTemplates() {
@@ -318,32 +541,59 @@
 
     function extractAllAssets() {
         showToast('AI 正在分析剧本提取资产...', 'info');
-        setTimeout(function() {
-            var extracted = {
-                Actor: [{ name: '角色名', desc: '角色描述' }],
-                Prop: [{ name: '道具名', desc: '道具描述' }],
-                Scene: [{ name: '场景名', desc: '场景描述' }],
-                Bgm: [{ name: 'BGM名', desc: 'BGM描述' }]
-            };
-            var body = '';
-            ['Actor','Prop','Scene','Bgm'].forEach(function(k) {
-                body += '<div style="margin-bottom:12px;"><h4 style="font-size:13px;font-weight:600;color:var(--text3);margin-bottom:6px;">'
-                    + {Actor:'角色',Prop:'道具',Scene:'场景',Bgm:'BGM'}[k] + '</h4>';
-                extracted[k].forEach(function(item, idx) {
-                    body += '<div class="extracted-item" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg);border-radius:6px;margin-bottom:4px;">'
-                        + '<div><div class="name" style="font-weight:600;font-size:13px;">' + item.name + '</div><div class="desc" style="font-size:11px;color:var(--text3);">' + item.desc + '</div></div>'
-                        + '<label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" checked></label></div>';
-                });
-                body += '</div>';
+
+        var systemPrompt = '你是一个资产提取助手。请从提供的剧本内容中提取角色、道具、场景、BGM。返回 JSON 格式：{"actors":[{"name":"角色名","desc":"描述"}],"props":[{"name":"道具名","desc":"描述"}],"scenes":[{"name":"场景名","desc":"描述"}],"bgm":[{"name":"BGM名","desc":"描述"}]}。只返回 JSON，不要其他内容。';
+        var allContent = chapters.map(function(c){ return '【' + c.chapterName + '】' + c.content; }).join('\n\n');
+
+        fetch('/api/v1/ai/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userPrompt: '请从以下剧本内容中提取资产：\n\n' + allContent, systemPrompt: systemPrompt, maxLength: 4096 })
+        })
+            .then(function(r){ return r.json(); })
+            .then(function(res) {
+                if (res && res.success) {
+                    try {
+                        var text = res.data;
+                        var match = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+                        var jsonText = match ? match[1].trim() : text;
+                        var parsed = JSON.parse(jsonText);
+                        renderExtractModal(parsed);
+                        return;
+                    } catch(e) {
+                        console.error('解析资产 JSON 失败:', e);
+                    }
+                }
+                renderExtractModal({ actors:[], props:[], scenes:[], bgm:[] });
+            })
+            .catch(function() {
+                renderExtractModal({ actors:[], props:[], scenes:[], bgm:[] });
             });
-            document.getElementById('extractConfirmBody').innerHTML = body;
-            showModal('extractConfirmModal');
-        }, 1200);
+    }
+
+    function renderExtractModal(data) {
+        var body = '';
+        var typeNames = { actors:'角色', props:'道具', scenes:'场景', bgm:'BGM' };
+        Object.keys(data).forEach(function(k) {
+            var items = data[k] || [];
+            body += '<div style="margin-bottom:12px;"><h4 style="font-size:13px;font-weight:600;color:var(--text3);margin-bottom:6px;">' + (typeNames[k] || k) + '</h4>';
+            items.forEach(function(item, idx) {
+                var itemName = item.name || item.Name || '未命名';
+                var itemDesc = item.desc || item.description || item.Desc || '暂无描述';
+                body += '<div class="extracted-item" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg);border-radius:6px;margin-bottom:4px;">'
+                    + '<div><div class="name" style="font-weight:600;font-size:13px;">' + itemName + '</div><div class="desc" style="font-size:11px;color:var(--text3);">' + itemDesc + '</div></div>'
+                    + '<label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" checked></label></div>';
+            });
+            body += '</div>';
+        });
+        document.getElementById('extractConfirmBody').innerHTML = body;
+        showModal('extractConfirmModal');
     }
 
     function confirmExtractAssets() {
         hideModal('extractConfirmModal');
         showToast('资产已入库', 'success');
+        // TODO: 将选中的资产调用后端 API 入库
     }
 
     function showImagePreview(src) {

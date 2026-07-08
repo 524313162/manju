@@ -131,7 +131,16 @@
                         </div>
                         <div class="asset-detail-name">@a.Name</div>
                         <div class="asset-detail-desc">@(a.Description ?? "暂无描述")</div>
-                        <div class="asset-detail-actions">
+        <div class="asset-detail-actions">
+                            <button type="button" class="action-btn action-ai" data-id="@a.Id" data-type="@a.AssetType.ToString()" data-name='@Json.Serialize(a.Name)' data-url="@imgSrc" data-isbgm="@(isBgm.ToString().ToLower())">
+                                <span class="action-icon">&#129302;</span> AI 生成
+                            </button>
+                            @if (a.AssetType == AssetTypeEnum.Actor)
+                            {
+                                <button type="button" class="action-btn action-tts" data-id="@a.Id" data-name='@Json.Serialize(a.Name)'>
+                                    <span class="action-icon">&#127908;</span> AI 配音
+                                </button>
+                            }
                             <button type="button" class="action-btn action-edit" data-id="@a.Id" data-name='@Json.Serialize(a.Name)' data-desc='@Json.Serialize(a.Description)' data-order="@a.Order">
                                 <span class="action-icon">&#9998;</span> 编辑
                             </button>
@@ -201,6 +210,31 @@
         <div class="modal-footer">
             <button class="btn btn-ghost" onclick="hideModal('replaceResourceModal')">取消</button>
             <button class="btn btn-primary" onclick="uploadReplace()">上传替换</button>
+        </div>
+    </div>
+</div>
+
+<!-- AI 生成模态框 -->
+<div class="modal-overlay" id="aiGenerateModal">
+    <div class="modal modal-medium">
+        <div class="modal-header">
+            <h3 id="aiGenerateTitle">AI 生成</h3>
+            <button class="modal-close" onclick="hideModal('aiGenerateModal')">&times;</button>
+        </div>
+        <input type="hidden" id="aiAssetId">
+        <input type="hidden" id="aiAssetType">
+        <input type="hidden" id="aiAssetName">
+        <div class="modal-body">
+            <div class="form-group">
+                <label>AI 生成提示词 *</label>
+                <textarea id="aiGenPrompt" rows="4" placeholder="描述你想要生成的内容..."></textarea>
+            </div>
+            <div id="aiGenExtraFields"></div>
+            <div id="aiGenResult" style="display:none;"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="hideModal('aiGenerateModal')">取消</button>
+            <button class="btn btn-primary" id="aiGenBtn" onclick="doAiGenerate()">开始生成</button>
         </div>
     </div>
 </div>
@@ -400,6 +434,21 @@
                     showReplaceModal(this);
                 });
             });
+            document.querySelectorAll('.action-ai').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showAiGenerateModal(this);
+                });
+            });
+            document.querySelectorAll('.action-tts').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var name = JSON.parse(btn.getAttribute('data-name'));
+                    alert('AI 配音功能开发中，敬请期待！\n角色：' + name);
+                });
+            });
             document.querySelectorAll('.action-delete').forEach(function(btn) {
                 btn.addEventListener('click', function(e) {
                     e.preventDefault();
@@ -409,6 +458,227 @@
                     deleteAssetFromId(id, name);
                 });
             });
+        }
+
+        function showAiGenerateModal(btn) {
+            var id = btn.getAttribute('data-id');
+            var type = btn.getAttribute('data-type');
+            var name = JSON.parse(btn.getAttribute('data-name'));
+            var isBgm = btn.getAttribute('data-isbgm') === 'true';
+
+            document.getElementById('aiAssetId').value = id;
+            document.getElementById('aiAssetType').value = type;
+            document.getElementById('aiAssetName').value = name;
+
+            var titles = { 'Actor': 'AI 生成角色图', 'Scene': 'AI 生成场景图', 'Bgm': 'AI 生成 BGM', 'Skill': 'AI 生成技能图', 'Prop': 'AI 生成道具图' };
+            document.getElementById('aiGenerateTitle').textContent = (titles[type] || 'AI 生成') + ': ' + name;
+
+            var promptEl = document.getElementById('aiGenPrompt');
+            promptEl.value = '';
+            promptEl.placeholder = isBgm ? '描述你想要的 BGM 风格、情绪、节奏...' : '输入描述词，如：穿着红色长裙的女性角色，正面视角，白背景...';
+
+            var extraFields = document.getElementById('aiGenExtraFields');
+            extraFields.innerHTML = '';
+
+            var resultEl = document.getElementById('aiGenResult');
+            resultEl.style.display = 'none';
+            resultEl.innerHTML = '';
+
+            var genBtn = document.getElementById('aiGenBtn');
+            genBtn.disabled = false;
+            genBtn.textContent = '开始生成';
+
+            showModal('aiGenerateModal');
+        }
+
+        function doAiGenerate() {
+            var assetId = document.getElementById('aiAssetId').value;
+            var assetType = document.getElementById('aiAssetType').value;
+            var prompt = document.getElementById('aiGenPrompt').value.trim();
+
+            if (!prompt) { alert('请输入提示词'); return; }
+
+            var genBtn = document.getElementById('aiGenBtn');
+            var resultEl = document.getElementById('aiGenResult');
+            var extraFields = document.getElementById('aiGenExtraFields');
+
+            genBtn.disabled = true;
+            genBtn.textContent = '生成中...';
+            resultEl.style.display = 'none';
+            extraFields.innerHTML = '<div style="padding:12px;background:#f0f0f0;border-radius:8px;margin-top:12px;text-align:center;color:#666;">正在提交任务，请稍候...</div>';
+
+            var payload = { prompt: prompt };
+            var endpoint = '';
+            var workflowType = '';
+
+            if (assetType === 'Bgm') {
+                endpoint = '/api/v1/ai/bgm/generate';
+                workflowType = 'bgm-generate';
+            } else {
+                endpoint = '/api/v1/ai/image/generate';
+                workflowType = 'text-to-image';
+            }
+
+            fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (!res.success) {
+                    alert('生成失败: ' + (res.message || '未知错误'));
+                    genBtn.disabled = false;
+                    genBtn.textContent = '开始生成';
+                    extraFields.innerHTML = '';
+                    return;
+                }
+
+                var promptId = null;
+                var data = res.data;
+
+                if (data && typeof data === 'object') {
+                    promptId = data.promptId || data.PromptId || null;
+                }
+
+                if (!promptId) {
+                    if (assetType === 'Bgm' && data && data.urls && data.urls.length > 0) {
+                        handleAiResultSuccess(assetId, assetType, data.urls[0]);
+                    } else if (data && data.imageUrls && data.imageUrls.length > 0) {
+                        handleAiResultSuccess(assetId, assetType, data.imageUrls[0]);
+                    } else if (data && data.url) {
+                        handleAiResultSuccess(assetId, assetType, data.url);
+                    } else {
+                        extraFields.innerHTML = '<div style="padding:12px;background:#fff3cd;border-radius:8px;margin-top:12px;color:#856404;">生成成功但未能解析结果数据</div>';
+                        genBtn.disabled = false;
+                        genBtn.textContent = '重新生成';
+                    }
+                    return;
+                }
+
+                extraFields.innerHTML = '<div style="padding:12px;background:#e8f4fd;border-radius:8px;margin-top:12px;"><div style="color:#004085;font-weight:bold;margin-bottom:8px;">任务已提交，正在后台生成中...</div><div style="color:#666;font-size:13px;">promptId: ' + promptId + '</div></div>';
+
+                pollAiResult(promptId, workflowType, assetId, assetType);
+            })
+            .catch(function(err) {
+                alert('请求失败: ' + err.message);
+                genBtn.disabled = false;
+                genBtn.textContent = '开始生成';
+                extraFields.innerHTML = '';
+            });
+        }
+
+        function pollAiResult(promptId, workflowType, assetId, assetType) {
+            var resultEl = document.getElementById('aiGenResult');
+            var extraFields = document.getElementById('aiGenExtraFields');
+            var genBtn = document.getElementById('aiGenBtn');
+            var pollCount = 0;
+            var maxPolls = 120;
+            var pollInterval = 5000;
+
+            var pollTimer = setInterval(function() {
+                pollCount++;
+
+                if (pollCount >= maxPolls) {
+                    clearInterval(pollTimer);
+                    extraFields.innerHTML = '<div style="padding:12px;background:#fff3cd;border-radius:8px;margin-top:12px;"><div style="color:#856404;font-weight:bold;">生成超时</div><div style="color:#666;font-size:13px;margin-top:4px;">promptId: ' + promptId + '</div><button class="btn btn-sm btn-primary" style="margin-top:8px;" onclick=\'fetchAiResult("' + promptId + '",' + pollInterval + ',' + assetId + ',"' + assetType + '")\'>获取结果</button><button class="btn btn-sm btn-ghost" style="margin-top:8px;margin-left:4px;" onclick="hideModal(\'aiGenerateModal\')">关闭</button></div>';
+                    genBtn.disabled = false;
+                    genBtn.textContent = '重新生成';
+                    return;
+                }
+
+                var url = '/api/v1/ai/result/' + promptId + '?workflowType=' + encodeURIComponent(workflowType);
+                fetch(url)
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res.success && res.data) {
+                        clearInterval(pollTimer);
+                        var urls = [];
+                        var data = res.data;
+
+                        if (data.urls && Array.isArray(data.urls)) {
+                            urls = data.urls;
+                        } else if (data.url) {
+                            urls = [data.url];
+                        } else if (data.imageUrls && Array.isArray(data.imageUrls)) {
+                            urls = data.imageUrls;
+                        }
+
+                        if (urls.length > 0) {
+                            handleAiResultSuccess(assetId, assetType, urls[0]);
+                        } else {
+                            extraFields.innerHTML = '<div style="padding:12px;background:#f0f0f0;border-radius:8px;margin-top:12px;color:#666;">任务已完成但未找到结果</div>';
+                            genBtn.disabled = false;
+                            genBtn.textContent = '重新生成';
+                        }
+                    }
+                })
+                .catch(function() {
+                    if (pollCount >= maxPolls) return;
+                });
+            }, pollInterval);
+        }
+
+        function fetchAiResult(promptId, pollIntervalMs, assetId, assetType) {
+            pollAiResult(promptId, 'unknown', assetId, assetType);
+        }
+
+        function handleAiResultSuccess(assetId, assetType, fileUrl) {
+            var resultEl = document.getElementById('aiGenResult');
+            var extraFields = document.getElementById('aiGenExtraFields');
+            var genBtn = document.getElementById('aiGenBtn');
+
+            resultEl.style.display = 'none';
+
+            if (assetType === 'Bgm') {
+                extraFields.innerHTML = '<div style="padding:12px;background:#d4edda;border-radius:8px;margin-top:12px;"><div style="color:#155724;font-weight:bold;">✅ BGM 生成成功</div><div style="margin-top:8px;"><a href="' + fileUrl + '" target="_blank" style="color:#004085;">播放音频</a></div></div>';
+
+                fetch('/Assets/ReplaceAudio', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ assetId: parseInt(assetId), fileUrl: fileUrl })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res.success) {
+                        showToast('BGM 已更新', 'success');
+                        setTimeout(function() { window.location.reload(); }, 1000);
+                    } else {
+                        extraFields.innerHTML += '<div style="padding:8px;background:#fff3cd;border-radius:8px;margin-top:8px;color:#856404;">⚠️ 生成成功但更新资源失败</div>';
+                        genBtn.disabled = false;
+                        genBtn.textContent = '重新生成';
+                    }
+                })
+                .catch(function() {
+                    extraFields.innerHTML += '<div style="padding:8px;background:#f8d7da;border-radius:8px;margin-top:8px;color:#721c24;">⚠️ 更新资源请求失败</div>';
+                    genBtn.disabled = false;
+                    genBtn.textContent = '重新生成';
+                });
+            } else {
+                extraFields.innerHTML += '<div style="padding:12px;background:#d4edda;border-radius:8px;margin-top:12px;"><div style="color:#155724;font-weight:bold;">✅ 图片生成成功</div><img src="' + fileUrl + '" style="max-width:100%;margin-top:8px;border-radius:8px;" /></div>';
+
+                fetch('/Assets/ReplaceResource', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ assetId: parseInt(assetId), fileUrl: fileUrl })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res.success) {
+                        showToast('资源已更新', 'success');
+                        setTimeout(function() { window.location.reload(); }, 1000);
+                    } else {
+                        extraFields.innerHTML += '<div style="padding:8px;background:#fff3cd;border-radius:8px;margin-top:8px;color:#856404;">⚠️ 生成成功但更新资源失败</div>';
+                        genBtn.disabled = false;
+                        genBtn.textContent = '重新生成';
+                    }
+                })
+                .catch(function() {
+                    extraFields.innerHTML += '<div style="padding:8px;background:#f8d7da;border-radius:8px;margin-top:8px;color:#721c24;">⚠️ 更新资源请求失败</div>';
+                    genBtn.disabled = false;
+                    genBtn.textContent = '重新生成';
+                });
+            }
         }
 
         function showImagePreview(src, title) {
