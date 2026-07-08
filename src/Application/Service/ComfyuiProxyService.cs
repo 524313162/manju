@@ -1,20 +1,14 @@
 using ManjuCraft.Application.Service.ComfyuiProxy;
 using Microsoft.Extensions.Configuration;
 using System.Net.Http.Json;
-using System.Text.Json.Nodes;
-
 namespace ManjuCraft.Application.Service;
 
-/// <summary>
-/// ComfyUI 代理统一服务实现
-/// 封装所有 ComfyUI 调用的公共逻辑：提交工作流 → 轮询等待 → 获取结果
-/// </summary>
-public class AiProxyService : IAiProxyService
+public class ComfyuiProxyService : IComfyuiProxyService
 {
     private readonly HttpClient _http;
     private readonly string _proxyUrl;
 
-    public AiProxyService(IHttpClientFactory httpClientFactory, IConfiguration configuration)
+    public ComfyuiProxyService(IHttpClientFactory httpClientFactory, IConfiguration configuration)
     {
         _http = httpClientFactory.CreateClient("ai_agent");
         _proxyUrl = configuration.GetValue<string>("ComfyuiProxyUrl") ?? "http://localhost:8288";
@@ -70,7 +64,7 @@ public class AiProxyService : IAiProxyService
             // Step 3: Timeout — return promptId so caller can query manually
             return (promptId, default(TResult));
         }
-        catch (Exception ex)
+        catch
         {
             return (null, default(TResult));
         }
@@ -125,64 +119,6 @@ public class AiProxyService : IAiProxyService
         catch (Exception ex)
         {
             return (false, ex.Message);
-        }
-    }
-
-    public async Task<(bool success, string? text, string? message)> ChatAsync(
-        string prompt,
-        int? maxLength = null,
-        CancellationToken cancellationToken = default)
-    {
-        return await ChatAsync(string.Empty, prompt, maxLength, cancellationToken);
-    }
-
-    public async Task<(bool success, string? text, string? message)> ChatAsync(
-        string systemPrompt,
-        string userMessage,
-        int? maxLength = null,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var baseUrl = _proxyUrl.TrimEnd('/');
-            var endpoint = "api/comfyui/llm-qwen/execute";
-
-            var combinedPrompt = string.IsNullOrWhiteSpace(systemPrompt)
-                ? userMessage
-                : $"{systemPrompt}\n\n---\n\n{userMessage}";
-
-            var payload = new { prompt = combinedPrompt, max_length = maxLength ?? 8192 };
-            var submitRes = await _http.PostAsJsonAsync($"{baseUrl}/{endpoint}", payload, cancellationToken);
-            if (!submitRes.IsSuccessStatusCode)
-                return (false, null, "代理服务连接失败");
-
-            var submitBody = await submitRes.Content.ReadFromJsonAsync<ComfyuiSubmitResponseDto>(cancellationToken);
-            var promptId = submitBody?.PromptId;
-            if (string.IsNullOrEmpty(promptId))
-                return (false, null, "未获取到 promptId");
-
-            var startTime = DateTime.UtcNow;
-            while ((DateTime.UtcNow - startTime).TotalMilliseconds < 600000)
-            {
-                await Task.Delay(5000, cancellationToken);
-
-                var resultUrl = $"{baseUrl}/api/comfyui/result/{promptId}?workflowType=llm-qwen-execute";
-                var resultRes = await _http.GetAsync(resultUrl, cancellationToken);
-                if (!resultRes.IsSuccessStatusCode)
-                    continue;
-
-                var resultBody = await resultRes.Content.ReadFromJsonAsync<ComfyuiResultResponseDto>(cancellationToken);
-                if (resultBody?.Success == true && resultBody.Outputs != null)
-                {
-                    return (true, resultBody.Outputs.Text, null);
-                }
-            }
-
-            return (false, null, "生成超时");
-        }
-        catch (Exception ex)
-        {
-            return (false, null, ex.Message);
         }
     }
 

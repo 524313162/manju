@@ -17,6 +17,9 @@ namespace ManjuCraft.Domain.Models
         Skill = 4,
 
         [Display(Name = "道具")]
-        Prop = 5
+        Prop = 5,
+
+        [Display(Name = "角色声音")]
+        VoiceVoice = 6,
     }
 }

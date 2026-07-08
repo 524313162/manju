@@ -45,7 +45,7 @@ public class Program
         builder.Services.AddHttpClient();
         builder.Services.AddScoped<IAiAgentService, AiAgentService>();
         builder.Services.AddScoped<IAiChatClientFactory, AiChatClientFactory>();
-        builder.Services.AddScoped<IAiProxyService, AiProxyService>();
+        builder.Services.AddScoped<IComfyuiProxyService, ComfyuiProxyService>();
 
         builder.Services.AddControllersWithViews();
         builder.Services.AddHttpContextAccessor();

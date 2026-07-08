@@ -104,7 +104,6 @@ public class ProvidersController : ControllerBase
         if (upper.Contains("imagetovideo")) return AiCapability.ImageToVideo;
         if (upper.Contains("texttoimage")) return AiCapability.TextToImage;
         if (upper.Contains("video")) return AiCapability.TextToVideo;
-        if (upper.Contains("comfy") || upper.Contains("workflow")) return AiCapability.ComfyUI;
         return AiCapability.TextToText;
     }
 

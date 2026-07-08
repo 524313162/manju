@@ -26,10 +26,7 @@ namespace ManjuCraft.Domain.Models
         ImageEdit = 6,
 
         /// <summary>文生音频 - 音乐</summary>
-        TextToMusic = 7,
-
-        /// <summary>本地 ComfyUI - 通用工作流</summary>
-        ComfyUI = 100
+        TextToMusic = 7
     }
 
     /// <summary>

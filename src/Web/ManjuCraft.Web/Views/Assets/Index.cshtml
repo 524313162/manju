@@ -16,6 +16,7 @@
         AssetTypeEnum.Bgm => char.ConvertFromUtf32(0x1F3A5),
         AssetTypeEnum.Skill => "\u26A1",
         AssetTypeEnum.Prop => char.ConvertFromUtf32(0x1F525),
+        AssetTypeEnum.VoiceVoice => "\uD83C\uDFA4",
         _ => char.ConvertFromUtf32(0x1F4AA)
     };
     string GetBgColor(AssetTypeEnum t) => t switch {
@@ -24,6 +25,7 @@
         AssetTypeEnum.Bgm => "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
         AssetTypeEnum.Skill => "linear-gradient(135deg, #ffc371 0%, #ff5858 100%)",
         AssetTypeEnum.Prop => "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)",
+        AssetTypeEnum.VoiceVoice => "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
         _ => "linear-gradient(135deg, #868f96 0%, #596164 100%)"
     };
 }
@@ -53,7 +55,7 @@
     </div>
 
     <div class="asset-type-grid">
-        @foreach (var t in Enum.GetValues<AssetTypeEnum>())
+        @foreach (var t in Enum.GetValues<AssetTypeEnum>().Where(t => t != AssetTypeEnum.Skill))
         {
             <a href="?type=@((int)t)&projectId=@projectId" class="asset-type-card @(assetType == t ? "active" : "")" data-type="@t.ToString()">
                 <div class="asset-type-icon actor-icon">@GetEmoji(t)</div>
@@ -100,7 +102,7 @@
                         var parts = imgSrc.Split('.');
                         if (parts.Length > 1) extension = "." + parts[parts.Length - 1];
                     }
-                    var badgeClass = a.AssetType == AssetTypeEnum.Scene ? "type-scene" : a.AssetType == AssetTypeEnum.Bgm ? "type-bgm" : a.AssetType == AssetTypeEnum.Skill ? "type-skill" : a.AssetType == AssetTypeEnum.Prop ? "type-prop" : "type-actor";
+                    var badgeClass = a.AssetType == AssetTypeEnum.Scene ? "type-scene" : a.AssetType == AssetTypeEnum.Bgm ? "type-bgm" : a.AssetType == AssetTypeEnum.Skill ? "type-skill" : a.AssetType == AssetTypeEnum.Prop ? "type-prop" : a.AssetType == AssetTypeEnum.VoiceVoice ? "type-voicevoice" : "type-actor";
                     <div class="asset-detail-card" data-type="@a.AssetType.ToString()" data-imgsrc="@imgSrc" data-isbgm="@(isBgm.ToString().ToLower())">
                         @if (isBgm)
                         {
@@ -470,12 +472,12 @@
             document.getElementById('aiAssetType').value = type;
             document.getElementById('aiAssetName').value = name;
 
-            var titles = { 'Actor': 'AI 生成角色图', 'Scene': 'AI 生成场景图', 'Bgm': 'AI 生成 BGM', 'Skill': 'AI 生成技能图', 'Prop': 'AI 生成道具图' };
+            var titles = { 'Actor': 'AI 生成角色图', 'Scene': 'AI 生成场景图', 'Bgm': 'AI 生成 BGM', 'Skill': 'AI 生成技能图', 'Prop': 'AI 生成道具图', 'VoiceVoice': 'AI 生成角色声音' };
             document.getElementById('aiGenerateTitle').textContent = (titles[type] || 'AI 生成') + ': ' + name;
 
             var promptEl = document.getElementById('aiGenPrompt');
             promptEl.value = '';
-            promptEl.placeholder = isBgm ? '描述你想要的 BGM 风格、情绪、节奏...' : '输入描述词，如：穿着红色长裙的女性角色，正面视角，白背景...';
+            promptEl.placeholder = isBgm ? '描述你想要的 BGM 风格、情绪、节奏...' : assetType === 'VoiceVoice' ? '描述角色的声音特征、语气、语速、情感...' : '输入描述词，如：穿着红色长裙的女性角色，正面视角，白背景...';
 
             var extraFields = document.getElementById('aiGenExtraFields');
             extraFields.innerHTML = '';
@@ -514,6 +516,10 @@
             if (assetType === 'Bgm') {
                 endpoint = '/api/v1/ai/bgm/generate';
                 workflowType = 'bgm-generate';
+            } else if (assetType === 'VoiceVoice') {
+                // Voice generation via ComfyUI ace-music or TTS endpoint
+                endpoint = '/api/v1/ai/music/compose';
+                workflowType = 'ace-music-compose';
             } else {
                 endpoint = '/api/v1/ai/image/generate';
                 workflowType = 'text-to-image';
@@ -542,9 +548,11 @@
                 }
 
                 if (!promptId) {
-                    if (assetType === 'Bgm' && data && data.urls && data.urls.length > 0) {
-                        handleAiResultSuccess(assetId, assetType, data.urls[0]);
-                    } else if (data && data.imageUrls && data.imageUrls.length > 0) {
+            if (assetType === 'Bgm') {
+                handleAiResultSuccess(assetId, assetType, data.urls[0]);
+            } else if (assetType === 'VoiceVoice') {
+                handleAiResultSuccess(assetId, assetType, data.urls[0]);
+            } else if (data && data.imageUrls && data.imageUrls.length > 0) {
                         handleAiResultSuccess(assetId, assetType, data.imageUrls[0]);
                     } else if (data && data.url) {
                         handleAiResultSuccess(assetId, assetType, data.url);
@@ -630,8 +638,8 @@
 
             resultEl.style.display = 'none';
 
-            if (assetType === 'Bgm') {
-                extraFields.innerHTML = '<div style="padding:12px;background:#d4edda;border-radius:8px;margin-top:12px;"><div style="color:#155724;font-weight:bold;">✅ BGM 生成成功</div><div style="margin-top:8px;"><a href="' + fileUrl + '" target="_blank" style="color:#004085;">播放音频</a></div></div>';
+            if (assetType === 'Bgm' || assetType === 'VoiceVoice') {
+                extraFields.innerHTML = '<div style="padding:12px;background:#d4edda;border-radius:8px;margin-top:12px;"><div style="color:#155724;font-weight:bold;">✅ ' + (assetType === 'Bgm' ? 'BGM' : '角色声音') + ' 生成成功</div><div style="margin-top:8px;"><a href="' + fileUrl + '" target="_blank" style="color:#004085;">播放音频</a></div></div>';
 
                 fetch('/Assets/ReplaceAudio', {
                     method: 'POST',
@@ -641,7 +649,7 @@
                 .then(function(r) { return r.json(); })
                 .then(function(res) {
                     if (res.success) {
-                        showToast('BGM 已更新', 'success');
+                        showToast(assetType === 'VoiceVoice' ? '角色声音已更新' : 'BGM 已更新', 'success');
                         setTimeout(function() { window.location.reload(); }, 1000);
                     } else {
                         extraFields.innerHTML += '<div style="padding:8px;background:#fff3cd;border-radius:8px;margin-top:8px;color:#856404;">⚠️ 生成成功但更新资源失败</div>';

@@ -71,11 +71,11 @@
                  <span id="providerModel" style="font-size:12px;color:var(--text3);margin-left:8px;"></span>
              </div>
          </div>
-         <div id="genResult" style="display:none;"></div>
-         <div class="form-actions">
-             <button class="btn btn-ghost" onclick="hideModal('genModal')">取消</button>
-             <button class="btn btn-primary" id="genGoBtn" onclick="doAI()">开始生成</button>
-         </div>
+          <div id="genResult" style="display:none;"></div>
+          <div id="genActions" class="form-actions">
+              <button class="btn btn-ghost" onclick="hideModal('genModal')">取消</button>
+              <button class="btn btn-primary" id="genGoBtn" onclick="doAI()">开始生成</button>
+          </div>
      </div>
  </div>
 
@@ -101,6 +101,7 @@
          <input type="hidden" id="editChapterId">
          <div class="form-group"><label>章节名称</label><input type="text" id="chName" placeholder="如：雨夜决战"></div>
          <div class="form-group"><label>章节内容</label><textarea id="chContent" rows="10" placeholder="输入本章节内容..."></textarea></div>
+         <div class="form-group"><label>关联资产（JSON 格式，可选）</label><textarea id="chAssets" rows="3" placeholder='{"characters":["角色名"],"scenes":["场景名"],"bgms":["BGM名"],"props":["道具名"]}'></textarea></div>
          <div class="form-actions">
              <button class="btn btn-ghost" onclick="hideModal('chapterModal')">取消</button>
              <button class="btn btn-primary" onclick="saveChapter()">保存</button>
@@ -112,6 +113,15 @@
         <div class="modal" style="width:720px;">
             <h3>&#9889; AI 改写/扩写</h3>
             <input type="hidden" id="rewriteChapterIdx">
+            <div class="form-group">
+                <label>改写模式</label>
+                <select id="rewriteMode" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:14px;">
+                    <option value="扩写">扩写（增加细节）</option>
+                    <option value="润色">润色（优化文笔）</option>
+                    <option value="精简">精简（浓缩提炼）</option>
+                    <option value="改写">改写（优化表达）</option>
+                </select>
+            </div>
             <div class="form-group">
                 <label>原文内容（可手动修改）</label>
                 <textarea id="rewriteOriginal" rows="10" placeholder="原文内容..."></textarea>
@@ -202,40 +212,57 @@
           if (p.model) document.getElementById('providerModel').textContent = '模型: ' + p.model;
       }
 
-     function render() {
-         document.getElementById('pCount').textContent = chapters.length + ' 章节';
-         if (chapters.length === 0) {
-             document.getElementById('chapterList').innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">暂无章节</div>';
-             document.getElementById('area').innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128214;</div><p>点击右上角「AI 创作」或「添加章节」创建剧本</p></div>';
-             document.getElementById('title').textContent = '剧本创作';
-             return;
-         }
-          var h = '';
-          chapters.forEach(function(c, i) {
-              var num = '第' + (c.chapterNumber || (i+1)) + '章';
-              h += '<div class="chapter-item' + (i === ci ? ' active' : '') + '" onclick="sel(' + i + ')">'
-                  + '<span class="chapter-num">' + num + '</span>'
-                  + '<div class="chapter-info"><div class="chapter-name">' + c.chapterName + '</div>'
-                  + '<div class="chapter-meta">' + (c.content || '').length + ' 字</div></div></div>';
-          });
-          document.getElementById('chapterList').innerHTML = h;
-          if (ci < 0 || ci >= chapters.length) ci = 0;
-          var c = chapters[ci];
-          if (!c) return;
-          var num2 = '第' + (c.chapterNumber || (ci+1)) + '章';
-          document.getElementById('title').textContent = num2 + ': ' + c.chapterName;
-          var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;">'
-              + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">'
-              + '<h3 style="font-size:16px;font-weight:700;">' + num2 + ': ' + c.chapterName + '</h3>'
-              + '<div style="display:flex;gap:6px;">'
-              + '<button class="btn btn-info btn-sm" onclick="showRewriteModal(' + ci + ')">&#9889; AI 改写/扩写</button>'
-              + '<button class="btn btn-ghost btn-sm" onclick="showChapterModal(' + ci + ')">&#9998; 编辑</button>'
-              + '<button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="delChapter(' + ci + ')">&#128465; 删除</button>'
-              + '</div></div>'
-              + '<div class="content-body">' + formatMarkdown(c.content || '') + '</div>'
-              + '</div>';
-          document.getElementById('area').innerHTML = html;
-      }
+      function render() {
+          document.getElementById('pCount').textContent = chapters.length + ' 章节';
+          if (chapters.length === 0) {
+              document.getElementById('chapterList').innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">暂无章节</div>';
+              document.getElementById('area').innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128214;</div><p>点击右上角「AI 创作」或「添加章节」创建剧本</p></div>';
+              document.getElementById('title').textContent = '剧本创作';
+              return;
+          }
+           var h = '';
+           chapters.forEach(function(c, i) {
+               var num = '第' + (c.chapterNumber || (i+1)) + '章';
+               h += '<div class="chapter-item' + (i === ci ? ' active' : '') + '" onclick="sel(' + i + ')">'
+                   + '<span class="chapter-num">' + num + '</span>'
+                   + '<div class="chapter-info"><div class="chapter-name">' + c.chapterName + '</div>'
+                   + '<div class="chapter-meta">' + (c.content || '').length + ' 字</div></div></div>';
+           });
+           document.getElementById('chapterList').innerHTML = h;
+           if (ci < 0 || ci >= chapters.length) ci = 0;
+           var c = chapters[ci];
+           if (!c) return;
+           var num2 = '第' + (c.chapterNumber || (ci+1)) + '章';
+           document.getElementById('title').textContent = num2 + ': ' + c.chapterName;
+           var assetsHtml = '';
+           if (c.assets) {
+               try {
+                   var parsed = typeof c.assets === 'string' ? JSON.parse(c.assets) : c.assets;
+                   var badges = [];
+                   if (parsed.characters) parsed.characters.forEach(function(n){ badges.push('<span class="asset-badge asset-badge-actor">' + n + '</span>'); });
+                   if (parsed.scenes) parsed.scenes.forEach(function(n){ badges.push('<span class="asset-badge asset-badge-scene">' + n + '</span>'); });
+                   if (parsed.bgms) parsed.bgms.forEach(function(n){ badges.push('<span class="asset-badge asset-badge-bgm">' + n + '</span>'); });
+                   if (parsed.props) parsed.props.forEach(function(n){ badges.push('<span class="asset-badge asset-badge-prop">' + n + '</span>'); });
+                   if (badges.length > 0) {
+                       assetsHtml = '<div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">'
+                           + '<div style="font-size:12px;color:var(--text3);margin-bottom:8px;font-weight:600;">&#128196; 本章关联资产</div>'
+                           + '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + badges.join('') + '</div></div>';
+                   }
+               } catch(e) {}
+           }
+           var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;">'
+               + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">'
+               + '<h3 style="font-size:16px;font-weight:700;">' + num2 + ': ' + c.chapterName + '</h3>'
+               + '<div style="display:flex;gap:6px;">'
+               + '<button class="btn btn-info btn-sm" onclick="showRewriteModal(' + ci + ')">&#9889; AI 改写/扩写</button>'
+               + '<button class="btn btn-ghost btn-sm" onclick="showChapterModal(' + ci + ')">&#9998; 编辑</button>'
+               + '<button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="delChapter(' + ci + ')">&#128465; 删除</button>'
+               + '</div></div>'
+               + '<div class="content-body">' + formatMarkdown(c.content || '') + '</div>'
+               + assetsHtml
+               + '</div>';
+           document.getElementById('area').innerHTML = html;
+       }
 
      function sel(i) { ci = i; render(); }
 
@@ -276,6 +303,8 @@
               document.getElementById('genResult').innerHTML = '';
               document.getElementById('genGoBtn').disabled = false;
               document.getElementById('genGoBtn').textContent = '开始生成';
+              document.getElementById('genGoBtn').style.display = '';
+              document.getElementById('genActions').style.display = '';
               // Reload template when opening modal to ensure fresh content
               loadTemplates().then(function() {
                   document.getElementById('genTemplate').value = allTemplateStore['StoryGeneration'] || '';
@@ -309,7 +338,7 @@
                 .then(function(r) { return r.json(); })
                 .then(function(res) {
                     if (res.success) {
-                        parseAndSave(res.data);
+                        showAiResult(res.data);
                     } else {
                         document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;">'
                             + '<p style="font-size:13px;font-weight:700;color:var(--danger);">生成失败：' + (res.message || '未知错误') + '</p></div>';
@@ -325,77 +354,58 @@
                 });
         }
 
-     function parseAndSave(rawResponse) {
-         try {
-             var result;
-             var text = rawResponse;
-             var backtickMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-             if (backtickMatch) text = backtickMatch[1].trim();
-             result = JSON.parse(text);
-         } catch (e) {
-             document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;">'
-                 + '<p style="font-size:13px;font-weight:700;color:var(--danger);">JSON 解析失败</p>'
-                 + '<pre style="font-size:11px;color:var(--text3);margin-top:8px;white-space:pre-wrap;">' + escapeHtml(rawResponse?.substring(0, 2000)) + '</pre>'
-                 + '</div>';
-             document.getElementById('genGoBtn').disabled = false;
-             document.getElementById('genGoBtn').textContent = '重新生成';
-             return;
-         }
-         var dataChapters = [];
-         if (result.chapters && Array.isArray(result.chapters)) {
-             dataChapters = result.chapters;
-         } else if (result.Chapters && Array.isArray(result.Chapters)) {
-             dataChapters = result.Chapters;
-         } else {
-             document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;">'
-                 + '<p style="font-size:13px;font-weight:700;color:var(--danger);">返回数据格式不正确，缺少 chapters 字段</p></div>';
-             document.getElementById('genGoBtn').disabled = false;
-             document.getElementById('genGoBtn').textContent = '重新生成';
-             return;
-         }
+        var _lastAiResult = null;
 
-         var itemsSave = dataChapters.map(function(ch) {
-             return {
-                 StoryId: storyId,
-                 ChapterName: ch.chapterName || ch.ChapterName || ch.title || ch.章节名称 || '未命名',
-                 Content: ch.content || ch.Content || ch.chapterContent || ch.ChapterContent || ch.章节内容 || ''
-             };
-         });
+        function showAiResult(rawResponse) {
+            _lastAiResult = rawResponse;
+            // Parse to validate JSON
+            var parsed = null;
+            var displayText = rawResponse;
+            try {
+                var text = rawResponse;
+                var backtickMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+                if (backtickMatch) text = backtickMatch[1].trim();
+                parsed = JSON.parse(text);
+                displayText = JSON.stringify(parsed, null, 2);
+            } catch (e) {
+                // Show raw if parse fails, user can still copy
+            }
 
-         document.getElementById('genResult').innerHTML = '<div style="text-align:center;padding:14px;background:var(--ok-bg);border-radius:8px;margin-top:12px;">'
-             + '<p style="font-size:13px;font-weight:700;color:var(--ok);">&#10003; ' + itemsSave.length + ' 个章节已生成，正在保存...</p></div>';
+            var summary = '';
+            if (parsed) {
+                var parts = [];
+                if (parsed.chapters) parts.push('章节 ' + parsed.chapters.length + ' 个');
+                if (parsed.characters) parts.push('角色 ' + parsed.characters.length + ' 个');
+                if (parsed.scenes) parts.push('场景 ' + parsed.scenes.length + ' 个');
+                var bgmData = parsed.bgm || parsed.bgms;
+                if (bgmData) parts.push('BGM ' + bgmData.length + ' 个');
+                if (parsed.props) parts.push('道具 ' + parsed.props.length + ' 个');
+                if (parsed.voiceVoices) parts.push('角色声音 ' + parsed.voiceVoices.length + ' 个');
+                if (parts.length > 0) {
+                    summary = '<div style="padding:10px 14px;background:var(--ok-bg);border-radius:8px;margin-bottom:12px;">'
+                        + '<p style="font-size:13px;font-weight:700;color:var(--ok);">已解析内容：' + parts.join('、') + '</p></div>';
+                }
+            }
 
-         fetch('/Story/BulkAddChapters', {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify(itemsSave)
-         })
-         .then(function(r) { return r.json(); })
-         .then(function(res) {
-             if (res.success) {
-                 loadChapters();
-                 render();
-                 var extraInfo = '';
-                 if (result.characters && result.characters.length > 0) {
-                     extraInfo += '<p style="font-size:12px;margin-top:8px;color:var(--text2);">角色 ' + result.characters.length + ' 个，场景 ' + (result.scenes?.length || 0) + ' 个</p>';
-                 }
-                 document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--ok-bg);border-radius:8px;margin-top:12px;">'
-                     + '<p style="font-size:13px;font-weight:700;color:var(--ok);">&#10003; ' + itemsSave.length + ' 个章节保存成功！</p>' + extraInfo
-                     + '</div>';
-             } else {
-                 document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--warning-bg);border-radius:8px;margin-top:12px;">'
-                     + '<p style="font-size:13px;font-weight:700;color:#b45309;">章节解析成功但保存失败</p></div>';
-             }
-             document.getElementById('genGoBtn').disabled = false;
-             document.getElementById('genGoBtn').textContent = '重新生成';
-         })
-         .catch(function() {
-             document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;">'
-                 + '<p style="font-size:13px;font-weight:700;color:var(--danger);">保存失败</p></div>';
-             document.getElementById('genGoBtn').disabled = false;
-             document.getElementById('genGoBtn').textContent = '重新生成';
-         });
-     }
+            document.getElementById('genResult').innerHTML = summary
+                + '<div class="form-group"><label>AI 返回结果（可编辑，确认后可提交保存）</label>'
+                + '<textarea id="aiResultJson" rows="14" style="width:100%;font-family:monospace;font-size:12px;">' + escapeHtml(displayText) + '</textarea></div>'
+                + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">'
+                + '<button class="btn btn-ghost" onclick="hideModal(\'genModal\')">取消</button>'
+                + '<button class="btn btn-primary" onclick="submitAiResult()">确认提交保存</button></div>';
+
+            document.getElementById('genGoBtn').disabled = false;
+            document.getElementById('genGoBtn').textContent = '重新生成';
+            document.getElementById('genGoBtn').style.display = 'none';
+        }
+
+        function submitAiResult() {
+            var jsonStr = document.getElementById('aiResultJson').value.trim();
+            if (!jsonStr) { alert('内容为空'); return; }
+            saveScript(jsonStr, function() {
+                hideModal('genModal');
+            });
+        }
 
      function escapeHtml(str) {
          var div = document.createElement('div');
@@ -403,68 +413,92 @@
          return div.innerHTML;
      }
 
-     function showChapterModal(idx) {
-         document.getElementById('editChapterIdx').value = idx;
-         if (idx >= 0) {
-             var c = chapters[idx];
-             document.getElementById('editChapterId').value = c.id;
-             document.getElementById('chapterModalTitle').textContent = '编辑章节';
-             document.getElementById('chName').value = c.chapterName || '';
-             document.getElementById('chContent').value = c.content || '';
-         } else {
-             document.getElementById('editChapterId').value = '';
-             document.getElementById('chapterModalTitle').textContent = '添加章节';
-             document.getElementById('chName').value = '';
-             document.getElementById('chContent').value = '';
-         }
-         showModal('chapterModal');
-     }
+      function showChapterModal(idx) {
+          document.getElementById('editChapterIdx').value = idx;
+          if (idx >= 0) {
+              var c = chapters[idx];
+              document.getElementById('editChapterId').value = c.id;
+              document.getElementById('chapterModalTitle').textContent = '编辑章节';
+              document.getElementById('chName').value = c.chapterName || '';
+              document.getElementById('chContent').value = c.content || '';
+              document.getElementById('chAssets').value = formatChapterAssets(c.assets);
+          } else {
+              document.getElementById('editChapterId').value = '';
+              document.getElementById('chapterModalTitle').textContent = '添加章节';
+              document.getElementById('chName').value = '';
+              document.getElementById('chContent').value = '';
+              document.getElementById('chAssets').value = '';
+          }
+          showModal('chapterModal');
+      }
 
-     function saveChapter() {
-         var idx = parseInt(document.getElementById('editChapterIdx').value);
-         var name = document.getElementById('chName').value.trim();
-         var content = document.getElementById('chContent').value.trim();
-         if (!name) { alert('请输入章节名称'); return; }
-         if (!content) { alert('请输入章节内容'); return; }
+      function formatChapterAssets(assets) {
+          if (!assets) return '';
+          try {
+              var parsed = typeof assets === 'string' ? JSON.parse(assets) : assets;
+              return JSON.stringify(parsed, null, 2);
+          } catch(e) { return assets; }
+      }
 
-         if (idx >= 0) {
-             var chapterId = parseInt(document.getElementById('editChapterId').value);
-             fetch('/Story/EditChapter', {
-                 method: 'POST',
-                 headers: { 'Content-Type': 'application/json' },
-                 body: JSON.stringify({ id: chapterId, chapterName: name, content: content })
-             })
-             .then(function(r){ return r.json(); })
-             .then(function(res) {
-                 if (res.success) {
-                     chapters[idx].chapterName = name;
-                     chapters[idx].content = content;
-                     hideModal('chapterModal');
-                     render();
-                 } else {
-                     alert('保存失败：' + (res.message || '未知错误'));
-                 }
-             })
-             .catch(function(){ alert('网络错误'); });
-         } else {
-             fetch('/Story/AddChapter', {
-                 method: 'POST',
-                 headers: { 'Content-Type': 'application/json' },
-                 body: JSON.stringify({ storyId: storyId, chapterName: name, content: content })
-             })
-             .then(function(r){ return r.json(); })
-             .then(function(res) {
-                 if (res.success) {
-                     chapters.push(res.data);
-                     hideModal('chapterModal');
-                     loadChapters();
-                 } else {
-                     alert('添加失败：' + (res.message || '未知错误'));
-                 }
-             })
-             .catch(function(){ alert('网络错误'); });
-         }
-     }
+      function saveChapter() {
+          var idx = parseInt(document.getElementById('editChapterIdx').value);
+          var name = document.getElementById('chName').value.trim();
+          var content = document.getElementById('chContent').value.trim();
+          var assetsRaw = document.getElementById('chAssets').value.trim();
+          if (!name) { alert('请输入章节名称'); return; }
+          if (!content) { alert('请输入章节内容'); return; }
+
+          // Validate assets JSON if provided
+          var assetsVal = null;
+          if (assetsRaw) {
+              try {
+                  JSON.parse(assetsRaw);
+                  assetsVal = assetsRaw;
+              } catch(e) {
+                  alert('关联资产 JSON 格式不正确，请检查');
+                  return;
+              }
+          }
+
+          if (idx >= 0) {
+              var chapterId = parseInt(document.getElementById('editChapterId').value);
+              fetch('/Story/EditChapter', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ id: chapterId, chapterName: name, content: content, assets: assetsVal })
+              })
+              .then(function(r){ return r.json(); })
+              .then(function(res) {
+                  if (res.success) {
+                      chapters[idx].chapterName = name;
+                      chapters[idx].content = content;
+                      chapters[idx].assets = assetsVal;
+                      hideModal('chapterModal');
+                      render();
+                  } else {
+                      alert('保存失败：' + (res.message || '未知错误'));
+                  }
+              })
+              .catch(function(){ alert('网络错误'); });
+          } else {
+              fetch('/Story/AddChapter', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ storyId: storyId, chapterName: name, content: content, assets: assetsVal })
+              })
+              .then(function(r){ return r.json(); })
+              .then(function(res) {
+                  if (res.success) {
+                      chapters.push(res.data);
+                      hideModal('chapterModal');
+                      loadChapters();
+                  } else {
+                      alert('添加失败：' + (res.message || '未知错误'));
+                  }
+              })
+              .catch(function(){ alert('网络错误'); });
+          }
+      }
 
       function delChapter(idx) {
           if (!confirm('确认删除「' + chapters[idx].chapterName + '」？')) return;
@@ -498,46 +532,73 @@
            showModal('importModal');
        }
 
-       function doImport() {
-           var jsonStr = document.getElementById('importJson').value.trim();
-           if (!jsonStr) { alert('请输入 JSON 内容'); return; }
+        function doImport() {
+            var jsonStr = document.getElementById('importJson').value.trim();
+            if (!jsonStr) { alert('请输入 JSON 内容'); return; }
 
-           document.getElementById('importGoBtn').disabled = true;
-           document.getElementById('importGoBtn').textContent = '导入中...';
-           document.getElementById('importResult').style.display = 'block';
-           document.getElementById('importResult').innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></div><p style="margin-top:10px;color:var(--text2);font-size:13px;">正在导入...</p></div>';
+            var resultEl = document.getElementById('importResult');
+            var goBtn = document.getElementById('importGoBtn');
 
-           try {
-               JSON.parse(jsonStr);
-           } catch (e) {
-               document.getElementById('importResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--danger);">JSON 格式错误：' + e.message + '</p></div>';
-               document.getElementById('importGoBtn').disabled = false;
-               document.getElementById('importGoBtn').textContent = '重试';
-               return;
-           }
+            goBtn.disabled = true;
+            goBtn.textContent = '导入中...';
+            resultEl.style.display = 'block';
+            resultEl.innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></div><p style="margin-top:10px;color:var(--text2);font-size:13px;">正在导入...</p></div>';
 
-           fetch('/Story/ImportScript?projectId=' + projectId, {
-               method: 'POST',
-               headers: { 'Content-Type': 'application/json' },
-               body: JSON.stringify({ scriptJson: jsonStr })
-           })
-           .then(function(r) { return r.json(); })
-           .then(function(res) {
-               if (res.success) {
-                   document.getElementById('importResult').innerHTML = '<div style="padding:14px;background:var(--ok-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--ok);">&#10003; ' + res.message + '</p></div>';
-                   loadChapters();
-                   render();
-                   setTimeout(function(){ hideModal('importModal'); }, 1500);
-               } else {
-                   document.getElementById('importResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--danger);">导入失败：' + (res.message || '未知错误') + '</p></div>';
-                   document.getElementById('importGoBtn').disabled = false;
-                   document.getElementById('importGoBtn').textContent = '重试';
-               }
-           })
-            .catch(function(err) {
-                document.getElementById('importResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--danger);">请求失败：' + err.message + '</p></div>';
-                document.getElementById('importGoBtn').disabled = false;
-                document.getElementById('importGoBtn').textContent = '重试';
+            saveScript(jsonStr, function() {
+                setTimeout(function(){ hideModal('importModal'); }, 1500);
+            }, function(errMsg) {
+                resultEl.innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--danger);">' + errMsg + '</p></div>';
+                goBtn.disabled = false;
+                goBtn.textContent = '重试';
+            });
+        }
+
+        function saveScript(jsonStr, onSuccess, onError) {
+            var text = jsonStr;
+            var backtickMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+            if (backtickMatch) text = backtickMatch[1].trim();
+
+            var parsed;
+            try { parsed = JSON.parse(text); } catch (e) {
+                if (onError) { onError('JSON 格式错误：' + e.message); } else { alert('JSON 格式错误，请检查后重试'); }
+                return;
+            }
+            parsed.storyId = storyId;
+            parsed.projectId = projectId;
+
+            var parts = [];
+            if (parsed.chapters) parts.push('章节 ' + parsed.chapters.length + ' 个');
+            if (parsed.characters) parts.push('角色 ' + parsed.characters.length + ' 个');
+            if (parsed.scenes) parts.push('场景 ' + parsed.scenes.length + ' 个');
+            var bgmData = parsed.bgm || parsed.bgms;
+            if (bgmData) parts.push('BGM ' + bgmData.length + ' 个');
+            if (parsed.props) parts.push('道具 ' + parsed.props.length + ' 个');
+            if (parsed.voiceVoices) parts.push('角色声音 ' + parsed.voiceVoices.length + ' 个');
+            var confirmMsg = '警告：提交后将替换所有现有章节和资产（角色/场景/BGM/道具/技能/角色声音），此操作不可撤销。\n\n';
+            if (parts.length > 0) confirmMsg += '将保存：' + parts.join('、') + '。\n\n确定提交？';
+            else confirmMsg += '确认提交保存？';
+            if (!confirm(confirmMsg)) {
+                if (onError) onError('已取消');
+                return;
+            }
+
+            fetch('/Story/bulk-save-ai-result', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(parsed)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.success) {
+                    loadChapters();
+                    render();
+                    if (onSuccess) onSuccess();
+                } else {
+                    if (onError) onError('保存失败：' + (res.message || '未知错误'));
+                }
+            })
+            .catch(function() {
+                if (onError) onError('网络请求失败');
             });
         }
 
@@ -581,7 +642,7 @@
             var c = chapters[idx];
             var content = document.getElementById('rewriteOriginal').value.trim();
             var template = document.getElementById('rewriteTemplate').value.trim();
-            var mode = document.getElementById('rewriteMode')?.value || 'rewrite';
+            var mode = document.getElementById('rewriteMode').value;
             if (!content) { alert('请输入要改写的内容'); return; }
             if (!currentProvider || !currentProvider.id) {
                 alert('请先选择 AI 提供者');
@@ -606,11 +667,67 @@
             .then(function(r) { return r.json(); })
             .then(function(res) {
                 if (res.success) {
-                    document.getElementById('rewriteOriginal').value = res.data;
-                    document.getElementById('rewriteResult').innerHTML = '<div style="padding:14px;background:var(--ok-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--ok);">&#10003; 改写完成，确认无误后点击保存</p></div>';
-                    document.getElementById('rewriteGoBtn').textContent = '确认并使用改写结果';
+                    var newContent = res.data;
+                    var assetsJson = res.assets;
+
+                    // Build preview HTML
+                    var previewHtml = '<div style="background:var(--ok-bg);border-radius:8px;padding:14px;margin-bottom:12px;">'
+                        + '<p style="font-size:13px;font-weight:700;color:var(--ok);">&#10003; 改写完成，请确认后点击保存</p>';
+
+                    // Show asset badges if present
+                    if (assetsJson) {
+                        try {
+                            var assetsParsed = JSON.parse(assetsJson);
+                            var badges = [];
+                            if (assetsParsed.characters) assetsParsed.characters.forEach(function(n){ badges.push('<span class="asset-badge asset-badge-actor">' + n + '</span>'); });
+                            if (assetsParsed.scenes) assetsParsed.scenes.forEach(function(n){ badges.push('<span class="asset-badge asset-badge-scene">' + n + '</span>'); });
+                            if (assetsParsed.bgm || assetsParsed.bgms) (assetsParsed.bgm || assetsParsed.bgms).forEach(function(n){ badges.push('<span class="asset-badge asset-badge-bgm">' + n + '</span>'); });
+                            if (assetsParsed.props) assetsParsed.props.forEach(function(n){ badges.push('<span class="asset-badge asset-badge-prop">' + n + '</span>'); });
+                            if (badges.length > 0) {
+                                previewHtml += '<div style="margin-top:10px;"><div style="font-size:12px;color:var(--text3);margin-bottom:4px;">本章关联资产</div>'
+                                    + badges.join(' ') + '</div>';
+                            }
+                        } catch(e) {}
+                    }
+
+                    previewHtml += '</div>'
+                        + '<div class="form-group"><label>改写后内容（可编辑）</label>'
+                        + '<textarea id="rewritePreviewContent" rows="12" style="width:100%;font-family:inherit;font-size:13px;">' + escapeHtml(newContent) + '</textarea></div>';
+
+                    document.getElementById('rewriteResult').innerHTML = previewHtml;
+                    document.getElementById('rewriteGoBtn').textContent = '确认保存';
                     document.getElementById('rewriteGoBtn').disabled = false;
-                    _savedChapter = c;
+                    // Set up confirm to save
+                    document.getElementById('rewriteGoBtn').onclick = function() {
+                        var finalContent = document.getElementById('rewritePreviewContent').value.trim();
+                        if (!finalContent) { alert('内容不能为空'); return; }
+                        document.getElementById('rewriteGoBtn').disabled = true;
+                        document.getElementById('rewriteGoBtn').textContent = '保存中...';
+
+                        fetch('/Story/EditChapter', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: c.id, chapterName: c.chapterName, content: finalContent, assets: assetsJson })
+                        })
+                        .then(function(r2){ return r2.json(); })
+                        .then(function(saveRes) {
+                            if (saveRes.success) {
+                                chapters[idx].content = finalContent;
+                                chapters[idx].assets = assetsJson;
+                                document.getElementById('rewriteResult').innerHTML = '<div style="padding:14px;background:var(--ok-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--ok);">&#10003; 保存成功</p></div>';
+                                setTimeout(function() {
+                                    hideModal('rewriteModal');
+                                    loadChapters();
+                                    render();
+                                }, 1000);
+                            } else {
+                                alert('保存失败');
+                                document.getElementById('rewriteGoBtn').disabled = false;
+                                document.getElementById('rewriteGoBtn').textContent = '确认保存';
+                            }
+                        })
+                        .catch(function(){ alert('网络错误'); });
+                    };
                 } else {
                     document.getElementById('rewriteResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--danger);">改写失败：' + (res.message || '未知错误') + '</p></div>';
                     document.getElementById('rewriteGoBtn').disabled = false;
@@ -624,34 +741,7 @@
             });
         }
 
-        var _savedChapter = null;
-        var _origSaveChapter = saveChapter;
-        saveChapter = function() {
-            if (_savedChapter) {
-                var idx = parseInt(document.getElementById('rewriteChapterIdx').value);
-                var newContent = document.getElementById('rewriteOriginal').value.trim();
-                fetch('/Story/EditChapter', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: _savedChapter.id, chapterName: _savedChapter.chapterName, content: newContent })
-                })
-                .then(function(r){ return r.json(); })
-                .then(function(res) {
-                    if (res.success) {
-                        chapters[idx].content = newContent;
-                        _savedChapter = null;
-                        hideModal('rewriteModal');
-                        loadChapters();
-                        render();
-                    } else {
-                        alert('保存失败：' + (res.message || '未知错误'));
-                    }
-                })
-                .catch(function(){ alert('网络错误'); });
-            } else {
-                _origSaveChapter();
-            }
-        };
+
 
   </script>
  }

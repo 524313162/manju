@@ -1,8 +1,6 @@
-using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using ManjuCraft.Application.Service;
 using ManjuCraft.Application.Service.ComfyuiProxy;
-using System.Text.Json.Nodes;
 
 namespace ManjuCraft.Web.Controllers.Api;
 
@@ -10,32 +8,15 @@ namespace ManjuCraft.Web.Controllers.Api;
 [Route("api/v1/ai")]
 public class AiController : ControllerBase
 {
-    private readonly IAiProxyService _proxy;
+    private readonly IComfyuiProxyService _proxy;
 
-    public AiController(IAiProxyService proxy)
+    public AiController(IComfyuiProxyService proxy)
     {
         _proxy = proxy;
     }
 
     private IActionResult Success(object data) => Ok(new { success = true, data });
     private IActionResult Fail(string message) => Ok(new { success = false, message });
-
-    #region Text / Chat
-
-    [HttpPost("chat")]
-    public async Task<IActionResult> Chat([FromBody] AiChatRequest req)
-    {
-        if (string.IsNullOrEmpty(req.UserPrompt))
-            return Fail("userPrompt 不能为空");
-
-        var result = await _proxy.ChatAsync(req.UserPrompt, req.MaxLength);
-        if (!result.success)
-            return Fail(result.message);
-
-        return Success(new { data = result.text });
-    }
-
-    #endregion
 
     #region Image Generation
 
@@ -234,13 +215,6 @@ public class AiController : ControllerBase
 }
 
 #region Request DTOs
-
-public class AiChatRequest
-{
-    public string UserPrompt { get; set; } = "";
-    public string? SystemPrompt { get; set; }
-    public int? MaxLength { get; set; }
-}
 
 public class AiImageRequest
 {

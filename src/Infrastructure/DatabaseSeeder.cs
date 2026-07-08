@@ -63,7 +63,7 @@ public static class DatabaseSeeder
             new() { Name = "ComfyUI (Local) - 分镜生成",   Capability = AiCapability.ImageEdit, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "05.Hidream-storyboard.json",    CreatedTime = now, UpdatedTime = now },
             new() { Name = "ComfyUI (Local) - 音乐生成",   Capability = AiCapability.TextToMusic, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "06.ACE-music-compose.json",     CreatedTime = now, UpdatedTime = now },
             new() { Name = "ComfyUI (Local) - BGM生成",    Capability = AiCapability.TextToAudio, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "07.Stable-bgm-generate.json",   CreatedTime = now, UpdatedTime = now },
-            new() { Name = "ComfyUI (Local) - LLM对话",    Capability = AiCapability.ComfyUI, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "08.LLM-QWen.json",            CreatedTime = now, UpdatedTime = now },
+            new() { Name = "ComfyUI (Local) - LLM对话",    Capability = AiCapability.TextToText, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "08.LLM-QWen.json",            CreatedTime = now, UpdatedTime = now },
         };
 
         var toInsert = toAdd.Where(p => !existingKeys.Any(e => e.Name == p.Name && e.Capability == p.Capability && e.Model == p.Model)).ToList();

@@ -15,15 +15,13 @@ public class StoryController : Controller
     private readonly IProjectService _projectService;
     private readonly IProjectDbContext _dbContext;
     private readonly IAiAgentService _aiAgent;
-    private readonly IAiProxyService _proxy;
 
-    public StoryController(IStoryService storyService, IProjectService projectService, IProjectDbContext dbContext, IAiAgentService aiAgent, IAiProxyService proxy)
+    public StoryController(IStoryService storyService, IProjectService projectService, IProjectDbContext dbContext, IAiAgentService aiAgent)
     {
         _storyService = storyService;
         _projectService = projectService;
         _dbContext = dbContext;
         _aiAgent = aiAgent;
-        _proxy = proxy;
     }
 
     public async Task<IActionResult> Index(long projectId)
@@ -105,7 +103,7 @@ public class StoryController : Controller
         var chapters = await _dbContext.StoryChapters
             .Where(c => c.StoryId == storyId)
             .OrderBy(c => c.SortOrder)
-            .Select(c => new { c.Id, c.ChapterNumber, c.ChapterName, c.Content, c.SortOrder })
+            .Select(c => new { c.Id, c.ChapterNumber, c.ChapterName, c.Content, c.Assets, c.SortOrder })
             .ToListAsync();
 
         return Json(new { success = true, data = chapters });
@@ -127,13 +125,14 @@ public class StoryController : Controller
             ChapterNumber = maxOrder + 1,
             ChapterName = req.ChapterName,
             Content = req.Content ?? "",
+            Assets = req.Assets,
             SortOrder = maxOrder + 1
         };
 
         await _dbContext.StoryChapters.AddAsync(chapter);
         await _dbContext.SaveChangesAsync();
 
-        return Json(new { success = true, data = new { chapter.Id, chapter.ChapterNumber, chapter.ChapterName, chapter.Content, chapter.SortOrder } });
+        return Json(new { success = true, data = new { chapter.Id, chapter.ChapterNumber, chapter.ChapterName, chapter.Content, chapter.Assets, chapter.SortOrder } });
     }
 
     [HttpPost]
@@ -144,6 +143,7 @@ public class StoryController : Controller
 
         existing.ChapterName = req.ChapterName;
         existing.Content = req.Content;
+        if (req.Assets != null) existing.Assets = req.Assets;
 
         await _dbContext.SaveChangesAsync();
         return Json(new { success = true });
@@ -190,6 +190,7 @@ public class StoryController : Controller
             ChapterNumber = maxOrder + i + 1,
             ChapterName = c.ChapterName,
             Content = c.Content,
+            Assets = c.Assets,
             SortOrder = maxOrder + i + 1
         }).ToList();
 
@@ -200,89 +201,132 @@ public class StoryController : Controller
     }
 
     [HttpPost]
-    public async Task<IActionResult> ImportScript(long projectId, [FromBody] ImportScriptDto req)
+    [Route("[controller]/bulk-save-ai-result")]
+    public async Task<IActionResult> BulkSaveAiResult([FromBody] JsonElement body)
     {
-        if (string.IsNullOrWhiteSpace(req.ScriptJson))
-            return Json(new { success = false, message = "请输入 JSON 内容" });
-
         try
         {
-            using var doc = JsonDocument.Parse(req.ScriptJson);
-            var root = doc.RootElement;
+            var root = body;
 
-            var title = root.TryGetProperty("scriptName", out var nameProp) ? nameProp.GetString()?.Trim() : "";
-            if (string.IsNullOrWhiteSpace(title))
-                title = "默认剧本";
+            var storyId = root.TryGetProperty("storyId", out var sid) ? sid.GetInt64() : 0L;
+            var projectId = root.TryGetProperty("projectId", out var pid) ? pid.GetInt64() : 0L;
 
-            var stories = await _storyService.GetByProjectIdAsync(projectId);
-            Story story;
-            if (stories.Count == 0)
+            // If storyId is 0 but projectId is provided, find or create story
+            if (storyId <= 0 && projectId > 0)
             {
-                story = new Story { ProjectId = projectId, Title = title };
-                await _storyService.CreateAsync(story);
-            }
-            else
-            {
-                story = stories.First();
-                story.Title = title;
-                await _storyService.UpdateAsync(story);
-            }
+                var title = root.TryGetProperty("scriptName", out var nameProp) ? nameProp.GetString()?.Trim() : "";
+                if (string.IsNullOrWhiteSpace(title))
+                    title = root.TryGetProperty("name", out var nProp) ? nProp.GetString()?.Trim() : "默认剧本";
 
-            if (root.TryGetProperty("assets", out var assetsProp) && assetsProp.ValueKind == JsonValueKind.Object)
-            {
-                await UpsertAssetGroup(assetsProp, "characters", projectId, AssetTypeEnum.Actor);
-                await UpsertAssetGroup(assetsProp, "scenes", projectId, AssetTypeEnum.Scene);
-                await UpsertAssetGroup(assetsProp, "props", projectId, AssetTypeEnum.Prop);
-                await UpsertAssetGroup(assetsProp, "skills", projectId, AssetTypeEnum.Skill);
-                await UpsertAssetGroup(assetsProp, "bgm", projectId, AssetTypeEnum.Bgm);
-            }
-
-            if (root.TryGetProperty("chapters", out var chaptersProp) && chaptersProp.ValueKind == JsonValueKind.Array)
-            {
-                var parsedChapters = chaptersProp.EnumerateArray().ToList();
-                var storyChapters = new List<StoryChapter>();
-                for (int i = 0; i < parsedChapters.Count; i++)
+                var stories = await _storyService.GetByProjectIdAsync(projectId);
+                Story story;
+                if (stories.Count == 0)
                 {
-                    var ch = parsedChapters[i];
-                    var chapterName = ch.TryGetProperty("chapterName", out var cn2) ? cn2.GetString()
-                        : ch.TryGetProperty("ChapterName", out var cn3) ? cn3.GetString()
-                        : $"第{i + 1}章";
-                    var content = ch.TryGetProperty("content", out var ct) ? ct.GetString()
-                        : ch.TryGetProperty("Content", out var ct2) ? ct2.GetString()
-                        : "";
-
-                    storyChapters.Add(new StoryChapter
-                    {
-                        StoryId = story.Id,
-                        ChapterNumber = i + 1,
-                        ChapterName = chapterName,
-                        Content = content,
-                        SortOrder = i + 1
-                    });
+                    story = new Story { ProjectId = projectId, Title = title };
+                    await _storyService.CreateAsync(story);
                 }
-                if (storyChapters.Count > 0)
-                    await _dbContext.StoryChapters.AddRangeAsync(storyChapters);
+                else
+                {
+                    story = stories.First();
+                    if (!string.IsNullOrWhiteSpace(title))
+                    {
+                        story.Title = title;
+                        await _storyService.UpdateAsync(story);
+                    }
+                }
+                storyId = story.Id;
+            }
+
+            if (storyId <= 0 && projectId <= 0)
+                return Json(new { success = false, message = "缺少 storyId 或 projectId" });
+
+            // Save chapters — replace all existing chapters for this story
+            if (root.TryGetProperty("chapters", out var chaptersProp) && chaptersProp.ValueKind == JsonValueKind.Array && storyId > 0)
+            {
+                var existingStory = await _storyService.GetByIdAsync(storyId);
+                if (existingStory == null)
+                    return Json(new { success = false, message = "剧本不存在" });
+
+                // Remove existing chapters
+                var oldChapters = await _dbContext.StoryChapters
+                    .Where(c => c.StoryId == storyId)
+                    .ToListAsync();
+                _dbContext.StoryChapters.RemoveRange(oldChapters);
+
+                var parsedChapters = chaptersProp.EnumerateArray().ToList();
+                var storyChapters = parsedChapters.Select((ch, i) =>
+                {
+                    string? chapterAssets = null;
+                    if (ch.TryGetProperty("assets", out var assetsEl) && assetsEl.ValueKind == JsonValueKind.Object)
+                        chapterAssets = assetsEl.GetRawText();
+                    return new StoryChapter
+                    {
+                        StoryId = storyId,
+                        ChapterNumber = i + 1,
+                        ChapterName = ch.TryGetProperty("chapterName", out var cn) ? cn.GetString()
+                            : ch.TryGetProperty("ChapterName", out var cn2) ? cn2.GetString()
+                            : $"第{i + 1}章",
+                        Content = ch.TryGetProperty("content", out var ct) ? ct.GetString()
+                            : ch.TryGetProperty("Content", out var ct2) ? ct2.GetString()
+                            : "",
+                        Assets = chapterAssets,
+                        SortOrder = i + 1
+                    };
+                }).ToList();
+
+                await _dbContext.StoryChapters.AddRangeAsync(storyChapters);
+            }
+
+            // Save assets — replace all existing assets for this project
+            var assetProjectId = root.TryGetProperty("projectId", out var projectIdEl) ? projectIdEl.GetInt64() : 0L;
+            if (assetProjectId > 0)
+            {
+                // Remove old assets of all managed types for this project
+                var managedTypes = new[] { AssetTypeEnum.Actor, AssetTypeEnum.Scene, AssetTypeEnum.Prop, AssetTypeEnum.Bgm, AssetTypeEnum.VoiceVoice };
+                var oldAssets = await _dbContext.Assets
+                    .Where(a => a.ProjectId == assetProjectId && managedTypes.Contains(a.AssetType))
+                    .ToListAsync();
+                _dbContext.Assets.RemoveRange(oldAssets);
+
+                await ReplaceAssetGroup(root, "characters", assetProjectId, AssetTypeEnum.Actor);
+                await ReplaceAssetGroup(root, "scenes", assetProjectId, AssetTypeEnum.Scene);
+                await ReplaceAssetGroup(root, "props", assetProjectId, AssetTypeEnum.Prop);
+
+                // Accept both "bgm" and "bgms" as field names
+                if (!await TryReplaceAssetGroup(root, "bgm", assetProjectId, AssetTypeEnum.Bgm))
+                    await ReplaceAssetGroup(root, "bgms", assetProjectId, AssetTypeEnum.Bgm);
+
+                await ReplaceAssetGroup(root, "voiceVoices", assetProjectId, AssetTypeEnum.VoiceVoice);
             }
 
             await _dbContext.SaveChangesAsync();
-            return Json(new { success = true, message = "导入成功" });
+            return Json(new { success = true, message = "保存成功" });
         }
         catch (Exception ex)
         {
-            return Json(new { success = false, message = "导入失败: " + ex.Message });
+            return Json(new { success = false, message = ex.Message });
         }
     }
 
-    private async Task UpsertAssetGroup(JsonElement assetsProp, string groupName, long projectId, AssetTypeEnum assetType)
+    private async Task<bool> TryReplaceAssetGroup(JsonElement assetsProp, string groupName, long projectId, AssetTypeEnum assetType)
+    {
+        if (!assetsProp.TryGetProperty(groupName, out var groupProp) || groupProp.ValueKind != JsonValueKind.Array)
+            return false;
+
+        foreach (var item in groupProp.EnumerateArray())
+        {
+            var name = item.TryGetProperty("name", out var n) ? n.GetString()?.Trim() : "";
+            var description = item.TryGetProperty("description", out var d) ? d.GetString() ?? "" : "";
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            _dbContext.Assets.Add(new Asset { ProjectId = projectId, AssetType = assetType, Name = name, Description = description });
+        }
+        return true;
+    }
+
+    private async Task ReplaceAssetGroup(JsonElement assetsProp, string groupName, long projectId, AssetTypeEnum assetType)
     {
         if (!assetsProp.TryGetProperty(groupName, out var groupProp) || groupProp.ValueKind != JsonValueKind.Array)
             return;
-
-        var existingAssets = await _dbContext.Assets
-            .Where(a => a.ProjectId == projectId && a.AssetType == assetType)
-            .ToListAsync();
-
-        var existingNames = existingAssets.Select(a => a.Name.ToLower()).ToList();
 
         foreach (var item in groupProp.EnumerateArray())
         {
@@ -292,22 +336,14 @@ public class StoryController : Controller
             if (string.IsNullOrWhiteSpace(name))
                 continue;
 
-            var existing = existingAssets.FirstOrDefault(a => a.Name.ToLower() == name.ToLower());
-            if (existing != null)
+            var asset = new Asset
             {
-                existing.Description = description;
-            }
-            else
-            {
-                var asset = new Asset
-                {
-                    ProjectId = projectId,
-                    AssetType = assetType,
-                    Name = name,
-                    Description = description
-                };
-                _dbContext.Assets.Add(asset);
-            }
+                ProjectId = projectId,
+                AssetType = assetType,
+                Name = name,
+                Description = description
+            };
+            _dbContext.Assets.Add(asset);
         }
     }
 
@@ -320,11 +356,11 @@ public class StoryController : Controller
             var fullSys = template ?? await GetTemplateContent("StoryGeneration");
             var userMsg = $"标题：{title}\n故事主题：{prompt}";
 
-            var result = await _proxy.ChatAsync(fullSys, userMsg, 8192);
+            var result = await _aiAgent.ChatAsync(providerId, fullSys, userMsg);
             if (!result.success)
                 return Json(new { success = false, message = result.message ?? "生成失败" });
 
-            return Json(new { success = true, data = result.text, message = string.Empty });
+            return Json(new { success = true, data = result.data, message = string.Empty });
         }
         catch (Exception ex)
         {
@@ -338,23 +374,38 @@ public class StoryController : Controller
     {
         try
         {
-            var templateType = mode == "expand" ? "StoryGeneration" : "RewriteStory";
-            var fullSys = template ?? await GetTemplateContent(templateType);
+            var fullSys = template ?? await GetTemplateContent("RewriteStory");
+            var userMsg = $"改写模式：{mode}\n\n原文内容：\n{content}";
 
-            var modeLabel = mode switch
-            {
-                "expand" => "扩写",
-                "polish" => "润色",
-                "summary" => "精简",
-                _ => "改写"
-            };
-            var userMsg = $"{modeLabel}要求：{content}";
-
-            var result = await _proxy.ChatAsync(fullSys, userMsg, 8192);
+            var result = await _aiAgent.ChatAsync(providerId, fullSys, userMsg);
             if (!result.success)
                 return Json(new { success = false, message = result.message ?? "改写失败" });
 
-            return Json(new { success = true, data = result.text, message = string.Empty });
+            // Try to parse structured JSON from AI response
+            var raw = result.data;
+            string? rewrittenContent = null;
+            JsonElement? assets = null;
+
+            try
+            {
+                var text = raw;
+                var backtickMatch = System.Text.RegularExpressions.Regex.Match(text, @"```(?:json)?\s*([\s\S]*?)```");
+                if (backtickMatch.Success) text = backtickMatch.Groups[1].Value.Trim();
+
+                using var doc = JsonDocument.Parse(text);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("content", out var ct)) rewrittenContent = ct.GetString();
+                if (root.TryGetProperty("assets", out var ae) && ae.ValueKind == JsonValueKind.Object) assets = ae.Clone();
+            }
+            catch
+            {
+                // Fallback: use raw text as content
+            }
+
+            rewrittenContent ??= raw;
+
+            return Json(new { success = true, data = rewrittenContent, assets = assets?.GetRawText() });
         }
         catch (Exception ex)
         {
@@ -392,6 +443,7 @@ public class StoryController : Controller
                 c.ChapterNumber,
                 c.ChapterName,
                 c.Content,
+                c.Assets,
                 c.SortOrder
             })
             .ToListAsync();

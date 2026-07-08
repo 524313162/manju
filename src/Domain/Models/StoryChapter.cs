@@ -16,6 +16,9 @@ namespace ManjuCraft.Domain.Models
         [Required]
         public string Content { get; set; }
 
+        [System.Diagnostics.CodeAnalysis.AllowNull]
+        public string Assets { get; set; }
+
         public int SortOrder { get; set; }
 
         public Story Story { get; set; }
