@@ -63,7 +63,7 @@ public class ProvidersController : ControllerBase
     }
 
     [HttpPost("delete")]
-    public async Task<IActionResult> Delete([FromBody] DeleteRequestDto req)
+    public async Task<IActionResult> Delete([FromBody] ProviderDeleteRequestDto req)
     {
         var existing = await _db.ApiProviders.FindAsync(req.Id);
         if (existing == null) return Ok(new { success = false, message = "不存在" });

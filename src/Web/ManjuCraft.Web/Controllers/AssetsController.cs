@@ -59,6 +59,18 @@ public class AssetsController : Controller
         catch { ViewBag.Projects = new List<Project>(); }
     }
 
+    [HttpGet("ListByProject")]
+    public async Task<IActionResult> ListByProject(long projectId)
+    {
+        var assets = await _assetService.GetByProjectAsync(projectId);
+        var result = assets
+            .OrderBy(a => a.Order)
+            .ThenBy(a => a.Name)
+            .Select(a => new { a.Id, a.Name, a.Description, a.AssetType, a.Order })
+            .ToList();
+        return Json(new { success = true, data = result });
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create(long? projectId, AssetTypeEnum? assetType, string? name, string? description, int order = 0)
     {

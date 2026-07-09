@@ -14,16 +14,13 @@
         AssetTypeEnum.Actor => char.ConvertFromUtf32(0x1F464),
         AssetTypeEnum.Scene => char.ConvertFromUtf32(0x1F3D0),
         AssetTypeEnum.Bgm => char.ConvertFromUtf32(0x1F3A5),
-        AssetTypeEnum.Skill => "\u26A1",
-        AssetTypeEnum.Prop => char.ConvertFromUtf32(0x1F525),
-        AssetTypeEnum.VoiceVoice => "\uD83C\uDFA4",
+        AssetTypeEnum.Prop => "\uD83D\uDD25",
         _ => char.ConvertFromUtf32(0x1F4AA)
     };
     string GetBgColor(AssetTypeEnum t) => t switch {
         AssetTypeEnum.Actor => "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
         AssetTypeEnum.Scene => "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
         AssetTypeEnum.Bgm => "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-        AssetTypeEnum.Skill => "linear-gradient(135deg, #ffc371 0%, #ff5858 100%)",
         AssetTypeEnum.Prop => "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)",
         AssetTypeEnum.VoiceVoice => "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
         _ => "linear-gradient(135deg, #868f96 0%, #596164 100%)"
@@ -55,7 +52,7 @@
     </div>
 
     <div class="asset-type-grid">
-        @foreach (var t in Enum.GetValues<AssetTypeEnum>().Where(t => t != AssetTypeEnum.Skill))
+        @foreach (var t in new[] { AssetTypeEnum.Actor, AssetTypeEnum.VoiceVoice, AssetTypeEnum.Scene, AssetTypeEnum.Bgm, AssetTypeEnum.Prop })
         {
             <a href="?type=@((int)t)&projectId=@projectId" class="asset-type-card @(assetType == t ? "active" : "")" data-type="@t.ToString()">
                 <div class="asset-type-icon actor-icon">@GetEmoji(t)</div>
@@ -102,7 +99,7 @@
                         var parts = imgSrc.Split('.');
                         if (parts.Length > 1) extension = "." + parts[parts.Length - 1];
                     }
-                    var badgeClass = a.AssetType == AssetTypeEnum.Scene ? "type-scene" : a.AssetType == AssetTypeEnum.Bgm ? "type-bgm" : a.AssetType == AssetTypeEnum.Skill ? "type-skill" : a.AssetType == AssetTypeEnum.Prop ? "type-prop" : a.AssetType == AssetTypeEnum.VoiceVoice ? "type-voicevoice" : "type-actor";
+                    var badgeClass = a.AssetType == AssetTypeEnum.Scene ? "type-scene" : a.AssetType == AssetTypeEnum.Bgm ? "type-bgm" : a.AssetType == AssetTypeEnum.Prop ? "type-prop" : a.AssetType == AssetTypeEnum.VoiceVoice ? "type-voicevoice" : "type-actor";
                     <div class="asset-detail-card" data-type="@a.AssetType.ToString()" data-imgsrc="@imgSrc" data-isbgm="@(isBgm.ToString().ToLower())">
                         @if (isBgm)
                         {
@@ -472,7 +469,7 @@
             document.getElementById('aiAssetType').value = type;
             document.getElementById('aiAssetName').value = name;
 
-            var titles = { 'Actor': 'AI 生成角色图', 'Scene': 'AI 生成场景图', 'Bgm': 'AI 生成 BGM', 'Skill': 'AI 生成技能图', 'Prop': 'AI 生成道具图', 'VoiceVoice': 'AI 生成角色声音' };
+            var titles = { 'Actor': 'AI 生成角色图', 'Scene': 'AI 生成场景图', 'Bgm': 'AI 生成 BGM', 'Prop': 'AI 生成道具图', 'VoiceVoice': 'AI 生成角色声音' };
             document.getElementById('aiGenerateTitle').textContent = (titles[type] || 'AI 生成') + ': ' + name;
 
             var promptEl = document.getElementById('aiGenPrompt');

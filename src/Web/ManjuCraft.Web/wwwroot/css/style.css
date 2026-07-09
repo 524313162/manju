@@ -491,7 +491,6 @@ tr:hover td { background: #f8faff; }
 .asset-detail-card[data-type="Actor"]::before { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
 .asset-detail-card[data-type="Scene"]::before { background: linear-gradient(90deg, #10b981, #34d399); }
 .asset-detail-card[data-type="Bgm"]::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
-.asset-detail-card[data-type="Skill"]::before { background: linear-gradient(90deg, #ec4899, #f472b6); }
 .asset-detail-card[data-type="Prop"]::before { background: linear-gradient(90deg, #0ea5e9, #38bdf8); }
 
 /* Image placeholder */

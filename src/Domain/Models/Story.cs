@@ -10,6 +10,9 @@ namespace ManjuCraft.Domain.Models
         [StringLength(512)]
         public string Title { get; set; }
 
+        [StringLength(2000)]
+        public string Summary { get; set; }
+
         public Project Project { get; set; }
 
         public ICollection<StoryChapter> Chapters { get; set; }

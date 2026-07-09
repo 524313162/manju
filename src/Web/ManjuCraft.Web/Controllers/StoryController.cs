@@ -94,6 +94,27 @@ public class StoryController : Controller
         return Json(new { success = true, data = story });
     }
 
+    [HttpPost]
+    [Route("[controller]/update-summary")]
+    public async Task<IActionResult> UpdateSummary([FromForm] long storyId, [FromForm] string title, [FromForm] string summary)
+    {
+        var story = await _storyService.GetByIdAsync(storyId);
+        if (story == null) return Json(new { success = false, message = "剧本不存在" });
+
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            story.Title = title;
+            await _storyService.UpdateAsync(story);
+        }
+        if (!string.IsNullOrWhiteSpace(summary) && story.Summary != summary)
+        {
+            story.Summary = summary;
+        }
+
+        await _dbContext.SaveChangesAsync();
+        return Json(new { success = true });
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetChapters(long storyId)
     {
@@ -103,7 +124,7 @@ public class StoryController : Controller
         var chapters = await _dbContext.StoryChapters
             .Where(c => c.StoryId == storyId)
             .OrderBy(c => c.SortOrder)
-            .Select(c => new { c.Id, c.ChapterNumber, c.ChapterName, c.Content, c.Assets, c.SortOrder })
+            .Select(c => new { c.Id, c.ChapterNumber, c.ChapterName, c.Content, c.SortOrder })
             .ToListAsync();
 
         return Json(new { success = true, data = chapters });
@@ -125,14 +146,13 @@ public class StoryController : Controller
             ChapterNumber = maxOrder + 1,
             ChapterName = req.ChapterName,
             Content = req.Content ?? "",
-            Assets = req.Assets,
             SortOrder = maxOrder + 1
         };
 
         await _dbContext.StoryChapters.AddAsync(chapter);
         await _dbContext.SaveChangesAsync();
 
-        return Json(new { success = true, data = new { chapter.Id, chapter.ChapterNumber, chapter.ChapterName, chapter.Content, chapter.Assets, chapter.SortOrder } });
+        return Json(new { success = true, data = new { chapter.Id, chapter.ChapterNumber, chapter.ChapterName, chapter.Content, chapter.SortOrder } });
     }
 
     [HttpPost]
@@ -143,7 +163,6 @@ public class StoryController : Controller
 
         existing.ChapterName = req.ChapterName;
         existing.Content = req.Content;
-        if (req.Assets != null) existing.Assets = req.Assets;
 
         await _dbContext.SaveChangesAsync();
         return Json(new { success = true });
@@ -190,7 +209,6 @@ public class StoryController : Controller
             ChapterNumber = maxOrder + i + 1,
             ChapterName = c.ChapterName,
             Content = c.Content,
-            Assets = c.Assets,
             SortOrder = maxOrder + i + 1
         }).ToList();
 
@@ -254,49 +272,20 @@ public class StoryController : Controller
                 _dbContext.StoryChapters.RemoveRange(oldChapters);
 
                 var parsedChapters = chaptersProp.EnumerateArray().ToList();
-                var storyChapters = parsedChapters.Select((ch, i) =>
+                var storyChapters = parsedChapters.Select((ch, i) => new StoryChapter
                 {
-                    string? chapterAssets = null;
-                    if (ch.TryGetProperty("assets", out var assetsEl) && assetsEl.ValueKind == JsonValueKind.Object)
-                        chapterAssets = assetsEl.GetRawText();
-                    return new StoryChapter
-                    {
-                        StoryId = storyId,
-                        ChapterNumber = i + 1,
-                        ChapterName = ch.TryGetProperty("chapterName", out var cn) ? cn.GetString()
-                            : ch.TryGetProperty("ChapterName", out var cn2) ? cn2.GetString()
-                            : $"第{i + 1}章",
-                        Content = ch.TryGetProperty("content", out var ct) ? ct.GetString()
-                            : ch.TryGetProperty("Content", out var ct2) ? ct2.GetString()
-                            : "",
-                        Assets = chapterAssets,
-                        SortOrder = i + 1
-                    };
+                    StoryId = storyId,
+                    ChapterNumber = i + 1,
+                    ChapterName = ch.TryGetProperty("chapterName", out var cn) ? cn.GetString()
+                        : ch.TryGetProperty("ChapterName", out var cn2) ? cn2.GetString()
+                        : $"第{i + 1}章",
+                    Content = ch.TryGetProperty("content", out var ct) ? ct.GetString()
+                        : ch.TryGetProperty("Content", out var ct2) ? ct2.GetString()
+                        : "",
+                    SortOrder = i + 1
                 }).ToList();
 
                 await _dbContext.StoryChapters.AddRangeAsync(storyChapters);
-            }
-
-            // Save assets — replace all existing assets for this project
-            var assetProjectId = root.TryGetProperty("projectId", out var projectIdEl) ? projectIdEl.GetInt64() : 0L;
-            if (assetProjectId > 0)
-            {
-                // Remove old assets of all managed types for this project
-                var managedTypes = new[] { AssetTypeEnum.Actor, AssetTypeEnum.Scene, AssetTypeEnum.Prop, AssetTypeEnum.Bgm, AssetTypeEnum.VoiceVoice };
-                var oldAssets = await _dbContext.Assets
-                    .Where(a => a.ProjectId == assetProjectId && managedTypes.Contains(a.AssetType))
-                    .ToListAsync();
-                _dbContext.Assets.RemoveRange(oldAssets);
-
-                await ReplaceAssetGroup(root, "characters", assetProjectId, AssetTypeEnum.Actor);
-                await ReplaceAssetGroup(root, "scenes", assetProjectId, AssetTypeEnum.Scene);
-                await ReplaceAssetGroup(root, "props", assetProjectId, AssetTypeEnum.Prop);
-
-                // Accept both "bgm" and "bgms" as field names
-                if (!await TryReplaceAssetGroup(root, "bgm", assetProjectId, AssetTypeEnum.Bgm))
-                    await ReplaceAssetGroup(root, "bgms", assetProjectId, AssetTypeEnum.Bgm);
-
-                await ReplaceAssetGroup(root, "voiceVoices", assetProjectId, AssetTypeEnum.VoiceVoice);
             }
 
             await _dbContext.SaveChangesAsync();
@@ -305,45 +294,6 @@ public class StoryController : Controller
         catch (Exception ex)
         {
             return Json(new { success = false, message = ex.Message });
-        }
-    }
-
-    private async Task<bool> TryReplaceAssetGroup(JsonElement assetsProp, string groupName, long projectId, AssetTypeEnum assetType)
-    {
-        if (!assetsProp.TryGetProperty(groupName, out var groupProp) || groupProp.ValueKind != JsonValueKind.Array)
-            return false;
-
-        foreach (var item in groupProp.EnumerateArray())
-        {
-            var name = item.TryGetProperty("name", out var n) ? n.GetString()?.Trim() : "";
-            var description = item.TryGetProperty("description", out var d) ? d.GetString() ?? "" : "";
-            if (string.IsNullOrWhiteSpace(name)) continue;
-            _dbContext.Assets.Add(new Asset { ProjectId = projectId, AssetType = assetType, Name = name, Description = description });
-        }
-        return true;
-    }
-
-    private async Task ReplaceAssetGroup(JsonElement assetsProp, string groupName, long projectId, AssetTypeEnum assetType)
-    {
-        if (!assetsProp.TryGetProperty(groupName, out var groupProp) || groupProp.ValueKind != JsonValueKind.Array)
-            return;
-
-        foreach (var item in groupProp.EnumerateArray())
-        {
-            var name = item.TryGetProperty("name", out var n) ? n.GetString()?.Trim() : "";
-            var description = item.TryGetProperty("description", out var d) ? d.GetString() ?? "" : "";
-
-            if (string.IsNullOrWhiteSpace(name))
-                continue;
-
-            var asset = new Asset
-            {
-                ProjectId = projectId,
-                AssetType = assetType,
-                Name = name,
-                Description = description
-            };
-            _dbContext.Assets.Add(asset);
         }
     }
 
@@ -383,8 +333,7 @@ public class StoryController : Controller
 
             // Try to parse structured JSON from AI response
             var raw = result.data;
-            string? rewrittenContent = null;
-            JsonElement? assets = null;
+            string rewrittenContent;
 
             try
             {
@@ -395,17 +344,17 @@ public class StoryController : Controller
                 using var doc = JsonDocument.Parse(text);
                 var root = doc.RootElement;
 
-                if (root.TryGetProperty("content", out var ct)) rewrittenContent = ct.GetString();
-                if (root.TryGetProperty("assets", out var ae) && ae.ValueKind == JsonValueKind.Object) assets = ae.Clone();
+                if (root.TryGetProperty("content", out var ct))
+                    rewrittenContent = ct.GetString() ?? raw;
+                else
+                    rewrittenContent = raw;
             }
             catch
             {
-                // Fallback: use raw text as content
+                rewrittenContent = raw;
             }
 
-            rewrittenContent ??= raw;
-
-            return Json(new { success = true, data = rewrittenContent, assets = assets?.GetRawText() });
+            return Json(new { success = true, data = rewrittenContent });
         }
         catch (Exception ex)
         {
@@ -443,7 +392,6 @@ public class StoryController : Controller
                 c.ChapterNumber,
                 c.ChapterName,
                 c.Content,
-                c.Assets,
                 c.SortOrder
             })
             .ToListAsync();

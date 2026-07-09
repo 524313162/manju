@@ -9,8 +9,3 @@ public class ProviderRequestDto
     public string ApiKey { get; set; } = default!;
     public string Model { get; set; } = default!;
 }
-
-public class DeleteRequestDto
-{
-    public long Id { get; set; }
-}
