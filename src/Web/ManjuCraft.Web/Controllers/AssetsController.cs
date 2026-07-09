@@ -59,7 +59,8 @@ public class AssetsController : Controller
         catch { ViewBag.Projects = new List<Project>(); }
     }
 
-    [HttpGet("ListByProject")]
+    [HttpGet]
+    [Route("/Assets/ListByProject")]
     public async Task<IActionResult> ListByProject(long projectId)
     {
         var assets = await _assetService.GetByProjectAsync(projectId);

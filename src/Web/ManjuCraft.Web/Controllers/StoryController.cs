@@ -61,7 +61,7 @@ public class StoryController : Controller
     public async Task<IActionResult> GetTemplates()
     {
         var templates = await _dbContext.PromptTemplates
-            .Where(p => p.TemplateType == "StoryGeneration" || p.TemplateType == "RewriteStory")
+            .Where(p => p.TemplateType == "StoryGeneration" || p.TemplateType == "RewriteStory" || p.TemplateType == "ShotAssetExtraction")
             .OrderBy(p => p.Id)
             .Select(p => new { p.Id, p.TemplateType, p.Name, p.Content })
             .ToListAsync();
@@ -78,7 +78,7 @@ public class StoryController : Controller
             
             var warning = allTemplates.Count == 0
                 ? "数据库中没有任何提示词模板，请检查种子数据是否正确加载"
-                : $"数据库中仅有 {allTemplates.Count} 个模板，但不包含 StoryGeneration 或 RewriteStory";
+                : $"数据库中仅有 {allTemplates.Count} 个模板，但不包含 StoryGeneration、RewriteStory 或 ShotAssetExtraction";
             
             return Json(new { success = true, data, warning });
         }

@@ -55,42 +55,36 @@
     </div>
 </div>
 
-<div class="modal-overlay" id="shotExtractModal">
+<div class="modal-overlay" id="shotAssetExtractModal">
     <div class="modal" style="width:850px;max-height:90vh;overflow-y:auto;">
         <div class="modal-header">
-            <h3>&#128214; 一键提取分镜</h3>
-            <button class="modal-close" onclick="hideModal('shotExtractModal')">&times;</button>
+            <h3>&#128214; 提取分镜和资产</h3>
+            <button class="modal-close" onclick="hideModal('shotAssetExtractModal')">&times;</button>
         </div>
         <div class="modal-body" style="padding:16px;">
             <div class="form-group">
                 <label>选择大模型</label>
-                <select id="shotExtractProvider" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:14px;">
+                <select id="shotAssetExtractProvider" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:14px;">
                     <option value="">加载中...</option>
                 </select>
             </div>
             <div class="form-group">
-                <label>当前章节内容</label>
-                <div id="shotExtractChapterContent" style="padding:10px;background:var(--bg);border-radius:6px;max-height:120px;overflow-y:auto;font-size:13px;line-height:1.6;"></div>
+                <label>章节内容</label>
+                <div id="shotAssetExtractChapterContent" style="padding:10px;background:var(--bg);border-radius:6px;max-height:120px;overflow-y:auto;font-size:13px;line-height:1.6;"></div>
             </div>
             <div class="form-group">
-                <label>自定义提示词（可选）</label>
-                <textarea id="shotExtractPrompt" rows="4" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px;resize:vertical;font-family:inherit;" placeholder="可输入额外要求..."></textarea>
+                <label>提示词</label>
+                <textarea id="shotAssetExtractPrompt" rows="6" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px;resize:vertical;font-family:inherit;" placeholder="加载提示词模板中..."></textarea>
             </div>
             <div class="form-group">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                    <label style="margin:0;">资产选择</label>
-                    <div style="display:flex;gap:4px;">
-                        <button class="btn btn-ghost btn-sm" onclick="checkAllAssets()">全选</button>
-                        <button class="btn btn-ghost btn-sm" onclick="uncheckAllAssets()">全不选</button>
-                    </div>
-                </div>
-                <div id="shotExtractAssetList" style="max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
+                <label>资产信息</label>
+                <div id="shotAssetExtractAssetInfo" style="padding:10px;background:var(--bg);border-radius:6px;max-height:150px;overflow-y:auto;font-size:13px;line-height:1.6;color:var(--text3);">加载中...</div>
             </div>
-            <div id="shotExtractResult" style="display:none;"></div>
+            <div id="shotAssetExtractResult" style="display:none;"></div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-ghost" onclick="hideModal('shotExtractModal')">取消</button>
-            <button class="btn btn-primary" id="shotExtractBtn" onclick="doShotExtraction()">一键提取</button>
+            <button class="btn btn-ghost" onclick="hideModal('shotAssetExtractModal')">取消</button>
+            <button class="btn btn-primary" id="shotAssetExtractBtn" onclick="doShotAssetExtraction()">提取</button>
         </div>
     </div>
 </div>
@@ -246,7 +240,7 @@
             h += '<div style="text-align:center;padding:40px 20px;color:var(--text3);">'
                 + '<div class="icon" style="font-size:40px;margin-bottom:12px;">&#127916;</div>'
                 + '<p>该章节暂无分镜数据</p><p style="font-size:12px;color:var(--text3);margin-top:8px;">'
-                + '<button class="btn btn-primary btn-sm" onclick="showShotExtractionModal()">&#129302; 一键提取分镜</button></p></div>';
+                + '<button class="btn btn-primary btn-sm" onclick="showShotAssetExtractionModal()">&#129302; 提取分镜和资产</button></p></div>';
         }
 
         document.getElementById('storyboardArea').innerHTML = h;
@@ -532,146 +526,327 @@
         showModal('frameListModal');
     }
 
-    // ---- Shot Extraction Dialog ----
-    var _shotExtractAssets = [];
-    var _currentProviderForShot = null;
+    // ---- Shot & Asset Extraction Dialog ----
     var _allProviders = [];
+    var _shotAssetExtractPoller = null;
 
     function showShotExtractionModal() {
-        if (chapters.length === 0 || currentChapterIdx === -1) return;
-        shotState[currentChapterIdx] = { shots: [], loading: true };
-        
-        var ch = chapters[currentChapterIdx];
-        document.getElementById('shotExtractChapterContent').textContent = ch.content || '暂无内容';
-        document.getElementById('shotExtractPrompt').value = '';
-        document.getElementById('shotExtractResult').style.display = 'none';
-        document.getElementById('shotExtractResult').innerHTML = '';
-        document.getElementById('shotExtractBtn').textContent = '加载资产中...';
-        document.getElementById('shotExtractBtn').disabled = true;
-
-        var sel = document.getElementById('shotExtractProvider');
-        sel.innerHTML = '<option value="">加载中...</option>';
-        document.getElementById('shotExtractAssetList').innerHTML = '<div style="text-align:center;color:var(--text3);padding:20px;">加载资产中...</div>';
-
-        loadShotExtractProviders();
-        loadShotExtractAssets();
-
-        showModal('shotExtractModal');
+        showShotAssetExtractionModal();
     }
 
-    function loadShotExtractProviders() {
+    function showShotAssetExtractionModal() {
+        if (chapters.length === 0 || currentChapterIdx === -1) return;
+        shotState[currentChapterIdx] = { shots: [], loading: true };
+
+        if (_shotAssetExtractPoller) { _shotAssetExtractPoller.stop(); _shotAssetExtractPoller = null; }
+
+        var ch = chapters[currentChapterIdx];
+        document.getElementById('shotAssetExtractChapterContent').textContent = ch.content || '暂无内容';
+        document.getElementById('shotAssetExtractPrompt').value = '加载提示词模板中...';
+        document.getElementById('shotAssetExtractResult').style.display = 'none';
+        document.getElementById('shotAssetExtractResult').innerHTML = '';
+        document.getElementById('shotAssetExtractBtn').textContent = '提取';
+        document.getElementById('shotAssetExtractBtn').disabled = true;
+
+        var sel = document.getElementById('shotAssetExtractProvider');
+        sel.innerHTML = '<option value="">加载中...</option>';
+        document.getElementById('shotAssetExtractAssetInfo').innerHTML = '<div style="text-align:center;color:var(--text3);padding:20px;">加载资产中...</div>';
+
+        loadShotAssetExtractProviders();
+        loadShotAssetExtractPromptTemplate();
+        loadShotAssetExtractAssetInfo();
+
+        showModal('shotAssetExtractModal');
+    }
+
+    function loadShotAssetExtractProviders() {
         fetch('/api/v1/providers/list')
             .then(function(r){ return r.json(); })
             .then(function(res){
                 _allProviders = (res.data || []).filter(function(p){ return p.capability === 1; });
-                var sel = document.getElementById('shotExtractProvider');
+                var sel = document.getElementById('shotAssetExtractProvider');
                 var html = '<option value="">请选择提供者</option>';
                 _allProviders.forEach(function(p){
                     html += '<option value="' + p.id + '">' + p.name + ' [' + (p.model || '') + ']</option>';
                 });
                 sel.innerHTML = html;
-                sel.addEventListener('change', function(){ _currentProviderForShot = this.value; });
-                updateExtractBtn();
+                document.getElementById('shotAssetExtractBtn').disabled = false;
             })
-            .catch(function(){ updateExtractBtn(); });
+            .catch(function(){
+                document.getElementById('shotAssetExtractBtn').disabled = false;
+            });
     }
 
-    function loadShotExtractAssets() {
-        var sel = document.getElementById('shotExtractProvider');
-        var providerId = sel.value || localStorage.getItem('shotExtract_providerId');
-        
+    function loadShotAssetExtractPromptTemplate() {
+        fetch('/Story/templates')
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+                if (res.success && res.data) {
+                    var store = {};
+                    res.data.forEach(function(t){ store[t.templateType] = t.content; });
+                    var prompt = store['ShotAssetExtraction'] || '';
+                    document.getElementById('shotAssetExtractPrompt').value = prompt || '请分析章节内容，提取分镜脚本和资产信息。';
+                } else {
+                    document.getElementById('shotAssetExtractPrompt').value = '请分析章节内容，提取分镜脚本和资产信息。';
+                }
+            })
+            .catch(function(){
+                document.getElementById('shotAssetExtractPrompt').value = '请分析章节内容，提取分镜脚本和资产信息。';
+            });
+    }
+
+    function loadShotAssetExtractAssetInfo() {
         fetch('/Assets/ListByProject?projectId=' + projectId)
             .then(function(r){ return r.json(); })
             .then(function(res){
                 var items = res.data || [];
-                _shotExtractAssets = items;
-                var container = document.getElementById('shotExtractAssetList');
+                var container = document.getElementById('shotAssetExtractAssetInfo');
                 if (items.length === 0) {
-                    container.innerHTML = '<div style="text-align:center;color:var(--text3);padding:12px;font-size:13px;">暂无资产（建议先创建角色、场景等）</div>';
+                    container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;">暂无资产</div>';
                 } else {
                     var typeIcons = { 'Actor':'\uD83D\uDCC8', 'Scene':'\uD83C\uDFD0', 'Bgm':'\uD83C\uDFA5', 'Prop':'\uD83D\uDD25', 'VoiceVoice':'\uD83C\uDFA4' };
-                    container.innerHTML = '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;padding:0 4px;">' + items.length + ' 个资产</div>';
+                    var html = '<div style="font-size:11px;color:var(--text3);margin-bottom:6px;">共 ' + items.length + ' 个资产</div>';
                     items.forEach(function(a) {
                         var emoji = typeIcons[a.assetType] || '\uD83D\uDCC4';
-                        container.innerHTML += '<label style="display:flex;align-items:center;padding:6px 8px;background:var(--bg);border-radius:4px;font-size:13px;">'
-                            + '<input type="checkbox" checked class="asset-checkbox" data-id="' + a.id + '" value="' + a.id + '">&nbsp;'
-                            + emoji + ' <strong>' + a.name + '</strong>'
-                            + '<span style="color:var(--text3);font-size:11px;">(' + (a.assetType || '') + ')</span>'
-                            + '</label>';
+                        html += '<div style="display:flex;align-items:center;gap:4px;padding:3px 6px;font-size:12px;border-bottom:1px solid var(--border);">'
+                            + '<span>' + emoji + '</span>'
+                            + '<strong>' + a.name + '</strong>'
+                            + '<span style="color:var(--text3);font-size:11px;">[' + (a.assetType || '') + ']</span>'
+                            + '</div>';
                     });
+                    container.innerHTML = html;
                 }
-                document.getElementById('shotExtractBtn').disabled = false;
-                document.getElementById('shotExtractBtn').textContent = '一键提取';
             })
-            .catch(function(){ 
-                document.getElementById('shotExtractAssetList').innerHTML = '<div style="text-align:center;color:var(--danger);padding:12px;">加载失败</div>';
+            .catch(function(){
+                document.getElementById('shotAssetExtractAssetInfo').innerHTML = '<div style="color:var(--danger);padding:10px;font-size:13px;">加载失败</div>';
             });
     }
 
-    function checkAllAssets() {
-        document.querySelectorAll('.asset-checkbox').forEach(function(cb){ cb.checked = true; });
-    }
-    function uncheckAllAssets() {
-        document.querySelectorAll('.asset-checkbox').forEach(function(cb){ cb.checked = false; });
-    }
+    // ---- Result preview state ----
+    var _extractionPreviewData = null;
+    var _extractionAiResponse = null;
 
-    function doShotExtraction() {
-        var providerId = document.getElementById('shotExtractProvider').value;
-        if (!providerId) { alert('请选择大模型提供者'); return; }
-        
-        var customPrompt = document.getElementById('shotExtractPrompt').value.trim();
-        
-        var selectedAssets = document.querySelectorAll('.asset-checkbox:checked');
-        var selectedAssetIds = [];
-        selectedAssets.forEach(function(cb){ selectedAssetIds.push(parseInt(cb.value)); });
-        
-        if (selectedAssetIds.length === 0) { alert('请至少选择一个资产'); return; }
-        
-        var btn = document.getElementById('shotExtractBtn');
+    function doShotAssetExtraction() {
+        var providerId = document.getElementById('shotAssetExtractProvider').value;
+        if (!providerId) { alert('请选择大模型'); return; }
+
+        var customPrompt = document.getElementById('shotAssetExtractPrompt').value.trim();
+        if (!customPrompt) { alert('提示词不能为空'); return; }
+
+        var btn = document.getElementById('shotAssetExtractBtn');
         btn.textContent = '提取中...';
         btn.disabled = true;
-        
-        fetch('/api/v1/ai/extract-shots', {
+
+        document.getElementById('shotAssetExtractResult').style.display = 'block';
+        document.getElementById('shotAssetExtractResult').innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></div><p style="margin-top:10px;color:var(--text2);font-size:13px;">AI 正在提取分镜和资产，请稍候...</p></div>';
+
+        fetch('/api/v1/ai/extract-shots-and-assets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 projectId: projectId,
                 chapterIdx: currentChapterIdx,
                 providerId: parseInt(providerId),
-                selectedAssetIds: selectedAssetIds,
                 customPrompt: customPrompt
             })
         })
         .then(function(r){ return r.json(); })
         .then(function(res) {
             if (res.success) {
-                var savedShotCount = res.data && res.data.shotCount ? res.data.shotCount : 0;
-                var savedAssetCount = res.data && res.data.assetCount ? res.data.assetCount : 0;
-                document.getElementById('shotExtractResult').style.display = 'block';
-                document.getElementById('shotExtractResult').innerHTML = '<div style="padding:12px;background:var(--ok-bg);border-radius:8px;margin-top:12px;color:var(--ok);font-weight:600;">&#10003; 提取成功：生成 ' + savedShotCount + ' 个分镜' + (savedAssetCount > 0 ? '，新增 ' + savedAssetCount + ' 个资产' : '') + '</div>';
-                setTimeout(function(){
-                    hideModal('shotExtractModal');
-                    loadChapters();
-                    render();
-                }, 2000);
+                if (res.isComfyui) {
+                    _extractionAiResponse = null;
+                    _extractionPreviewData = null;
+                    pollShotAssetExtractionResult(res.promptId, res.workflowType, res.chapterIdx, res.projectId);
+                } else {
+                    _extractionAiResponse = res.rawResponse || '';
+                    showExtractionPreview(res.data);
+                }
             } else {
-                alert('提取失败：' + (res.message || '未知错误'));
+                document.getElementById('shotAssetExtractResult').innerHTML = '<div style="padding:12px;background:var(--danger-bg);border-radius:8px;margin-top:12px;color:var(--danger);font-weight:600;">&#10007; 提取失败：' + (res.message || '未知错误') + '</div>';
+                btn.textContent = '提取';
+                btn.disabled = false;
             }
-            btn.textContent = '一键提取';
-            btn.disabled = false;
         })
-        .catch(function(err){ alert('请求失败：' + err.message); btn.textContent = '一键提取'; btn.disabled = false; });
+        .catch(function(err){
+            document.getElementById('shotAssetExtractResult').innerHTML = '<div style="padding:12px;background:var(--danger-bg);border-radius:8px;margin-top:12px;color:var(--danger);font-weight:600;">请求失败：' + err.message + '</div>';
+            btn.textContent = '提取';
+            btn.disabled = false;
+        });
     }
 
-    function updateExtractBtn() {
-        var sel = document.getElementById('shotExtractProvider');
-        var btn = document.getElementById('shotExtractBtn');
-        var loading = document.getElementById('shotExtractAssetList').innerHTML;
-        if (sel.innerHTML.indexOf('加载中') === -1 && btn.textContent.indexOf('加载') === -1) {
-            // both loaded
-        }
+    function pollShotAssetExtractionResult(promptId, workflowType, chapterIdx, pId) {
+        document.getElementById('shotAssetExtractResult').innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></div><p style="margin-top:10px;color:var(--text2);font-size:13px;">ComfyUI 正在处理中，请耐心等待...</p><p style="margin-top:6px;color:var(--text3);font-size:11px;">任务ID: ' + promptId + '</p></div>';
+
+        _shotAssetExtractPoller = createPoller({
+            promptId: promptId,
+            workflowType: workflowType,
+            resultType: 'text',
+            intervalMs: 10000,
+            timeoutMs: 600000,
+            onSuccess: function(data) {
+                var aiResponse = data.text || '';
+                if (!aiResponse) {
+                    document.getElementById('shotAssetExtractResult').innerHTML = '<div style="padding:12px;background:var(--danger-bg);border-radius:8px;margin-top:12px;color:var(--danger);">AI 返回结果为空</div>';
+                    document.getElementById('shotAssetExtractBtn').textContent = '提取';
+                    document.getElementById('shotAssetExtractBtn').disabled = false;
+                    return;
+                }
+
+                _extractionAiResponse = aiResponse;
+
+                document.getElementById('shotAssetExtractResult').innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></div><p style="margin-top:10px;color:var(--text2);font-size:13px;">正在解析提取结果...</p></div>';
+
+                fetch('/api/v1/ai/parse-extraction-result', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        projectId: pId,
+                        chapterIdx: chapterIdx,
+                        aiResponse: aiResponse
+                    })
+                })
+                .then(function(r){ return r.json(); })
+                .then(function(parseRes) {
+                    if (parseRes.success) {
+                        showExtractionPreview(parseRes.data);
+                    } else {
+                        document.getElementById('shotAssetExtractResult').innerHTML = '<div style="padding:12px;background:var(--danger-bg);border-radius:8px;margin-top:12px;color:var(--danger);">解析结果失败</div>';
+                        document.getElementById('shotAssetExtractBtn').textContent = '提取';
+                        document.getElementById('shotAssetExtractBtn').disabled = false;
+                    }
+                })
+                .catch(function(){
+                    document.getElementById('shotAssetExtractResult').innerHTML = '<div style="padding:12px;background:var(--danger-bg);border-radius:8px;margin-top:12px;color:var(--danger);">解析请求失败</div>';
+                    document.getElementById('shotAssetExtractBtn').textContent = '提取';
+                    document.getElementById('shotAssetExtractBtn').disabled = false;
+                });
+            },
+            onTimeout: function() {
+                document.getElementById('shotAssetExtractResult').innerHTML = '<div style="padding:12px;background:var(--danger-bg);border-radius:8px;margin-top:12px;color:var(--danger);">等待超时（10分钟），任务仍在后台执行。任务ID: ' + promptId + '</div>';
+                document.getElementById('shotAssetExtractBtn').textContent = '提取';
+                document.getElementById('shotAssetExtractBtn').disabled = false;
+            },
+            onError: function(msg) {
+                document.getElementById('shotAssetExtractResult').innerHTML = '<div style="padding:12px;background:var(--danger-bg);border-radius:8px;margin-top:12px;color:var(--danger);">' + (msg || '任务执行失败') + '</div>';
+                document.getElementById('shotAssetExtractBtn').textContent = '提取';
+                document.getElementById('shotAssetExtractBtn').disabled = false;
+            }
+        });
     }
-    // ---- End Shot Extraction ----
+
+    function showExtractionPreview(data) {
+        _extractionPreviewData = data;
+        hideModal('shotAssetExtractModal');
+
+        var typeIcons = { 'Actor':'\uD83D\uDCC8', 'Scene':'\uD83C\uDFD0', 'Bgm':'\uD83C\uDFA5', 'Prop':'\uD83D\uDD25', 'VoiceVoice':'\uD83C\uDFA4' };
+
+        var html = '<div style="padding:16px;">';
+
+        html += '<div style="background:var(--ok-bg);border-radius:8px;padding:14px;margin-bottom:16px;">'
+            + '<p style="font-size:15px;font-weight:700;color:var(--ok);">&#10003; 提取完成</p></div>';
+
+        html += '<div style="margin-bottom:16px;">'
+            + '<p><strong>分镜数量：</strong>' + (data.shotCount || 0) + ' 个</p>'
+            + '<p><strong>分镜帧数：</strong>' + (data.frameCount || 0) + ' 个</p>'
+            + '<p><strong>新增资产：</strong>' + (data.newAssetCount || 0) + ' 个';
+        if (data.newAssets && data.newAssets.length > 0) {
+            html += '<div style="margin-top:8px;max-height:150px;overflow-y:auto;">';
+            data.newAssets.forEach(function(a) {
+                var emoji = typeIcons[a.assetType] || '\uD83D\uDCC4';
+                html += '<div style="display:flex;align-items:center;gap:4px;padding:4px 8px;font-size:13px;border-bottom:1px solid var(--border);">'
+                    + '<span>' + emoji + '</span>'
+                    + '<strong>' + a.name + '</strong>'
+                    + '<span style="color:var(--text3);font-size:11px;">[' + (a.assetType || '') + ']</span>'
+                    + '</div>';
+            });
+            html += '</div>';
+        }
+        html += '</p>';
+
+        if (data.shots && data.shots.length > 0) {
+            html += '<div style="margin-bottom:16px;"><strong>分镜详情：</strong></div>';
+            html += '<div style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;">';
+            data.shots.forEach(function(shot, i) {
+                var frameCount = (shot.frames || []).length;
+                var assetStr = (shot.assetRefs || []).join(', ');
+                html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px;">'
+                    + '<div style="font-weight:700;margin-bottom:4px;">分镜 ' + (i+1) + ': ' + (shot.shotName || '') + '</div>'
+                    + '<div style="color:var(--text2);font-size:12px;">'
+                    + '景别: ' + (shot.shotSize || '-') + ' | 运镜: ' + (shot.cameraMovement || '-') + ' | 时长: ' + (shot.duration || '-') + 's'
+                    + '</div>'
+                    + '<div style="color:var(--text2);font-size:12px;margin-top:2px;">帧数: ' + frameCount + '</div>'
+                    + (assetStr ? '<div style="color:var(--text2);font-size:12px;margin-top:2px;">资产: ' + assetStr + '</div>' : '')
+                    + '</div>';
+            });
+            html += '</div>';
+        }
+
+        html += '</div>';
+
+        var previewHtml = '<div style="width:700px;max-height:80vh;overflow-y:auto;">'
+            + '<div class="modal-header"><h3>&#128214; 提取结果预览</h3><button class="modal-close" onclick="hideModal(\'extractionPreviewModal\')">&times;</button></div>'
+            + '<div class="modal-body">' + html + '</div>'
+            + '<div class="modal-footer">'
+            + '<button class="btn btn-ghost" onclick="hideModal(\'extractionPreviewModal\')">取消</button>'
+            + '<button class="btn btn-primary" id="confirmSaveBtn" onclick="confirmSaveExtraction()">确认保存</button>'
+            + '</div></div>';
+
+        var existingOverlay = document.getElementById('extractionPreviewModal');
+        if (!existingOverlay) {
+            var overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.id = 'extractionPreviewModal';
+            overlay.innerHTML = previewHtml;
+            document.body.appendChild(overlay);
+        } else {
+            existingOverlay.innerHTML = previewHtml;
+        }
+
+        document.getElementById('shotAssetExtractBtn').textContent = '提取';
+        document.getElementById('shotAssetExtractBtn').disabled = false;
+        showModal('extractionPreviewModal');
+    }
+
+    function confirmSaveExtraction() {
+        if (!_extractionPreviewData) return;
+        var btn = document.getElementById('confirmSaveBtn');
+        btn.textContent = '保存中...';
+        btn.disabled = true;
+
+        var body = {
+            projectId: projectId,
+            chapterIdx: currentChapterIdx,
+            aiResponse: _extractionAiResponse || JSON.stringify(_extractionPreviewData)
+        };
+
+        fetch('/api/v1/ai/confirm-save-extraction', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res) {
+            if (res.success) {
+                btn.textContent = '&#10003; 保存成功';
+                showToast('分镜和资产保存成功！', 'success');
+                setTimeout(function(){
+                    hideModal('extractionPreviewModal');
+                    loadChapters();
+                    render();
+                }, 1500);
+            } else {
+                alert('保存失败：' + (res.message || '未知错误'));
+                btn.textContent = '确认保存';
+                btn.disabled = false;
+            }
+        })
+        .catch(function(err){
+            alert('请求失败：' + err.message);
+            btn.textContent = '确认保存';
+            btn.disabled = false;
+        });
+    }
+    // ---- End Shot & Asset Extraction ----
 
     function showImagePreview(src) {
         if (!src) return;
