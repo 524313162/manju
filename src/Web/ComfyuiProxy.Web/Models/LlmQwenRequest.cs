@@ -8,6 +8,6 @@ public class LlmQwenRequestDto
     /// <summary>提示词参数（必填）</summary>
     public string Prompt { get; set; } = string.Empty;
 
-    /// <summary>最大生成长度，默认 2048</summary>
-    public int? MaxLength { get; set; } = 2048;
+    /// <summary>最大生成长度，默认 32768</summary>
+    public int? MaxLength { get; set; } = 32768;
 }

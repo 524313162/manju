@@ -114,7 +114,7 @@
     (function(){ init(); })();
 
     function init() {
-        document.getElementById('pName').textContent = '@project.Name';
+        document.getElementById('pName').textContent = '@Html.Raw(Json.Serialize(project.Name))';
         loadChapters();
     }
 
@@ -124,8 +124,8 @@
             .then(function(res){
                 if (res && res.success && res.data) {
                     chapters = (res.data || []).map(function(c){
-                        if (typeof c.chapterName === 'string') c.chapterName = c.chapterName.replace(/\\u[\dA-F]{4}/gi, function(m){ return String.fromCharCode(parseInt(m.replace(/\\u/, ''), 16)); });
-                        if (typeof c.content === 'string') c.content = c.content.replace(/\\u[\dA-F]{4}/gi, function(m){ return String.fromCharCode(parseInt(m.replace(/\\u/, ''), 16)); });
+                        if (typeof c.chapterName === 'string') { c.chapterName = c.chapterName.replace(/\\u[\dA-F]{4}/gi, function(m){ return String.fromCharCode(parseInt(m.replace(/\\u/, ''), 16)); }); var d=document.createElement('div'); d.innerHTML=c.chapterName; c.chapterName=d.textContent; }
+                        if (typeof c.content === 'string') { c.content = c.content.replace(/\\u[\dA-F]{4}/gi, function(m){ return String.fromCharCode(parseInt(m.replace(/\\u/, ''), 16)); }); var d=document.createElement('div'); d.innerHTML=c.content; c.content=d.textContent; }
                         return c;
                     });
                 } else {
@@ -351,35 +351,21 @@
         var systemPrompt = '你是一个视频生成助手。';
         var userMessage = shot.frames ? shot.frames.map(function(f){ return f.description; }).join('\n') : '';
 
-        fetch('/api/v1/ai/video/text-to-video', {
+        fetch('/api/comfyui/ltx/text-to-video', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt: userMessage })
         })
             .then(function(r){ return r.json(); })
             .then(function(res) {
-                if (res && res.success && res.data) {
-                    var videoUrl = null;
-                    if (res.data.urls && res.data.urls.length > 0) {
-                        videoUrl = res.data.urls[0];
-                    } else if (res.data.url) {
-                        videoUrl = res.data.url;
-                    }
-                    if (videoUrl) {
-                        shotState[currentChapterIdx].shots[shotIdx].videoUrl = videoUrl;
-                        shotState[currentChapterIdx].shots[shotIdx].generatingVideo = false;
-                        renderShotsTab();
-                        showToast('视频生成完成！', 'success');
-                        return;
-                    }
-                    if (res.data.promptId) {
-                        pollAiResultForShot(res.data.promptId, 'text-to-video', shotIdx, 'video');
-                        return;
-                    }
+                if (res && res.promptId) {
+                    var promptId = res.promptId;
+                    pollAiResultForShot(promptId, 'ltx-text-to-video', shotIdx, 'video');
+                } else {
+                    shotState[currentChapterIdx].shots[shotIdx].generatingVideo = false;
+                    renderShotsTab();
+                    alert('视频生成失败: ' + (res && res.message ? res.message : '未知错误'));
                 }
-                shotState[currentChapterIdx].shots[shotIdx].generatingVideo = false;
-                renderShotsTab();
-                alert('视频生成失败: ' + (res && res.message ? res.message : '未知错误'));
             })
             .catch(function(err) {
                 shotState[currentChapterIdx].shots[shotIdx].generatingVideo = false;
@@ -403,37 +389,21 @@
         }
         if (!description) description = shot.shotName || shot.shotNumber || '';
 
-        fetch('/api/v1/ai/storyboard/generate', {
+        fetch('/api/comfyui/hidream/storyboard', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt: description, width: 1024, height: 576 })
         })
             .then(function(r){ return r.json(); })
             .then(function(res) {
-                if (res && res.success && res.data) {
-                    var imgUrl = null;
-                    if (res.data.urls && res.data.urls.length > 0) {
-                        imgUrl = res.data.urls[0];
-                    } else if (res.data.url) {
-                        imgUrl = res.data.url;
-                    } else if (res.data.imageUrls && res.data.imageUrls.length > 0) {
-                        imgUrl = res.data.imageUrls[0];
-                    }
-                    if (imgUrl) {
-                        shotState[currentChapterIdx].shots[shotIdx].storyboardUrl = imgUrl;
-                        shotState[currentChapterIdx].shots[shotIdx].generatingStoryboard = false;
-                        renderShotsTab();
-                        showToast('分镜图生成完成！', 'success');
-                        return;
-                    }
-                    if (res.data.promptId) {
-                        pollAiResultForShot(res.data.promptId, 'hidream-storyboard', shotIdx, 'storyboard');
-                        return;
-                    }
+                if (res && res.promptId) {
+                    var promptId = res.promptId;
+                    pollAiResultForShot(promptId, 'hidream-storyboard', shotIdx, 'storyboard');
+                } else {
+                    shotState[currentChapterIdx].shots[shotIdx].generatingStoryboard = false;
+                    renderShotsTab();
+                    alert('分镜图生成失败: ' + (res && res.message ? res.message : '未知错误'));
                 }
-                shotState[currentChapterIdx].shots[shotIdx].generatingStoryboard = false;
-                renderShotsTab();
-                alert('分镜图生成失败: ' + (res && res.message ? res.message : '未知错误'));
             })
             .catch(function(err) {
                 shotState[currentChapterIdx].shots[shotIdx].generatingStoryboard = false;
@@ -447,18 +417,28 @@
         var maxPolls = 120;
         var interval = 5000;
 
+        var mapResultType = function(rt) {
+            if (rt === 'video') return 'video';
+            if (rt === 'frame') return 'image';
+            if (rt === 'storyboard') return 'image';
+            return 'image';
+        };
+
         var timer = setInterval(function() {
             pollCount++;
-            fetch('/api/v1/ai/result/' + promptId + '?workflowType=' + encodeURIComponent(workflowType))
+            fetch('/api/v1/comfyui/result/' + promptId + '/' + mapResultType(resultType) + '?workflowType=' + encodeURIComponent(workflowType))
                 .then(function(r) { return r.json(); })
                 .then(function(res) {
-                    if (res && res.success && res.data) {
+                    if (res.success && res.data) {
                         clearInterval(timer);
                         var url = null;
-                        if (res.data.urls && res.data.urls.length > 0) {
-                            url = res.data.urls[0];
-                        } else if (res.data.url) {
-                            url = res.data.url;
+                        var data = res.data;
+                        if (data.imageUrls && data.imageUrls.length > 0) {
+                            url = data.imageUrls[0];
+                        } else if (data.videoUrls && data.videoUrls.length > 0) {
+                            url = data.videoUrls[0];
+                        } else if (data.audioUrls && data.audioUrls.length > 0) {
+                            url = data.audioUrls[0];
                         }
                         if (url) {
                             if (resultType === 'video') {
@@ -480,6 +460,9 @@
                                 showToast('分镜图生成完成！', 'success');
                             }
                         }
+                    } else if (!res.pending) {
+                        clearInterval(timer);
+                        alert(res.message || '任务执行失败');
                     }
                     if (pollCount >= maxPolls) {
                         clearInterval(timer);
@@ -506,42 +489,21 @@
         shotState[currentChapterIdx].shots[shotIdx].generatingFrame = true;
         renderShotsTab();
 
-        fetch('/api/v1/ai/image/generate', {
+        fetch('/api/comfyui/zimage/text-to-image', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt: prompt, width: 1024, height: 576 })
         })
             .then(function(r){ return r.json(); })
             .then(function(res) {
-                if (res && res.success && res.data) {
-                    var imgUrl = null;
-                    if (res.data.urls && res.data.urls.length > 0) {
-                        imgUrl = res.data.urls[0];
-                    } else if (res.data.url) {
-                        imgUrl = res.data.url;
-                    } else if (res.data.imageUrls && res.data.imageUrls.length > 0) {
-                        imgUrl = res.data.imageUrls[0];
-                    }
-                    if (imgUrl) {
-                        var fi = targetFrame ? frameIdx : 0;
-                        if (shot.frames[fi]) {
-                            shot.frames[fi].imagePath = imgUrl;
-                            shot.frames[fi].hasImage = true;
-                        }
-                        shot.hasFirstFrame = true;
-                        shotState[currentChapterIdx].shots[shotIdx].generatingFrame = false;
-                        renderShotsTab();
-                        showToast('帧图片生成完成！', 'success');
-                        return;
-                    }
-                    if (res.data.promptId) {
-                        pollAiResultForShot(res.data.promptId, 'text-to-image', shotIdx, 'frame');
-                        return;
-                    }
+                if (res && res.promptId) {
+                    var promptId = res.promptId;
+                    pollAiResultForShot(promptId, 'zimage-text-to-image', shotIdx, 'frame');
+                } else {
+                    shotState[currentChapterIdx].shots[shotIdx].generatingFrame = false;
+                    renderShotsTab();
+                    alert('图片生成失败: ' + (res && res.message ? res.message : '未知错误'));
                 }
-                shotState[currentChapterIdx].shots[shotIdx].generatingFrame = false;
-                renderShotsTab();
-                alert('图片生成失败: ' + (res && res.message ? res.message : '未知错误'));
             })
             .catch(function(err) {
                 shotState[currentChapterIdx].shots[shotIdx].generatingFrame = false;

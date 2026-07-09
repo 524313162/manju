@@ -93,7 +93,7 @@ public class ProductionController : Controller
                 return Json(new { success = false, message = "AI 提供者不存在" });
 
             var aiService = HttpContext.RequestServices.GetRequiredService<IAiAgentService>();
-            var (success, aiResult, errorMsg) = await aiService.ChatAsync(
+            var (success, aiResult, errorMsg, _, _, _) = await aiService.ChatAsync(
                 req.ProviderId,
                 sysPrompt,
                 userPrompt,

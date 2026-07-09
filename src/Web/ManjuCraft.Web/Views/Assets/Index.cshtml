@@ -511,15 +511,14 @@
             var workflowType = '';
 
             if (assetType === 'Bgm') {
-                endpoint = '/api/v1/ai/bgm/generate';
-                workflowType = 'bgm-generate';
+                endpoint = '/api/comfyui/stable-bgm/generate';
+                workflowType = 'stable-bgm-generate';
             } else if (assetType === 'VoiceVoice') {
-                // Voice generation via ComfyUI ace-music or TTS endpoint
-                endpoint = '/api/v1/ai/music/compose';
+                endpoint = '/api/comfyui/ace-music/compose';
                 workflowType = 'ace-music-compose';
             } else {
-                endpoint = '/api/v1/ai/image/generate';
-                workflowType = 'text-to-image';
+                endpoint = '/api/comfyui/zimage/text-to-image';
+                workflowType = 'zimage-text-to-image';
             }
 
             fetch(endpoint, {
@@ -529,35 +528,13 @@
             })
             .then(function(r) { return r.json(); })
             .then(function(res) {
-                if (!res.success) {
-                    alert('生成失败: ' + (res.message || '未知错误'));
+                var promptId = res && res.promptId;
+
+                if (!promptId) {
+                    alert('提交失败: ' + (res.message || '未知错误'));
                     genBtn.disabled = false;
                     genBtn.textContent = '开始生成';
                     extraFields.innerHTML = '';
-                    return;
-                }
-
-                var promptId = null;
-                var data = res.data;
-
-                if (data && typeof data === 'object') {
-                    promptId = data.promptId || data.PromptId || null;
-                }
-
-                if (!promptId) {
-            if (assetType === 'Bgm') {
-                handleAiResultSuccess(assetId, assetType, data.urls[0]);
-            } else if (assetType === 'VoiceVoice') {
-                handleAiResultSuccess(assetId, assetType, data.urls[0]);
-            } else if (data && data.imageUrls && data.imageUrls.length > 0) {
-                        handleAiResultSuccess(assetId, assetType, data.imageUrls[0]);
-                    } else if (data && data.url) {
-                        handleAiResultSuccess(assetId, assetType, data.url);
-                    } else {
-                        extraFields.innerHTML = '<div style="padding:12px;background:#fff3cd;border-radius:8px;margin-top:12px;color:#856404;">生成成功但未能解析结果数据</div>';
-                        genBtn.disabled = false;
-                        genBtn.textContent = '重新生成';
-                    }
                     return;
                 }
 
@@ -586,13 +563,14 @@
 
                 if (pollCount >= maxPolls) {
                     clearInterval(pollTimer);
-                    extraFields.innerHTML = '<div style="padding:12px;background:#fff3cd;border-radius:8px;margin-top:12px;"><div style="color:#856404;font-weight:bold;">生成超时</div><div style="color:#666;font-size:13px;margin-top:4px;">promptId: ' + promptId + '</div><button class="btn btn-sm btn-primary" style="margin-top:8px;" onclick=\'fetchAiResult("' + promptId + '",' + pollInterval + ',' + assetId + ',"' + assetType + '")\'>获取结果</button><button class="btn btn-sm btn-ghost" style="margin-top:8px;margin-left:4px;" onclick="hideModal(\'aiGenerateModal\')">关闭</button></div>';
+                    extraFields.innerHTML = '<div style="padding:12px;background:#fff3cd;border-radius:8px;margin-top:12px;"><div style="color:#856404;font-weight:bold;">生成超时</div><div style="color:#666;font-size:13px;margin-top:4px;">promptId: ' + promptId + '</div><button class="btn btn-sm btn-primary" style="margin-top:8px;" onclick=\'fetchAiResult("' + promptId + '","' + workflowType + '",' + assetId + ',"' + assetType + '")\'>获取结果</button><button class="btn btn-sm btn-ghost" style="margin-top:8px;margin-left:4px;" onclick="hideModal(\'aiGenerateModal\')">关闭</button></div>';
                     genBtn.disabled = false;
                     genBtn.textContent = '重新生成';
                     return;
                 }
 
-                var url = '/api/v1/ai/result/' + promptId + '?workflowType=' + encodeURIComponent(workflowType);
+                var resultType = (assetType === 'Bgm' || assetType === 'VoiceVoice') ? 'audio' : 'image';
+                var url = '/api/v1/comfyui/result/' + promptId + '/' + resultType + '?workflowType=' + encodeURIComponent(workflowType);
                 fetch(url)
                 .then(function(r) { return r.json(); })
                 .then(function(res) {
@@ -601,12 +579,12 @@
                         var urls = [];
                         var data = res.data;
 
-                        if (data.urls && Array.isArray(data.urls)) {
-                            urls = data.urls;
-                        } else if (data.url) {
-                            urls = [data.url];
-                        } else if (data.imageUrls && Array.isArray(data.imageUrls)) {
+                        if (data.imageUrls && Array.isArray(data.imageUrls)) {
                             urls = data.imageUrls;
+                        } else if (data.audioUrls && Array.isArray(data.audioUrls)) {
+                            urls = data.audioUrls;
+                        } else if (data.videoUrls && Array.isArray(data.videoUrls)) {
+                            urls = data.videoUrls;
                         }
 
                         if (urls.length > 0) {
@@ -616,6 +594,11 @@
                             genBtn.disabled = false;
                             genBtn.textContent = '重新生成';
                         }
+                    } else if (!res.pending) {
+                        clearInterval(pollTimer);
+                        extraFields.innerHTML = '<div style="padding:12px;background:#f0f0f0;border-radius:8px;margin-top:12px;color:#666;">' + (res.message || '任务执行失败') + '</div>';
+                        genBtn.disabled = false;
+                        genBtn.textContent = '重新生成';
                     }
                 })
                 .catch(function() {
@@ -624,8 +607,8 @@
             }, pollInterval);
         }
 
-        function fetchAiResult(promptId, pollIntervalMs, assetId, assetType) {
-            pollAiResult(promptId, 'unknown', assetId, assetType);
+        function fetchAiResult(promptId, wfType, assetId, assetType) {
+            pollAiResult(promptId, wfType || 'zimage-text-to-image', assetId, assetType);
         }
 
         function handleAiResultSuccess(assetId, assetType, fileUrl) {

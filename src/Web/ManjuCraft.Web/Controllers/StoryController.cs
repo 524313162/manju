@@ -310,6 +310,9 @@ public class StoryController : Controller
             if (!result.success)
                 return Json(new { success = false, message = result.message ?? "生成失败" });
 
+            if (result.isComfyui)
+                return Json(new { success = true, data = result.data, promptId = result.promptId, workflowType = result.workflowType, isComfyui = true });
+
             return Json(new { success = true, data = result.data, message = string.Empty });
         }
         catch (Exception ex)
@@ -330,6 +333,9 @@ public class StoryController : Controller
             var result = await _aiAgent.ChatAsync(providerId, fullSys, userMsg);
             if (!result.success)
                 return Json(new { success = false, message = result.message ?? "改写失败" });
+
+            if (result.isComfyui)
+                return Json(new { success = true, data = result.data, promptId = result.promptId, workflowType = result.workflowType, isComfyui = true });
 
             // Try to parse structured JSON from AI response
             var raw = result.data;

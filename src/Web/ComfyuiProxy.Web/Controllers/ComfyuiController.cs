@@ -25,7 +25,7 @@ public class ComfyuiController : ControllerBase
     {
         var historyItem = await _proxyService.GetHistoryAsync(promptId);
         if (historyItem == null)
-            return Ok(new { success = false, error = "未找到结果，任务可能还在执行中" });
+            return Ok(new { });
 
         var agent = _agentFactory.GetAgent(workflowType);
         var parseMethod = agent.GetType().GetMethod("ParseHistory");
@@ -33,7 +33,7 @@ public class ComfyuiController : ControllerBase
             return BadRequest("Agent 不支持 ParseHistory");
 
         var outputs = parseMethod.Invoke(agent, [historyItem]);
-        return Ok(new { success = true, promptId, outputs });
+        return Ok(outputs);
     }
 
     [HttpPost("interrupt")]

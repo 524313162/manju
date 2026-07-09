@@ -16,8 +16,8 @@ function loadChapters() {
         .then(function(res){
             if (res && res.success) {
                 chapters = (res.data || []).map(function(c){
-                    if (typeof c.chapterName === 'string') c.chapterName = c.chapterName.replace(/\\u[\dA-F]{4}/gi, function(m){ return String.fromCharCode(parseInt(m.replace(/\\u/, ''), 16)); });
-                    if (typeof c.content === 'string') c.content = c.content.replace(/\\u[\dA-F]{4}/gi, function(m){ return String.fromCharCode(parseInt(m.replace(/\\u/, ''), 16)); });
+                    if (typeof c.chapterName === 'string') { c.chapterName = c.chapterName.replace(/\\u[\dA-F]{4}/gi, function(m){ return String.fromCharCode(parseInt(m.replace(/\\u/, ''), 16)); }); var d=document.createElement('div'); d.innerHTML=c.chapterName; c.chapterName=d.textContent; }
+                    if (typeof c.content === 'string') { c.content = c.content.replace(/\\u[\dA-F]{4}/gi, function(m){ return String.fromCharCode(parseInt(m.replace(/\\u/, ''), 16)); }); var d=document.createElement('div'); d.innerHTML=c.content; c.content=d.textContent; }
                     return c;
                 });
             } else {
@@ -138,14 +138,19 @@ function loadTemplates() {
 }
 
 function showGenModal() {
-    document.getElementById('storyTitle').value = (typeof projectName !== 'undefined' ? projectName : '');
-    document.getElementById('storyPrompt').value = '';
+    if (_genPoller) { _genPoller.stop(); _genPoller = null; }
+    document.getElementById('storyTitle').value = currentStoryTitle || (typeof projectName !== 'undefined' ? projectName : '');
+    document.getElementById('storyPrompt').value = currentStorySummary || '';
     document.getElementById('genResult').style.display = 'none';
     document.getElementById('genResult').innerHTML = '';
+    document.getElementById('genGoBtn').style.display = '';
     document.getElementById('genGoBtn').disabled = false;
     document.getElementById('genGoBtn').textContent = '开始生成';
-    document.getElementById('genGoBtn').style.display = '';
-    document.getElementById('genActions').style.display = '';
+    document.getElementById('genCancelBtn').style.display = '';
+    document.getElementById('genSaveBtn').style.display = 'none';
+    document.getElementById('genRetryBtn').style.display = 'none';
+    document.getElementById('genStopBtn').style.display = 'none';
+    document.getElementById('genManualBtn').style.display = 'none';
     loadTemplates().then(function() {
         document.getElementById('genTemplate').value = allTemplateStore['StoryGeneration'] || '';
     });
@@ -163,6 +168,12 @@ function doAI() {
         return;
     }
 
+    var formData = new FormData();
+    formData.append('storyId', storyId);
+    formData.append('title', title);
+    formData.append('summary', prompt);
+    fetch('/Story/update-summary', { method: 'POST', body: formData });
+
     document.getElementById('genGoBtn').disabled = true;
     document.getElementById('genGoBtn').textContent = '生成中...';
     document.getElementById('genResult').style.display = 'block';
@@ -178,19 +189,27 @@ function doAI() {
         .then(function(r) { return r.json(); })
         .then(function(res) {
             if (res.success) {
-                showAiResult(res.data);
+                if (res.isComfyui) {
+                    pollAiResult(res.promptId, res.workflowType);
+                } else {
+                    showAiResult(res.data);
+                }
             } else {
                 document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;">'
                     + '<p style="font-size:13px;font-weight:700;color:var(--danger);">生成失败：' + (res.message || '未知错误') + '</p></div>';
+                document.getElementById('genGoBtn').style.display = '';
                 document.getElementById('genGoBtn').disabled = false;
                 document.getElementById('genGoBtn').textContent = '重新生成';
+                document.getElementById('genCancelBtn').style.display = '';
             }
         })
         .catch(function(err) {
             document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;">'
                 + '<p style="font-size:13px;font-weight:700;color:var(--danger);">请求失败：' + err.message + '</p></div>';
+            document.getElementById('genGoBtn').style.display = '';
             document.getElementById('genGoBtn').disabled = false;
             document.getElementById('genGoBtn').textContent = '重新生成';
+            document.getElementById('genCancelBtn').style.display = '';
         });
 }
 
@@ -198,34 +217,26 @@ var _lastAiResult = null;
 
 function showAiResult(rawResponse) {
     _lastAiResult = rawResponse;
-    var parsed = null;
     var displayText = rawResponse;
     try {
         var text = rawResponse;
         var backtickMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
         if (backtickMatch) text = backtickMatch[1].trim();
-        parsed = JSON.parse(text);
+        var parsed = JSON.parse(text);
         displayText = JSON.stringify(parsed, null, 2);
     } catch (e) {
-        // Show raw if parse fails, user can still copy
+        displayText = rawResponse;
     }
 
-    var summary = '';
-    if (parsed && parsed.chapters) {
-        summary = '<div style="padding:10px 14px;background:var(--ok-bg);border-radius:8px;margin-bottom:12px;">'
-            + '<p style="font-size:13px;font-weight:700;color:var(--ok);">已解析 ' + parsed.chapters.length + ' 个章节</p></div>';
-    }
+    document.getElementById('genResult').innerHTML = '<div class="form-group"><label>AI 返回结果（可编辑，确认后可提交保存）</label>'
+        + '<textarea id="aiResultJson" rows="14" style="width:100%;font-family:monospace;font-size:12px;">' + escapeHtml(displayText) + '</textarea></div>';
 
-    document.getElementById('genResult').innerHTML = summary
-        + '<div class="form-group"><label>AI 返回结果（可编辑，确认后可提交保存）</label>'
-        + '<textarea id="aiResultJson" rows="14" style="width:100%;font-family:monospace;font-size:12px;">' + escapeHtml(displayText) + '</textarea></div>'
-        + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">'
-        + '<button class="btn btn-ghost" onclick="hideModal(\'genModal\')">取消</button>'
-        + '<button class="btn btn-primary" onclick="submitAiResult()">确认提交保存</button></div>';
-
-    document.getElementById('genGoBtn').disabled = false;
-    document.getElementById('genGoBtn').textContent = '重新生成';
     document.getElementById('genGoBtn').style.display = 'none';
+    document.getElementById('genCancelBtn').style.display = '';
+    document.getElementById('genSaveBtn').style.display = '';
+    document.getElementById('genRetryBtn').style.display = '';
+    document.getElementById('genStopBtn').style.display = 'none';
+    document.getElementById('genManualBtn').style.display = 'none';
 }
 
 function submitAiResult() {
@@ -240,6 +251,199 @@ function escapeHtml(str) {
     var div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+}
+
+function cancelGenModal() {
+    if (_genPoller) { _genPoller.stop(); _genPoller = null; }
+    hideModal('genModal');
+}
+
+function cancelRewriteModal() {
+    if (_rewritePoller) { _rewritePoller.stop(); _rewritePoller = null; }
+    hideModal('rewriteModal');
+}
+
+var _genPoller = null;
+
+function pollAiResult(promptId, workflowType) {
+    document.getElementById('genResult').style.display = 'block';
+    document.getElementById('genResult').innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></div><p style="margin-top:10px;color:var(--text2);font-size:13px;">AI 正在生成中，请耐心等待...</p><p style="margin-top:6px;color:var(--text3);font-size:11px;">任务ID: ' + promptId + '</p></div>';
+
+    document.getElementById('genGoBtn').style.display = 'none';
+    document.getElementById('genCancelBtn').style.display = 'none';
+    document.getElementById('genSaveBtn').style.display = 'none';
+    document.getElementById('genRetryBtn').style.display = 'none';
+    document.getElementById('genStopBtn').style.display = '';
+    document.getElementById('genManualBtn').style.display = '';
+
+    var stopBtn = document.getElementById('genStopBtn');
+    var manualBtn = document.getElementById('genManualBtn');
+    stopBtn.onclick = function() {
+        if (_genPoller) _genPoller.stop();
+        stopBtn.style.display = 'none';
+        manualBtn.style.display = 'none';
+        document.getElementById('genGoBtn').style.display = '';
+        document.getElementById('genGoBtn').disabled = false;
+        document.getElementById('genGoBtn').textContent = '重新生成';
+        document.getElementById('genCancelBtn').style.display = '';
+        document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--surface2);border-radius:8px;margin-top:12px;"><p style="font-size:13px;color:var(--text2);">已停止自动获取。任务ID: ' + promptId + '</p></div>';
+    };
+    manualBtn.onclick = function() {
+        if (!_genPoller) return;
+        document.getElementById('genResult').innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></div><p style="margin-top:10px;color:var(--text2);font-size:13px;">正在手动获取结果...</p></div>';
+        _genPoller.fetchNow();
+    };
+
+    _genPoller = createPoller({
+        promptId: promptId,
+        workflowType: workflowType,
+        resultType: 'text',
+        intervalMs: 10000,
+        timeoutMs: 600000,
+        onSuccess: function(data) {
+            stopBtn.style.display = 'none';
+            manualBtn.style.display = 'none';
+            showAiResult(data.text || '');
+        },
+        onTimeout: function() {
+            stopBtn.style.display = 'none';
+            manualBtn.style.display = 'none';
+            document.getElementById('genGoBtn').style.display = '';
+            document.getElementById('genGoBtn').disabled = false;
+            document.getElementById('genGoBtn').textContent = '重新生成';
+            document.getElementById('genCancelBtn').style.display = '';
+            document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--danger);">等待超时（10分钟），任务仍在后台执行。任务ID: ' + promptId + '</p></div>';
+        },
+        onFetchEmpty: function() {
+            document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--surface2);border-radius:8px;margin-top:12px;"><p style="font-size:13px;color:var(--text2);">尚未生成完毕，请稍后再试。任务ID: ' + promptId + '</p></div>';
+        },
+        onFetchError: function(msg) {
+            document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;color:var(--danger);">' + (msg || '请求失败') + '</p></div>';
+        },
+        onError: function(msg) {
+            stopBtn.style.display = 'none';
+            manualBtn.style.display = 'none';
+            document.getElementById('genGoBtn').style.display = '';
+            document.getElementById('genGoBtn').disabled = false;
+            document.getElementById('genGoBtn').textContent = '重新生成';
+            document.getElementById('genCancelBtn').style.display = '';
+            document.getElementById('genResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--danger);">' + (msg || '生成失败') + '</p></div>';
+        }
+    });
+}
+
+var _rewritePoller = null;
+
+function pollRewriteResult(promptId, workflowType) {
+    document.getElementById('rewriteResult').style.display = 'block';
+    document.getElementById('rewriteResult').innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></div><p style="margin-top:10px;color:var(--text2);font-size:13px;">AI 正在改写中，请耐心等待...</p></div>';
+
+    document.getElementById('rewriteGoBtn').disabled = true;
+    document.getElementById('rewriteGoBtn').textContent = '等待中...';
+
+    var actions = document.getElementById('rewriteActions');
+    if (!actions) {
+        actions = document.querySelector('#rewriteModal .form-actions');
+    }
+    var stopBtn = document.getElementById('rewriteStopBtn');
+    var manualBtn = document.getElementById('rewriteManualBtn');
+    if (!stopBtn) {
+        stopBtn = document.createElement('button');
+        stopBtn.className = 'btn btn-danger';
+        stopBtn.id = 'rewriteStopBtn';
+        stopBtn.textContent = '立即停止获取';
+        stopBtn.onclick = function() {
+            if (_rewritePoller) _rewritePoller.stop();
+            stopBtn.style.display = 'none';
+            manualBtn.style.display = 'none';
+            document.getElementById('rewriteGoBtn').disabled = false;
+            document.getElementById('rewriteGoBtn').textContent = '重试';
+            document.getElementById('rewriteResult').innerHTML = '<div style="padding:14px;background:var(--surface2);border-radius:8px;margin-top:12px;"><p style="font-size:13px;color:var(--text2);">已停止自动获取。任务ID: ' + promptId + '</p></div>';
+        };
+        actions.insertBefore(stopBtn, actions.firstChild);
+    }
+    if (!manualBtn) {
+        manualBtn = document.createElement('button');
+        manualBtn.className = 'btn btn-info';
+        manualBtn.id = 'rewriteManualBtn';
+        manualBtn.textContent = '手动获取';
+        manualBtn.style.marginLeft = 'auto';
+        manualBtn.onclick = function() {
+            if (!_rewritePoller) return;
+            document.getElementById('rewriteResult').innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite;"></div><p style="margin-top:10px;color:var(--text2);font-size:13px;">正在手动获取结果...</p></div>';
+            _rewritePoller.fetchNow();
+        };
+        actions.insertBefore(manualBtn, actions.firstChild);
+    }
+    stopBtn.style.display = '';
+    manualBtn.style.display = '';
+
+    _rewritePoller = createPoller({
+        promptId: promptId,
+        workflowType: workflowType,
+        resultType: 'text',
+        intervalMs: 10000,
+        timeoutMs: 600000,
+        onSuccess: function(data) {
+            stopBtn.style.display = 'none';
+            manualBtn.style.display = 'none';
+
+            var newContent = data.text || '';
+            var previewHtml = '<div style="background:var(--ok-bg);border-radius:8px;padding:14px;margin-bottom:12px;">'
+                + '<p style="font-size:13px;font-weight:700;color:var(--ok);">&#10003; 改写完成，请确认后点击保存</p>'
+                + '</div>'
+                + '<div class="form-group"><label>改写后内容（可编辑）</label>'
+                + '<textarea id="rewritePreviewContent" rows="12" style="width:100%;font-family:inherit;font-size:13px;">' + escapeHtml(newContent) + '</textarea></div>';
+
+            document.getElementById('rewriteResult').innerHTML = previewHtml;
+            document.getElementById('rewriteGoBtn').textContent = '确认保存';
+            document.getElementById('rewriteGoBtn').disabled = false;
+            document.getElementById('rewriteGoBtn').onclick = function() {
+                var idx = parseInt(document.getElementById('rewriteChapterIdx').value);
+                var c = chapters[idx];
+                var finalContent = document.getElementById('rewritePreviewContent').value.trim();
+                if (!finalContent) { alert('内容不能为空'); return; }
+                document.getElementById('rewriteGoBtn').disabled = true;
+                document.getElementById('rewriteGoBtn').textContent = '保存中...';
+
+                fetch('/Story/EditChapter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: c.id, chapterName: c.chapterName, content: finalContent })
+                })
+                .then(function(r2){ return r2.json(); })
+                .then(function(saveRes) {
+                    if (saveRes.success) {
+                        chapters[idx].content = finalContent;
+                        document.getElementById('rewriteResult').innerHTML = '<div style="padding:14px;background:var(--ok-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--ok);">&#10003; 保存成功</p></div>';
+                        setTimeout(function() {
+                            hideModal('rewriteModal');
+                            loadChapters();
+                            render();
+                        }, 1000);
+                    } else {
+                        alert('保存失败');
+                        document.getElementById('rewriteGoBtn').disabled = false;
+                        document.getElementById('rewriteGoBtn').textContent = '确认保存';
+                    }
+                })
+                .catch(function(){ alert('网络错误'); });
+            };
+        },
+        onTimeout: function() {
+            stopBtn.style.display = 'none';
+            manualBtn.style.display = 'none';
+            document.getElementById('rewriteGoBtn').disabled = false;
+            document.getElementById('rewriteGoBtn').textContent = '重试';
+            document.getElementById('rewriteResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;font-weight:700;color:var(--danger);">改写超时，任务仍在后台执行。任务ID: ' + promptId + '</p></div>';
+        },
+        onFetchEmpty: function() {
+            document.getElementById('rewriteResult').innerHTML = '<div style="padding:14px;background:var(--surface2);border-radius:8px;margin-top:12px;"><p style="font-size:13px;color:var(--text2);">尚未改写完毕，请稍后再试。任务ID: ' + promptId + '</p></div>';
+        },
+        onFetchError: function(msg) {
+            document.getElementById('rewriteResult').innerHTML = '<div style="padding:14px;background:var(--danger-bg);border-radius:8px;margin-top:12px;"><p style="font-size:13px;color:var(--danger);">' + (msg || '请求失败') + '</p></div>';
+        }
+    });
 }
 
 function showChapterModal(idx) {
@@ -478,6 +682,7 @@ function saveScript(jsonStr, onSuccess, onError) {
 }
 
 function showRewriteModal(idx) {
+    if (_rewritePoller) { _rewritePoller.stop(); _rewritePoller = null; }
     var c = chapters[idx];
     document.getElementById('rewriteChapterIdx').value = idx;
     document.getElementById('rewriteOriginal').value = c.content || '';
@@ -486,7 +691,26 @@ function showRewriteModal(idx) {
     document.getElementById('rewriteResult').innerHTML = '';
     document.getElementById('rewriteGoBtn').disabled = false;
     document.getElementById('rewriteGoBtn').textContent = '开始改写';
+    loadRewriteProviderList();
     showModal('rewriteModal');
+}
+
+function loadRewriteProviderList() {
+    var sel = document.getElementById('rewriteProviderSelect');
+    if (sel.options.length > 1) return;
+    var saved = localStorage.getItem('rewrite_providerId');
+    var textProviders = allProviders.filter(function(p){ return p.capability === 1; });
+    if (textProviders.length === 0) {
+        sel.innerHTML = '<option value="">未找到文本生成提供者</option>';
+        return;
+    }
+    var html = '';
+    var preSelected = saved || (currentProvider && currentProvider.id);
+    textProviders.forEach(function(p) {
+        var s = preSelected && preSelected == p.id ? ' selected' : '';
+        html += '<option value="' + p.id + '"' + s + '>' + p.name + ' [' + (p.model || '') + ']</option>';
+    });
+    sel.innerHTML = html;
 }
 
 function tryLoadRewriteTemplate() {
@@ -518,11 +742,14 @@ function doRewrite() {
     var content = document.getElementById('rewriteOriginal').value.trim();
     var template = document.getElementById('rewriteTemplate').value.trim();
     var mode = document.getElementById('rewriteMode').value;
+    var rewriteProviderSelect = document.getElementById('rewriteProviderSelect');
+    var rewriteProviderId = rewriteProviderSelect ? rewriteProviderSelect.value : null;
     if (!content) { alert('请输入要改写的内容'); return; }
-    if (!currentProvider || !currentProvider.id) {
+    if (!rewriteProviderId) {
         alert('请先选择 AI 提供者');
         return;
     }
+    localStorage.setItem('rewrite_providerId', rewriteProviderId);
 
     document.getElementById('rewriteGoBtn').disabled = true;
     document.getElementById('rewriteGoBtn').textContent = '改写中...';
@@ -532,7 +759,7 @@ function doRewrite() {
     var params = new URLSearchParams();
     params.append('content', content);
     params.append('template', template || '');
-    params.append('providerId', currentProvider.id);
+    params.append('providerId', rewriteProviderId);
     params.append('mode', mode);
 
     fetch('/Story/rewrite', {
@@ -542,6 +769,10 @@ function doRewrite() {
     .then(function(r) { return r.json(); })
     .then(function(res) {
         if (res.success) {
+            if (res.isComfyui) {
+                pollRewriteResult(res.promptId, res.workflowType);
+                return;
+            }
             var newContent = res.data;
 
             var previewHtml = '<div style="background:var(--ok-bg);border-radius:8px;padding:14px;margin-bottom:12px;">'

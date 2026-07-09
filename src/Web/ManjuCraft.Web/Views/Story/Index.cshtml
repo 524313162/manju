@@ -25,7 +25,9 @@
              <p id="pCount">0 章节</p>
          </div>
          <div class="story-list" id="chapterList"></div>
-         <div class="story-sidebar-footer"></div>
+          <div class="story-sidebar-footer" style="padding-bottom:12px;">
+              <a href="@Url.Action("Index", "Production", new { projectId = project.Id })" class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px;color:#a78bfa;display:block;text-align:center;">&#127912; 创作漫剧</a>
+          </div>
      </div>
 
      <div class="prod-main">
@@ -73,10 +75,15 @@
              </div>
          </div>
           <div id="genResult" style="display:none;"></div>
-          <div id="genActions" class="form-actions">
-              <button class="btn btn-ghost" onclick="hideModal('genModal')">取消</button>
-              <button class="btn btn-primary" id="genGoBtn" onclick="doAI()">开始生成</button>
-          </div>
+            <div class="form-actions" id="genActions">
+               <button class="btn btn-danger" id="genStopBtn" style="display:none;">立即停止获取</button>
+               <button class="btn btn-info" id="genManualBtn" style="display:none;">手动获取</button>
+               <span style="flex:1;"></span>
+               <button class="btn btn-ghost" id="genCancelBtn" onclick="cancelGenModal()">取消</button>
+               <button class="btn btn-primary" id="genGoBtn" onclick="doAI()">开始生成</button>
+               <button class="btn btn-primary" id="genSaveBtn" onclick="submitAiResult()" style="display:none;">确认提交保存</button>
+               <button class="btn btn-ghost" id="genRetryBtn" onclick="doAI()" style="display:none;">重新生成</button>
+            </div>
      </div>
  </div>
 
@@ -115,6 +122,12 @@
             <h3>&#9889; AI 改写/扩写</h3>
             <input type="hidden" id="rewriteChapterIdx">
             <div class="form-group">
+                <label>选择 AI 提供者</label>
+                <select id="rewriteProviderSelect" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:14px;">
+                    <option value="">加载中...</option>
+                </select>
+            </div>
+            <div class="form-group">
                 <label>改写模式</label>
                 <select id="rewriteMode" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:14px;">
                     <option value="扩写">扩写（增加细节）</option>
@@ -133,7 +146,7 @@
             </div>
             <div id="rewriteResult" style="display:none;"></div>
             <div class="form-actions">
-                <button class="btn btn-ghost" onclick="hideModal('rewriteModal')">取消</button>
+                <button class="btn btn-ghost" onclick="cancelRewriteModal()">取消</button>
                 <button class="btn btn-primary" id="rewriteGoBtn" onclick="doRewrite()">开始改写</button>
             </div>
       </div>

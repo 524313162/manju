@@ -25,7 +25,8 @@ public class LlmQwenAgent : ComfyUIAgentBase<LlmQwenRequestDto, LlmQwenResponse>
             if (inputs != null)
             {
                 inputs["prompt"] = dto.Prompt;
-                inputs["max_length"] = dto.MaxLength ?? 2048;
+                inputs["max_length"] = dto.MaxLength ?? 32768;
+                inputs["thinking"] = false;
             }
         }
 

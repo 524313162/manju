@@ -1,8 +1,10 @@
+using ManjuCraft.Application.Service.ComfyuiProxy;
 using ManjuCraft.Domain.Models;
 using ManjuCraft.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 
@@ -12,10 +14,11 @@ public interface IAiAgentService
 {
     Task<ApiProvider?> GetProviderAsync(long providerId, CancellationToken ct = default);
     Task<ApiProvider?> GetProviderByCapabilityAsync(AiCapability capability, CancellationToken ct = default);
-    Task<(bool success, string? data, string? message)> ChatAsync(long providerId, string systemPrompt, string userPrompt, CancellationToken ct = default);
+    Task<(bool success, string? data, string? message, bool isComfyui, string? promptId, string? workflowType)> ChatAsync(long providerId, string systemPrompt, string userPrompt, CancellationToken ct = default);
     Task<(bool success, string? resultUrl, string? message)> GenerateImageAsync(string prompt, int? width = null, int? height = null, long? seed = null, long? providerId = null, CancellationToken ct = default);
     Task<(bool success, string? resultUrl, string? message)> GenerateVideoAsync(string prompt, string? imageUrl = null, CancellationToken ct = default, long? providerId = null);
     Task<(bool success, string? resultUrl, string? message)> GenerateAudioAsync(string prompt, string? tags = null, CancellationToken ct = default, long? providerId = null);
+    Task<JsonElement> GetComfyuiResultAsync(string promptId, string workflowType, CancellationToken ct = default);
 }
 
 public class AiAgentService : IAiAgentService
@@ -43,11 +46,11 @@ public class AiAgentService : IAiAgentService
         return _db.ApiProviders.FirstOrDefaultAsync(p => p.Capability == capability, ct);
     }
 
-    public async Task<(bool success, string? data, string? message)> ChatAsync(long providerId, string systemPrompt, string userPrompt, CancellationToken ct = default)
+    public async Task<(bool success, string? data, string? message, bool isComfyui, string? promptId, string? workflowType)> ChatAsync(long providerId, string systemPrompt, string userPrompt, CancellationToken ct = default)
     {
         var provider = await GetProviderAsync(providerId, ct);
         if (provider == null)
-            return (false, null, "未找到指定的 API 提供者");
+            return (false, null, "未找到指定的 API 提供者", false, null, null);
 
         // ComfyUI(Proxy) — 走 ComfyUI 代理 LLM
         if (provider.Type == Domain.Models.ProviderType.ComfyUI)
@@ -62,28 +65,31 @@ public class AiAgentService : IAiAgentService
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
                 var res = await _http.PostAsync($"{_comfyuiProxyUrl.TrimEnd('/')}/api/comfyui/llm-qwen/execute", content, ct);
                 res.EnsureSuccessStatusCode();
-                var text = await res.Content.ReadAsStringAsync(ct);
-                var result = JsonSerializer.Deserialize<LlmProxyResponse>(text);
-                return (true, result?.Text, null);
+                var submitBody = await res.Content.ReadFromJsonAsync<ComfyuiSubmitResponseDto>(cancellationToken: ct);
+                var promptId = submitBody?.PromptId;
+                if (string.IsNullOrEmpty(promptId))
+                    return (false, null, "ComfyUI 返回的 promptId 为空", false, null, null);
+
+                return (true, promptId, null, true, promptId, "llm-qwen-execute");
             }
             catch (Exception ex)
             {
-                return (false, null, ex.Message);
+                return (false, null, ex.Message, false, null, null);
             }
         }
 
         var client = _clientFactory.Create(provider);
         if (client == null)
-            return (false, null, $"不支持的 API 类型: {provider.Name}");
+            return (false, null, $"不支持的 API 类型: {provider.Name}", false, null, null);
 
         try
         {
             var result = await client.GenerateAsync(systemPrompt, userPrompt, ct);
-            return (true, result, null);
+            return (true, result, null, false, null, null);
         }
         catch (Exception ex)
         {
-            return (false, null, ex.Message);
+            return (false, null, ex.Message, false, null, null);
         }
     }
 
@@ -367,8 +373,25 @@ public class AiAgentService : IAiAgentService
         public string? Url { get; set; }
     }
 
-    private class LlmProxyResponse
+    /// <summary>
+    /// 查询 ComfyUI 任务结果。{} 表示执行中，否则为执行完成。
+    /// </summary>
+    public async Task<JsonElement> GetComfyuiResultAsync(string promptId, string workflowType, CancellationToken ct = default)
     {
-        public string? Text { get; set; }
+        try
+        {
+            var baseUrl = _comfyuiProxyUrl.TrimEnd('/');
+            var url = $"{baseUrl}/api/comfyui/result/{promptId}?workflowType={workflowType}";
+            var res = await _http.GetAsync(url, ct);
+            if (!res.IsSuccessStatusCode)
+                return new JsonElement();
+
+            var body = await res.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+            return body;
+        }
+        catch
+        {
+            return new JsonElement();
+        }
     }
 }
