@@ -251,54 +251,9 @@
         showModal('frameListModal');
     }
 
-    // Shot regeneration
+    // Shot regeneration - show extraction modal
     function regenerateShots() {
-        if (window.currentChapterIdx === -1) return;
-        window.shotState[window.currentChapterIdx] = { shots: [], loading: true };
-        renderShotsTab();
-
-        var chapter = window.chapters[window.currentChapterIdx];
-        var systemPrompt = '你是一个专业的漫剧分镜师。请将章节内容拆分为多个分镜脚本。每个分镜包含：shotNumber(分镜编号), shotName(分镜名称), shotSize(景别:全景/中景/特写), cameraMovement(运镜:固定/前推/平移/环绕), duration(时长秒), frames(帧数组,含frameType:First/Middle/Last, description, hasImage:false)。\n\n输出严格的 JSON 数组，格式如：[{"shotNumber":"SH001","shotName":"场景一","shotSize":"全景","cameraMovement":"固定","duration":5,"frames":[{"frameType":"First","description":"描述1","startTime":0,"duration":2,"order":0,"hasImage":false},{"frameType":"Middle","description":"描述2","startTime":2,"duration":2.5,"order":1,"hasImage":false},{"frameType":"Last","description":"描述3","startTime":4.5,"duration":3.5,"order":2,"hasImage":false}]}]。注意：只返回 JSON 数组，不要其他内容。';
-        var userMessage = '请为以下章节内容生成分镜脚本：\n\n' + chapter.content;
-
-        fetch('/api/v1/ai/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userPrompt: userMessage, systemPrompt: systemPrompt, maxLength: 8192 })
-        })
-            .then(function(r){ return r.json(); })
-            .then(function(res) {
-                if (res && res.success) {
-                    try {
-                        var text = res.data;
-                        var match = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-                        var jsonText = match ? match[1].trim() : text;
-                        var parsed = JSON.parse(jsonText);
-                        if (Array.isArray(parsed) && parsed.length > 0) {
-                            var shots = parsed.map(function(s, i) {
-                                return {
-                                    shotNumber: s.shotNumber || 'SH' + String(i+1).padStart(3,'0'),
-                                    shotName: s.shotName || '分镜 ' + (i+1),
-                                    shotSize: s.shotSize || '',
-                                    cameraMovement: s.cameraMovement || '',
-                                    duration: s.duration || 5,
-                                    frames: (s.frames || []).map(function(f) {
-                                        return { ...f, hasImage: false };
-                                    }),
-                                    hasFirstFrame: false, hasVideo: false
-                                };
-                            });
-                            window.shotState[window.currentChapterIdx] = { shots: shots };
-                            render();
-                            return;
-                        }
-                    } catch(e) {
-                        console.error('解析分镜 JSON 失败:', e);
-                    }
-                }
-                generateDemoShots(chapter);
-            })
-            .catch(function(){ generateDemoShots(chapter); });
+        showShotAssetExtractionModal();
     }
 
     function generateDemoShots(chapter) {

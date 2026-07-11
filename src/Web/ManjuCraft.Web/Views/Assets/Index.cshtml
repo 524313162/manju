@@ -136,12 +136,15 @@
                             <button type="button" class="action-btn action-ai" data-id="@a.Id" data-type="@a.AssetType.ToString()" data-name='@Json.Serialize(a.Name)' data-url="@imgSrc" data-isbgm="@(isBgm.ToString().ToLower())">
                                 <span class="action-icon">&#129302;</span> AI 生成
                             </button>
+                            @if (a.AssetType == AssetTypeEnum.Actor || a.AssetType == AssetTypeEnum.Scene || a.AssetType == AssetTypeEnum.Prop)
+                            {
+                                <button type="button" class="action-btn action-single-gen" data-id="@a.Id" data-type="@a.AssetType.ToString()" data-name='@Json.Serialize(a.Name)'>
+                                    <span class="action-icon">&#128247;</span> 单图生成
+                                </button>
+                            }
                             <button type="button" class="action-btn action-edit" data-id="@a.Id" data-name='@Json.Serialize(a.Name)' data-desc='@Json.Serialize(a.Description)' data-order="@a.Order" data-imgsrc="@imgSrc" data-isbgm="@(isBgm.ToString().ToLower())">
                                 <span class="action-icon">&#9998;</span> 编辑
                             </button>
-                            @if (a.AssetType == AssetTypeEnum.Actor)
-                            {
-                            }
                             <button type="button" class="action-btn action-delete" data-id="@a.Id" data-name='@Json.Serialize(a.Name)'>
                                 <span class="action-icon">&#128465;</span>
                             </button>
@@ -256,7 +259,7 @@
     </div>
 </div>
 
-<!-- AI 生成模态框 -->
+<!-- AI 生成模态框 (旧版) -->
 <div class="modal-overlay" id="aiGenerateModal">
     <div class="modal modal-medium">
         <div class="modal-header">
@@ -277,6 +280,52 @@
         <div class="modal-footer">
             <button class="btn btn-ghost" onclick="hideModal('aiGenerateModal')">取消</button>
             <button class="btn btn-primary" id="aiGenBtn" onclick="doAiGenerate()">开始生成</button>
+        </div>
+    </div>
+</div>
+
+<!-- 单个资产 AI 图片生成模态框 (新版: 角色+道具+场景) -->
+<div class="modal-overlay" id="singleAssetGenModal">
+    <div class="modal modal-large" style="width:900px;">
+        <div class="modal-header">
+            <h3 id="singleAssetGenTitle">单个资产 AI 生成图片</h3>
+            <button class="modal-close" onclick="hideModal('singleAssetGenModal')">&times;</button>
+        </div>
+        <input type="hidden" id="sagAssetId">
+        <input type="hidden" id="sagAssetType">
+        <input type="hidden" id="sagAssetName">
+        <input type="hidden" id="sagGeneratedImageUrl">
+        <div class="modal-body">
+            <!-- 第1行: 选择大模型 -->
+            <div class="form-group">
+                <label>选择生成模型 *</label>
+                <select id="sagModelSelect" class="form-control">
+                    <option value="">加载中...</option>
+                </select>
+            </div>
+            <!-- 第2行: 提示词 -->
+            <div class="form-group">
+                <label>生成提示词 *</label>
+                <textarea id="sagPrompt" rows="4" placeholder="描述你想要生成的图片内容..."></textarea>
+                <div class="form-hint" id="sagPromptHint" style="font-size:12px;color:var(--text3);margin-top:4px;"></div>
+            </div>
+            <!-- 第3行: 预览区域 (生成后显示) -->
+            <div class="form-group" id="sagPreviewGroup" style="display:none;">
+                <label>生成预览</label>
+                <div id="sagPreviewContainer" style="text-align:center;padding:16px;background:#fafafa;border-radius:8px;border:1px solid var(--border);min-height:200px;display:flex;align-items:center;justify-content:center;">
+                    <div id="sagPreviewPlaceholder" style="color:#999;">生成后将在此显示预览</div>
+                    <img id="sagPreviewImg" src="" style="max-width:100%;max-height:400px;object-fit:contain;border-radius:8px;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.1);" />
+                </div>
+            </div>
+            <!-- 第4行: 操作按钮 -->
+            <div class="form-group" id="sagActionGroup">
+                <div style="display:flex;gap:12px;justify-content:flex-end;">
+                    <button class="btn btn-ghost" id="sagCloseBtn" onclick="hideModal('singleAssetGenModal')">关闭</button>
+                    <button class="btn btn-primary" id="sagGenerateBtn" onclick="doSingleAssetGenerate()">生成图片</button>
+                    <button class="btn btn-success" id="sagSaveBtn" onclick="saveSingleAssetImage()" style="display:none;">保存到资产</button>
+                </div>
+            </div>
+            <div id="sagStatus" style="margin-top:12px;padding:12px;border-radius:8px;display:none;"></div>
         </div>
     </div>
 </div>
@@ -558,6 +607,13 @@
                     e.preventDefault();
                     e.stopPropagation();
                     showAiGenerateModal(this);
+                });
+            });
+            document.querySelectorAll('.action-single-gen').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showSingleAssetGenModal(this);
                 });
             });
             document.querySelectorAll('.action-delete').forEach(function(btn) {
@@ -1049,6 +1105,249 @@
                 btn.textContent = '保存勾选';
                 alert('网络错误：' + err.message);
             });
+        }
+
+        // ========== 单个资产 AI 图片生成 ==========
+        var _sagModels = [];
+
+        function showSingleAssetGenModal(btn) {
+            var id = btn.getAttribute('data-id');
+            var type = btn.getAttribute('data-type');
+            var name = JSON.parse(btn.getAttribute('data-name'));
+
+            document.getElementById('sagAssetId').value = id;
+            document.getElementById('sagAssetType').value = type;
+            document.getElementById('sagAssetName').value = name;
+            document.getElementById('sagGeneratedImageUrl').value = '';
+
+            var typeNames = { 'Actor': '角色', 'Scene': '场景', 'Prop': '道具' };
+            var typeName = typeNames[type] || type;
+            document.getElementById('singleAssetGenTitle').textContent = '单个资产 AI 生成图片: ' + name + ' (' + typeName + ')';
+
+            // 根据资产类型设置提示词提示
+            var prompts = {
+                'Actor': '示例：穿着红色长裙的女性角色，正面视角，白背景，动漫风格，高质量',
+                'Scene': '示例：古代京城街道，青石板路，两侧店铺林立，晨光穿过屋檐，赛博朋克风格',
+                'Prop': '示例：精致的青瓷碗，热气腾腾，白瓷质感，特写镜头，产品摄影风格'
+            };
+            var promptEl = document.getElementById('sagPrompt');
+            promptEl.value = '';
+            promptEl.placeholder = prompts[type] || '输入描述词...';
+            document.getElementById('sagPromptHint').textContent = prompts[type] || '';
+
+            // 重置UI状态
+            document.getElementById('sagPreviewGroup').style.display = 'none';
+            document.getElementById('sagPreviewImg').style.display = 'none';
+            document.getElementById('sagPreviewPlaceholder').style.display = '';
+            document.getElementById('sagGenerateBtn').style.display = '';
+            document.getElementById('sagSaveBtn').style.display = 'none';
+            document.getElementById('sagCloseBtn').textContent = '关闭';
+            document.getElementById('sagStatus').style.display = 'none';
+            document.getElementById('sagStatus').innerHTML = '';
+
+            // 加载可用模型
+            loadSingleAssetGenModels(type);
+
+            showModal('singleAssetGenModal');
+        }
+
+        async function loadSingleAssetGenModels(assetType) {
+            var select = document.getElementById('sagModelSelect');
+            select.innerHTML = '<option value="">加载中...</option>';
+            select.disabled = true;
+
+            try {
+                // 获取 ComfyUI 文生图类型的提供商
+                var res = await fetch('/api/v1/providers/image-models');
+                var data = await res.json();
+                if (!data.success) throw new Error(data.message || '获取提供商失败');
+
+                var imageProviders = data.data || [];
+
+                if (imageProviders.length === 0) {
+                    select.innerHTML = '<option value="">暂无可用的文生图模型，请先配置 ComfyUI</option>';
+                    select.disabled = true;
+                    return;
+                }
+
+                _sagModels = imageProviders;
+                select.innerHTML = '';
+                imageProviders.forEach(function(p, idx) {
+                    var opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = p.name + ' (' + (p.model || 'default') + ')';
+                    if (idx === 0) opt.selected = true;
+                    select.appendChild(opt);
+                });
+                select.disabled = false;
+            } catch (err) {
+                select.innerHTML = '<option value="">加载失败: ' + err.message + '</option>';
+                select.disabled = true;
+            }
+        }
+
+        async function doSingleAssetGenerate() {
+            var assetId = document.getElementById('sagAssetId').value;
+            var assetType = document.getElementById('sagAssetType').value;
+            var modelId = document.getElementById('sagModelSelect').value;
+            var prompt = document.getElementById('sagPrompt').value.trim();
+
+            if (!modelId) { alert('请选择生成模型'); return; }
+            if (!prompt) { alert('请输入提示词'); return; }
+
+            var genBtn = document.getElementById('sagGenerateBtn');
+            var saveBtn = document.getElementById('sagSaveBtn');
+            var closeBtn = document.getElementById('sagCloseBtn');
+            var statusEl = document.getElementById('sagStatus');
+            var previewGroup = document.getElementById('sagPreviewGroup');
+            var previewImg = document.getElementById('sagPreviewImg');
+            var previewPlaceholder = document.getElementById('sagPreviewPlaceholder');
+
+            genBtn.disabled = true;
+            genBtn.textContent = '生成中...';
+            closeBtn.disabled = true;
+            statusEl.style.display = '';
+            statusEl.className = 'status-info';
+            statusEl.innerHTML = '🔄 正在提交生成任务...';
+
+            try {
+                // 找到选中的模型
+                var model = _sagModels.find(function(m) { return m.id == modelId; });
+                if (!model) throw new Error('未找到选中的模型');
+
+                // 调用 ComfyUI 文生图 API
+                var payload = {
+                    prompt: prompt,
+                    width: 1024,
+                    height: 768
+                };
+
+                var endpoint = '/api/comfyui/zimage/text-to-image';
+                var res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                var data = await res.json();
+
+                var promptId = data && data.promptId;
+                if (!promptId) {
+                    throw new Error(data.message || '提交任务失败');
+                }
+
+                statusEl.innerHTML = '⏳ 任务已提交，正在生成中... (promptId: ' + promptId + ')';
+
+                // 轮询结果
+                var imageUrl = await pollSingleAssetGenResult(promptId);
+                if (!imageUrl) throw new Error('生成超时或失败');
+
+                // 显示预览
+                previewGroup.style.display = '';
+                previewImg.src = imageUrl;
+                previewImg.style.display = '';
+                previewPlaceholder.style.display = 'none';
+                document.getElementById('sagGeneratedImageUrl').value = imageUrl;
+
+                statusEl.className = 'status-success';
+                statusEl.innerHTML = '✅ 图片生成成功！';
+
+                // 切换按钮：隐藏生成，显示保存
+                genBtn.style.display = 'none';
+                saveBtn.style.display = '';
+                closeBtn.textContent = '取消';
+                closeBtn.disabled = false;
+
+            } catch (err) {
+                statusEl.className = 'status-error';
+                statusEl.innerHTML = '❌ 生成失败: ' + err.message;
+                genBtn.disabled = false;
+                genBtn.textContent = '重新生成';
+                closeBtn.disabled = false;
+            }
+        }
+
+        function pollSingleAssetGenResult(promptId) {
+            return new Promise(function(resolve, reject) {
+                var pollCount = 0;
+                var maxPolls = 120;
+                var pollInterval = 5000;
+
+                var timer = setInterval(async function() {
+                    pollCount++;
+                    if (pollCount >= maxPolls) {
+                        clearInterval(timer);
+                        reject(new Error('生成超时'));
+                        return;
+                    }
+
+                    try {
+                        var url = '/api/v1/comfyui/result/' + promptId + '/image?workflowType=zimage-text-to-image';
+                        var res = await fetch(url);
+                        var data = await res.json();
+
+                        if (data.success && data.data) {
+                            var urls = [];
+                            var d = data.data;
+                            if (d.imageUrls && Array.isArray(d.imageUrls)) urls = d.imageUrls;
+                            
+                            if (urls.length > 0) {
+                                clearInterval(timer);
+                                resolve(urls[0]);
+                                return;
+                            }
+                        } else if (data.pending === false) {
+                            clearInterval(timer);
+                            reject(new Error(data.message || '任务执行失败'));
+                            return;
+                        }
+                    } catch (e) {
+                        // 忽略轮询错误，继续轮询
+                    }
+                }, pollInterval);
+            });
+        }
+
+        async function saveSingleAssetImage() {
+            var assetId = document.getElementById('sagAssetId').value;
+            var imageUrl = document.getElementById('sagGeneratedImageUrl').value;
+            var saveBtn = document.getElementById('sagSaveBtn');
+            var closeBtn = document.getElementById('sagCloseBtn');
+            var statusEl = document.getElementById('sagStatus');
+
+            if (!imageUrl) { alert('没有可保存的图片'); return; }
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = '保存中...';
+            closeBtn.disabled = true;
+            statusEl.className = 'status-info';
+            statusEl.innerHTML = '🔄 正在保存到资产...';
+
+            try {
+                var res = await fetch('/Assets/ReplaceResource', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ assetId: assetId, fileUrl: imageUrl })
+                });
+                var data = await res.json();
+
+                if (data.success) {
+                    statusEl.className = 'status-success';
+                    statusEl.innerHTML = '✅ 图片已保存到资产！';
+                    showToast('资源已更新', 'success');
+                    setTimeout(function() {
+                        hideModal('singleAssetGenModal');
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    throw new Error(data.message || '保存失败');
+                }
+            } catch (err) {
+                statusEl.className = 'status-error';
+                statusEl.innerHTML = '❌ 保存失败: ' + err.message;
+                saveBtn.disabled = false;
+                saveBtn.textContent = '保存到资产';
+                closeBtn.disabled = false;
+            }
         }
     </script>
 }

@@ -398,7 +398,7 @@ public class ProductionController : Controller
 
         var shotsList = parsed.shots?.Select(s => (object)new
         {
-            s.shotName, s.shotNumber, s.shotSize, s.cameraMovement, s.duration,
+            s.shotName, s.shotNumber, s.shotSize, s.cameraMovement, s.duration, s.description,
             assetRefs = s.assetRefs ?? new List<string>(),
             frames = s.frames?.Select(f => new { f.frameType, f.description, f.order, f.startTime, f.duration }).ToList()
         }).ToList() ?? new List<object>();
@@ -500,7 +500,7 @@ public class ProductionController : Controller
                         CameraMovement = shotData.cameraMovement ?? "",
                         Duration = shotData.duration,
                         Order = shotCount,
-                        Description = shotData.shotName ?? ""
+                        Description = shotData.description ?? ""
                     };
 
                     db.Shots.Add(shot);
@@ -1038,6 +1038,7 @@ internal class ShotData
     public string? shotSize { get; set; }
     public string? cameraMovement { get; set; }
     public float? duration { get; set; }
+    public string? description { get; set; }
     public List<string>? assetRefs { get; set; }
     public List<FrameData>? frames { get; set; }
 }

@@ -1,7 +1,7 @@
 // Production Render - Shot rendering functions (compact, video-friendly layout)
 (function() {
 
-    // ============ 核心渲染：Shots Tab ============
+// ============ 核心渲染：Shots Tab ============
     function renderShotsTab() {
         const area = document.getElementById('storyboardArea');
         if (!area) return;
@@ -36,25 +36,27 @@
         if (state.shots && state.shots.length > 0) {
             const videoWidth = 444; // 250 * 16/9
 
-            let h = `<div style="margin-bottom:12px;"><strong>${ch.chapterName}</strong></div>`;
-            h += `
-                <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-                    <button class="btn btn-primary btn-sm" onclick="regenerateShots()">🔄 重新提取分镜</button>
-                    <button class="btn btn-ghost btn-sm" onclick="showFrameTemplates()">📋 分帧模板</button>
+            let h = `
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <strong>${ch.chapterName}</strong>
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-primary btn-sm" onclick="regenerateShots()">🔄 重新提取分镜</button>
+                        <button class="btn btn-ghost btn-sm" onclick="showFrameTemplates()">📋 分帧模板</button>
+                    </div>
                 </div>`;
 
             h += '<div style="display:flex;flex-direction:column;gap:10px;">';
 
             state.shots.forEach((shot, si) => {
                 const frames = shot.frames || [];
-                const firstFrame = frames[0];
-                const otherFrames = frames.slice(1);
                 const shotDuration = shot.duration || 0;
                 const totalFrameDuration = frames.reduce((sum, f) => sum + (f.duration || 0), 0);
                 const shotHasVideo = shot.hasVideo && shot.videoUrl;
                 const isGeneratingVideo = shot.generatingVideo;
 
-                h += `<div class="shot-item" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">`;
+                h += `<div class="shot-item" id="shot-${si}" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">`;
 
                 // Header
                 h += `
@@ -70,33 +72,43 @@
                             ${totalFrameDuration > 0 ? `<span>帧累计: ${totalFrameDuration.toFixed(1)}s</span>` : ''}
                             ${shotHasVideo ? '<span style="color:var(--ok);font-weight:500;">▶ 视频就绪</span>' : (isGeneratingVideo ? '<span style="color:var(--info);font-weight:500;"><span class="spinner-inline"></span> 生成中...</span>' : '')}
                         </div>
+                        <button class="shot-toggle" onclick="toggleShotFrames(${si})" style="width:24px;height:24px;border-radius:50%;background:var(--bg);border:1px solid var(--border);color:var(--text3);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .15s;flex-shrink:0;" title="展开/收起帧" onmouseover="this.style.background='var(--primary)';this.style.color='white';this.style.borderColor='var(--primary)'" onmouseout="this.style.background='var(--bg)';this.style.color='var(--text3)';this.style.borderColor='var(--border)'">▼</button>
                     </div>`;
+
+                // Collapsible content wrapper (includes action bar, description, frames, divider, assets)
+                h += `
+                    <div id="shot-content-${si}">`;
+
+                // Shot Description (if exists) - inside collapsible wrapper
+                if (shot.description) {
+                    const shotDesc = shot.description;
+                    const isLongShotDesc = shotDesc.length > 200;
+                    h += `
+                        <div style="padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border);">
+                            <div class="shot-desc" data-full="${shotDesc.replace(/"/g, '"')}" data-collapsed="${isLongShotDesc ? 'true' : 'false'}" style="font-size:12px;color:var(--text2);line-height:1.6;${isLongShotDesc ? 'display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;' : ''}">${shotDesc}</div>
+                            ${isLongShotDesc ? `<button class="shot-desc-toggle" onclick="toggleShotDesc('shot-${si}')" style="margin-top:4px;width:24px;height:24px;border-radius:50%;background:var(--bg);border:1px solid var(--border);color:var(--text3);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .15s;" title="展开/收起" onmouseover="this.style.background='var(--primary)';this.style.color='white';this.style.borderColor='var(--primary)'" onmouseout="this.style.background='var(--bg)';this.style.color='var(--text3)';this.style.borderColor='var(--border)'">▼</button>` : ''}
+                        </div>`;
+                }
 
                 // Action bar
                 h += `
-                    <div style="display:flex;gap:6px;padding:8px 12px;flex-wrap:wrap;align-items:center;">
-                        ${shotHasVideo || isGeneratingVideo
-                            ? `<button class="btn btn-primary btn-xs" onclick="playShotVideo(${si})" style="font-size:11px;">▶ 打开视频</button>`
-                            : `<button class="btn btn-primary btn-xs" onclick="generateShotVideo(${si})" ${isGeneratingVideo ? 'disabled' : ''} style="font-size:11px;">🎬 生成视频</button>`
-                        }
-                        <button class="btn btn-ghost btn-xs" onclick="generateFrameImage(${si}, 0)" style="font-size:11px;">🖼️ 生成首帧</button>
-                        <button class="btn btn-ghost btn-xs" onclick="showShotAssetBindModal(${si})" style="font-size:11px;">🏷️ 绑定资产</button>
-                    </div>`;
+                        <div style="display:flex;gap:6px;padding:8px 12px;flex-wrap:wrap;align-items:center;">
+                            ${shotHasVideo || isGeneratingVideo
+                                ? `<button class="btn btn-primary btn-xs" onclick="playShotVideo(${si})" style="font-size:11px;">▶ 打开视频</button>`
+                                : `<button class="btn btn-primary btn-xs" onclick="generateShotVideo(${si})" ${isGeneratingVideo ? 'disabled' : ''} style="font-size:11px;">🎬 生成视频</button>`
+                            }
+                            <button class="btn btn-ghost btn-xs" onclick="generateFrameImage(${si}, 0)" style="font-size:11px;">🖼️ 生成首帧</button>
+                            <button class="btn btn-ghost btn-xs" onclick="showShotAssetBindModal(${si})" style="font-size:11px;">🏷️ 绑定资产</button>
+                        </div>
 
-                // Generation status
-                if (shot.generatingFrame) {
-                    h += `<div style="padding:6px 12px;background:var(--bg);color:var(--text2);font-size:11px;"><span class="spinner-inline"></span> 生成帧中...</div>`;
-                }
+                        <!-- Generation status -->
+                        ${shot.generatingFrame ? `<div style="padding:6px 12px;background:var(--bg);color:var(--text2);font-size:11px;"><span class="spinner-inline"></span> 生成帧中...</div>` : ''}
 
-// Layout: Row 1 = two columns, Row 2 = assets
-                h += `
-                    <div style="padding:12px;">
-                        <!-- Row 1: Frames (left, flex:1) + Video (right, fixed 444px) -->
-                        <div style="display:flex;gap:12px;align-items:flex-start;">
-                            <!-- LEFT: Frames horizontal scroll -->
-                            <div style="flex:1;min-width:0;overflow-x:auto;padding:4px 0;display:flex;flex-direction:row;gap:8px;">
-                                ${renderFrameCard(firstFrame, si, 0, true, shot.assets)}
-                                ${otherFrames.map((f, fi) => renderFrameCard(f, si, fi + 1, false, shot.assets)).join('')}
+                        <!-- Frames + Video area -->
+                        <div id="shot-frames-${si}" style="display:flex;gap:12px;align-items:flex-start;padding:12px;">
+                            <!-- LEFT: Frames vertical scroll -->
+                            <div style="flex:1;min-width:0;max-height:200px;overflow-y:auto;padding:4px 0;display:flex;flex-direction:column;gap:8px;">
+                                ${frames.map((f, fi) => renderFrameCard(f, si, fi, fi === 0, shot.assets)).join('')}
                             </div>
 
                             <!-- RIGHT: Video fixed width 444px (16:9 at 250px height) -->
@@ -106,10 +118,10 @@
                         </div>
 
                         <!-- Divider between Row 1 and Row 2 -->
-                        <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
+                        <hr id="shot-divider-${si}" style="border:none;border-top:1px solid var(--border);margin:12px 0;">
 
-                        <!-- Row 2: Assets horizontal scroll -->
-                        <div style="display:flex;gap:8px;overflow-x:auto;padding:8px 0 0;">
+                        <!-- Row 2: Assets vertical scroll -->
+                        <div id="shot-assets-${si}" style="max-height:40vh;overflow-y:auto;padding:8px 0 0;display:flex;flex-direction:column;gap:8px;">
                             ${renderAssetsRow(shot.assets)}
                         </div>
                     </div>
@@ -130,7 +142,7 @@
         }
     }
 
-    // ============ Row 2: Assets horizontal scroll ============
+// ============ Row 2: Assets vertical scroll (one asset per row) ============
     function renderAssetsRow(shotAssets) {
         if (!shotAssets || shotAssets.length === 0) {
             return `
@@ -150,21 +162,31 @@
             const imgSrc = asset.resourceFilePath || asset.ResourceFilePath || '';
             const description = asset.description || '';
             const imgHtml = imgSrc
-                ? `<img src="${imgSrc}" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:4px;" alt="${asset.name || asset.Name || ''}" onclick="showImagePreview('${imgSrc}')" title="点击放大">`
-                : `<div style="width:100%;aspect-ratio:16/9;background:var(--surface2);border:1px dashed var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:11px;">无图片</div>`;
+                ? `<img src="${imgSrc}" style="width:120px;height:68px;object-fit:cover;border-radius:4px;flex-shrink:0;" alt="${asset.name || asset.Name || ''}" onclick="showImagePreview('${imgSrc}')" title="点击放大">`
+                : `<div style="width:120px;height:68px;background:var(--surface2);border:1px dashed var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:11px;flex-shrink:0;">无图片</div>`;
 
             return `
-                <div style="flex:0 0 240px;min-width:240px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;display:flex;flex-direction:column;">
-                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-                        <span style="font-size:16px;">${icon}</span>
-                        <span style="font-weight:600;font-size:12px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${asset.name || asset.Name || ''}</span>
-                        ${role}
-                        <span style="color:var(--text3);font-size:10px;">(${typeName})</span>
+                <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;display:flex;gap:12px;align-items:center;">
+                    <!-- Left: Image -->
+                    <div style="flex:0 0 120px;">${imgHtml}</div>
+                    <!-- Middle: Description -->
+                    <div style="flex:1;min-width:0;padding-right:8px;">
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                            <span style="font-size:16px;">${icon}</span>
+                            <span style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${asset.name || asset.Name || ''}</span>
+                            ${role}
+                            <span style="color:var(--text3);font-size:11px;">(${typeName})</span>
+                        </div>
+                        ${description ? `<div style="font-size:12px;color:var(--text2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${description}</div>` : ''}
                     </div>
-                    ${imgHtml}
-                    ${description ? `<div style="margin-top:6px;padding:6px;background:var(--bg);border-radius:4px;font-size:11px;color:var(--text2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${description}</div>` : ''}
+                    <!-- Right: Other info -->
+                    <div style="flex:0 0 200px;text-align:right;color:var(--text3);font-size:11px;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:2px;">
+                        ${asset.duration ? `<span>⏱️ ${asset.duration}s</span>` : ''}
+                        ${asset.assetType === 'Bgm' ? '<span>🎵 背景音乐</span>' : ''}
+                        ${asset.assetType === 'VoiceVoice' ? '<span>🎤 音色</span>' : ''}
+                    </div>
                 </div>`;
-        }).join(' ');
+        }).join('');
     }
 
     // ============ Video Area ============
@@ -195,7 +217,7 @@
             </div>`;
     }
 
-    // ============ Frame Card ============
+    // ============ Frame Card (Vertical Row Layout) ============
     function renderFrameCard(frame, shotIdx, frameIdx, isFirstFrame, shotAssets) {
         if (!frame) return '';
 
@@ -204,41 +226,40 @@
         const typeColor = frameType === 'First' ? 'var(--info)' : frameType === 'Last' ? 'var(--danger)' : 'var(--ok)';
         const hasImage = frame.hasImage && frame.imagePath;
         const isGenerating = frame.generating;
+        const frameId = `frame-${shotIdx}-${frameIdx}`;
+
+        const imageHtml = hasImage
+            ? `<img src="${frame.imagePath}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="showImagePreview('${frame.imagePath}')" title="点击放大">`
+            : `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--text3);cursor:pointer;" onclick="generateFrameImage(${shotIdx}, ${frameIdx})" title="点击生成此帧">
+                    <span style="font-size:28px;">📷</span>
+                    <span style="font-size:12px;font-weight:500;">点击生成</span>
+               </div>`;
+
+        const description = frame.description || '暂无描述';
+        const isLongDesc = description.length > 120;
 
         return `
-            <div class="frame-card" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;overflow:hidden;flex:0 0 200px;min-width:200px;max-width:220px;display:flex;flex-direction:column;">
-                <!-- Image area - click to generate, 16:9 ratio -->
-                <div style="width:100%;aspect-ratio:16/9;position:relative;background:var(--surface2);overflow:hidden;">
-                    ${hasImage
-                        ? `<img src="${frame.imagePath}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="showImagePreview('${frame.imagePath}')" title="点击放大">`
-                        : `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--text3);cursor:pointer;" onclick="generateFrameImage(${shotIdx}, ${frameIdx})" title="点击生成此帧">
-                               <span style="font-size:36px;">📷</span>
-                               <span style="font-size:13px;font-weight:500;">点击生成</span>
-                           </div>`
-                    }
-                    ${isGenerating ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;"><span class="spinner-inline" style="margin-right:6px;"></span>生成中...</div>` : ''}
-                    <div style="position:absolute;top:4px;left:4px;background:${typeColor};color:white;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600;">${typeLabel}</div>
+            <div class="frame-card" id="${frameId}" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;display:flex;gap:12px;min-height:120px;">
+                <!-- Left: Image (16:9, fixed width ~213px for 120px height) -->
+                <div style="flex:0 0 213px;min-width:213px;position:relative;background:var(--surface2);overflow:hidden;display:flex;align-items:center;justify-content:center;">
+                    <div style="width:100%;height:120px;position:relative;">
+                        ${imageHtml}
+                        ${isGenerating ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;"><span class="spinner-inline" style="margin-right:6px;"></span>生成中...</div>` : ''}
+                        <div style="position:absolute;top:6px;left:6px;background:${typeColor};color:white;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;">${typeLabel}</div>
+                    </div>
                 </div>
 
-                <!-- Info area - fills remaining height -->
-                <div style="flex:1;padding:8px;display:flex;flex-direction:column;overflow:hidden;">
-                    <div style="font-size:12px;color:var(--text);font-weight:500;line-height:1.4;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${frame.description || '暂无描述'}</div>
-                    <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:9px;color:var(--text3);margin-top:auto;">
-                        ${frame.startTime !== undefined && frame.startTime !== null ? `<span>🕐 ${frame.startTime}s</span>` : ''}
-                        ${frame.duration ? `<span>⏱️ ${frame.duration}s</span>` : ''}
-                        <span>#${frame.order ?? frameIdx}</span>
-                    </div>
-                    ${shotAssets && shotAssets.length > 0 ? `
-                        <div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border);">
-                            ${shotAssets.slice(0, 4).map(asset => {
-                                const typeIcon = asset.assetType === 'Actor' ? '👤' : asset.assetType === 'Scene' ? '🏞️' : asset.assetType === 'Bgm' ? '🎵' : asset.assetType === 'Prop' ? '📦' : asset.assetType === 'VoiceVoice' ? '🎤' : '📄';
-                                const typeName = asset.assetType || '未知';
-                                return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface2);padding:3px 8px;border-radius:4px;font-size:11px;white-space:nowrap;">
-                                    <span>${typeIcon}</span><span style="font-weight:500;">${asset.name || asset.Name || ''}</span>
-                                    <span style="color:var(--text3);font-size:10px;">(${typeName})</span></span>`;
-                            }).join(' ')}
-                            ${shotAssets.length > 4 ? `<span style="font-size:11px;color:var(--text3);">+ ${shotAssets.length - 4} 更多</span>` : ''}
-                        </div>` : ''}
+                <!-- Middle: Description (flexible) -->
+                <div style="flex:1;min-width:0;padding:12px 16px;display:flex;flex-direction:column;justify-content:center;position:relative;">
+                    <div class="frame-desc" data-full="${description.replace(/"/g, '"')}" data-collapsed="${isLongDesc}" style="font-size:13px;color:var(--text);font-weight:500;line-height:1.6;${isLongDesc ? 'display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;' : ''}">${description}</div>
+                    ${isLongDesc ? `<button class="frame-toggle" onclick="toggleFrameDesc('${frameId}')" style="position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;background:var(--bg);border:1px solid var(--border);color:var(--text3);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .15s;" title="展开/收起" onmouseover="this.style.background='var(--primary)';this.style.color='white';this.style.borderColor='var(--primary)'" onmouseout="this.style.background='var(--bg)';this.style.color='var(--text3)';this.style.borderColor='var(--border)'">▼</button>` : ''}
+                </div>
+
+                <!-- Right: Time info (NOT including assets) -->
+                <div style="flex:0 0 160px;min-width:160px;padding:12px 16px;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;gap:6px;font-size:11px;color:var(--text3);">
+                    ${frame.startTime !== undefined && frame.startTime !== null ? `<span>🕐 ${frame.startTime}s</span>` : ''}
+                    ${frame.duration ? `<span>⏱️ ${frame.duration}s</span>` : ''}
+                    <span>#${frame.order ?? frameIdx}</span>
                 </div>
             </div>`;
     }
@@ -255,6 +276,49 @@
 
     function regenerateShotVideo(shotIdx) {
         generateShotVideo(shotIdx);
+    }
+
+    // Toggle Frame Description expand/collapse (using data-collapsed attribute)
+    function toggleFrameDesc(frameId) {
+        const card = document.getElementById(frameId);
+        if (!card) return;
+        const descEl = card.querySelector('.frame-desc');
+        const toggleBtn = card.querySelector('.frame-toggle');
+        if (!descEl || !toggleBtn) return;
+
+        const isCollapsed = descEl.getAttribute('data-collapsed') === 'true';
+        if (isCollapsed) {
+            descEl.style.display = 'block';
+            descEl.style.webkitLineClamp = 'unset';
+            descEl.style.overflow = 'visible';
+            descEl.setAttribute('data-collapsed', 'false');
+            toggleBtn.textContent = '▲';
+        } else {
+            descEl.style.display = '-webkit-box';
+            descEl.style.webkitLineClamp = '3';
+            descEl.style.webkitBoxOrient = 'vertical';
+            descEl.style.overflow = 'hidden';
+            descEl.setAttribute('data-collapsed', 'true');
+            toggleBtn.textContent = '▼';
+        }
+    }
+
+    // ============ Shot Frames Toggle ============
+    function toggleShotFrames(shotIdx) {
+        const contentWrapper = document.getElementById(`shot-content-${shotIdx}`);
+        const btn = document.querySelector(`#shot-${shotIdx} .shot-toggle`);
+        if (!contentWrapper || !btn) return;
+
+        const isCollapsed = contentWrapper.style.display === 'none';
+        if (isCollapsed) {
+            contentWrapper.style.display = 'block';
+            btn.textContent = '▼';
+            btn.title = '收起帧';
+        } else {
+            contentWrapper.style.display = 'none';
+            btn.textContent = '▶';
+            btn.title = '展开帧';
+        }
     }
 
     function renderContentTab() {
@@ -278,11 +342,37 @@
             </div>`;
     }
 
+    // Toggle Shot Description expand/collapse (using data-collapsed attribute)
+    function toggleShotDesc(shotId) {
+        const descEl = document.querySelector(`#${shotId} .shot-desc`);
+        const toggleBtn = document.querySelector(`#${shotId} .shot-desc-toggle`);
+        if (!descEl || !toggleBtn) return;
+
+        const isCollapsed = descEl.getAttribute('data-collapsed') === 'true';
+        if (isCollapsed) {
+            descEl.style.display = 'block';
+            descEl.style.webkitLineClamp = 'unset';
+            descEl.style.overflow = 'visible';
+            descEl.setAttribute('data-collapsed', 'false');
+            toggleBtn.textContent = '▲';
+        } else {
+            descEl.style.display = '-webkit-box';
+            descEl.style.webkitLineClamp = '3';
+            descEl.style.webkitBoxOrient = 'vertical';
+            descEl.style.overflow = 'hidden';
+            descEl.setAttribute('data-collapsed', 'true');
+            toggleBtn.textContent = '▼';
+        }
+    }
+
     // Expose
     window.renderShotsTab = renderShotsTab;
     window.renderFrameCard = renderFrameCard;
     window.playShotVideo = playShotVideo;
     window.regenerateShotVideo = regenerateShotVideo;
     window.renderContentTab = renderContentTab;
+    window.toggleFrameDesc = toggleFrameDesc;
+    window.toggleShotFrames = toggleShotFrames;
+    window.toggleShotDesc = toggleShotDesc;
 
 })();

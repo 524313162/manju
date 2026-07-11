@@ -2,6 +2,13 @@
 @{
     ViewData["Title"] = "提示词管理";
     var templates = ViewBag.Templates as List<PromptTemplate> ?? new();
+    
+    // 定义保留的模板类型及其中文名称和图标
+    var templateTypeInfos = new Dictionary<string, (string Name, string Icon)> {
+        { "SystemPrompt", ("系统提示词", "💡") },
+        { "RewriteStory", ("故事重写", "🤖") },
+        { "ShotAssetExtraction", ("分镜资产提取", "📋") }
+    };
 }
 
 <div class="container" style="max-width:1100px;">
@@ -14,7 +21,7 @@
         @if (templates.Count == 0)
         {
             <div class="empty-state">
-                <div class="empty-state-icon">\uD83D\uDC41</div>
+                <div class="empty-state-icon">👁</div>
                 <p>暂无提示词模板，点击「新增」添加</p>
             </div>
         }
@@ -22,19 +29,17 @@
         {
             foreach (var t in templates)
             {
-                var icon = (t.TemplateType switch
+                (string Name, string Icon) typeInfo;
+                if (templateTypeInfos.ContainsKey(t.TemplateType))
                 {
-                    "SystemPrompt" => "\uD83D\uDCA1",
-                    "StoryGeneration" => "\uD83E\uDD16",
-                    "EpisodeBreakdown" => "\uD83D\uDCCF",
-                    "ShotPlanning" => "\uD83C\uDFA9",
-                    "CharacterProfile" => "\uD83D\uDC64",
-                    "SceneProfile" => "\uD83C\uDFD0",
-                    "PropProfile" => "\uD83D\uDDFA",
-                    "BgmProfile" => "\uD83C\uDFA5",
-                    "SkillProfile" => "\u26A1",
-                    _ => "\uD83D\uDCC1"
-                });
+                    typeInfo = templateTypeInfos[t.TemplateType];
+                }
+                else
+                {
+                    typeInfo = (t.TemplateType, "📦");
+                }
+                var icon = typeInfo.Icon;
+                var typeDisplayName = typeInfo.Name;
                 var contentPreview = ((t.Content ?? "").Length > 120
                     ? (t.Content ?? "").Substring(0, 120)
                     : (t.Content ?? ""))
@@ -42,7 +47,7 @@
                 <div class="res-item">
                     <div class="res-icon">@icon</div>
                     <div class="res-info">
-                        <h4>@t.Name <span class="badge badge-purple" style="margin-left:8px;font-size:11px;">@t.TemplateType</span>
+                        <h4>@t.Name <span class="badge badge-purple" style="margin-left:8px;font-size:11px;">@typeDisplayName</span>
                         @(t.IsDefault ? " <span class=\"badge badge-ok\" style=\"font-size:11px;\">默认</span>" : "")</h4>
                         <p>@contentPreview@(t.Content != null && t.Content.Length > 120 ? "..." : "")</p>
                     </div>
@@ -64,18 +69,13 @@
         </div>
         <div class="modal-body">
             <input type="hidden" id="editTemplateId">
-            <div class="form-group"><label>模板名称 *</label><input type="text" id="templateName" placeholder="如 剧本创作默认"></div>
-            <div class="form-group"><label>类型 (TemplateType) *</label>
+            <div class="form-group"><label>模板名称 *</label><input type="text" id="templateName" placeholder="如 系统提示词默认"></div>
+            <div class="form-group"><label>类型 *</label>
                 <select id="templateType">
-                    <option value="SystemPrompt">SystemPrompt</option>
-                    <option value="StoryGeneration">StoryGeneration</option>
-                    <option value="EpisodeBreakdown">EpisodeBreakdown</option>
-                    <option value="ShotPlanning">ShotPlanning</option>
-                    <option value="CharacterProfile">CharacterProfile</option>
-                    <option value="SceneProfile">SceneProfile</option>
-                    <option value="PropProfile">PropProfile</option>
-                    <option value="BgmProfile">BgmProfile</option>
-                    <option value="SkillProfile">SkillProfile</option>
+                    @foreach (var kvp in templateTypeInfos)
+                    {
+                        <option value="@kvp.Key">@kvp.Value.Name</option>
+                    }
                 </select>
             </div>
             <div class="form-group"><label>是否默认</label>
@@ -102,6 +102,9 @@
         isDefault = t.IsDefault,
         content = t.Content ?? ""
     })));
+    
+    // 模板类型映射（用于显示中文名称）
+    var _templateTypeMap = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(templateTypeInfos.ToDictionary(k => k.Key, v => v.Value.Name)));
 
     function showModal(id) { document.getElementById(id).classList.add('show'); }
     function hideModal(id) { document.getElementById(id).classList.remove('show'); }
@@ -118,9 +121,9 @@
 
     function showAddModal() {
         document.getElementById('editTemplateId').value = '';
-        document.getElementById('templateModalTitle').textContent = '\u65b0\u589e\u63d0\u793a\u8bcd';
+        document.getElementById('templateModalTitle').textContent = '新增提示词';
         document.getElementById('templateName').value = '';
-        document.getElementById('templateType').value = 'StoryGeneration';
+        document.getElementById('templateType').value = 'SystemPrompt';
         document.getElementById('templateIsDefault').value = 'false';
         document.getElementById('templateContent').value = '';
         showModal('templateModal');
@@ -130,7 +133,7 @@
         var t = _templatesData.find(function(x){ return x.id == id; });
         if (!t) return;
         document.getElementById('editTemplateId').value = t.id;
-        document.getElementById('templateModalTitle').textContent = '\u7f16\u8f91\u63d0\u793a\u8bcd';
+        document.getElementById('templateModalTitle').textContent = '编辑提示词';
         document.getElementById('templateName').value = t.name || '';
         document.getElementById('templateType').value = t.templateType || '';
         document.getElementById('templateIsDefault').value = t.isDefault ? 'true' : 'false';
@@ -144,8 +147,8 @@
         var templateType = document.getElementById('templateType').value;
         var isDefault = document.getElementById('templateIsDefault').value === 'true';
         var content = document.getElementById('templateContent').value;
-        if (!name) { alert('\u8bf7\u8f93\u5165\u540d\u79f0'); return; }
-        if (!content) { alert('\u8bf7\u8f93\u5165\u63d0\u793a\u8bcd\u5185\u5bb9'); return; }
+        if (!name) { alert('请输入名称'); return; }
+        if (!content) { alert('请输入提示词内容'); return; }
 
         var url = '@Url.Action("Add", "PromptTemplateManagement")';
         if (id) { url = '@Url.Action("Edit", "PromptTemplateManagement")/' + id; }
@@ -162,7 +165,7 @@
                 showToast('已保存', 'success');
                 location.reload();
             } else {
-                alert('\u4fdd\u5b58\u5931\u8d25\uff1a' + (res.message || ''));
+                alert('保存失败：' + (res.message || ''));
             }
         });
     }
@@ -170,14 +173,14 @@
     function deleteRes(id) {
         var t = _templatesData.find(function(x){ return x.id == id; });
         var name = t ? t.name : '';
-        if (!confirm('\u786e\u8ba4\u5220\u9664\u300c' + name + '\u300d\uff1f')) return;
+        if (!confirm('确认删除「' + name + '」？')) return;
         fetch('@Url.Action("Delete", "PromptTemplateManagement")?id=' + id, {
             method: 'POST'
         })
         .then(function(r){ return r.json(); })
         .then(function(res) {
-            if (res.success) { showToast('\u5df2\u5220\u9664', 'success'); location.reload(); }
-            else alert('\u5220\u9664\u5931\u8d25');
+            if (res.success) { showToast('已删除', 'success'); location.reload(); }
+            else alert('删除失败');
         });
     }
 </script>

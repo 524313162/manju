@@ -26,6 +26,25 @@ public class ProvidersController : ControllerBase
         return Ok(new { success = true, data = providers });
     }
 
+    [HttpGet("image-models")]
+    public async Task<IActionResult> GetImageModels()
+    {
+        var providers = await _db.ApiProviders
+            .Where(p => p.Type == ProviderType.ComfyUI && (p.Capability == AiCapability.TextToImage || p.Capability == AiCapability.ImageEdit))
+            .OrderByDescending(p => p.Id)
+            .ToListAsync();
+        
+        var result = providers.Select(p => new {
+            id = p.Id,
+            name = p.Name,
+            model = p.Model,
+            apiUrl = p.ApiUrl,
+            capability = p.Capability.ToString()
+        }).ToList();
+        
+        return Ok(new { success = true, data = result });
+    }
+
     [HttpPost("add")]
     public async Task<IActionResult> Add([FromBody] ProviderRequestDto req)
     {
