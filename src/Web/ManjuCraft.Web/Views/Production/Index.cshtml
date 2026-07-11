@@ -31,9 +31,13 @@
     <div class="prod-main">
         <div class="prod-toolbar">
             <h2 id="mainTitle">漫剧创作</h2>
-            <div class="prod-tabs">
-                <div class="prod-tab active" data-tab="shots" onclick="switchTab('shots')">分镜</div>
-                <div class="prod-tab" data-tab="content" onclick="switchTab('content')">章节内容</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <button class="btn btn-cyan btn-sm" onclick="showExtractAssetModal()">🏷️ 提取资产</button>
+                <button class="btn btn-ghost btn-sm" onclick="showImportAssetModal()">📂 批量导入资产</button>
+                <div class="prod-tabs">
+                    <div class="prod-tab active" data-tab="shots" onclick="switchTab('shots')">分镜</div>
+                    <div class="prod-tab" data-tab="content" onclick="switchTab('content')">章节内容</div>
+                </div>
             </div>
         </div>
         <div class="prod-content" style="padding:16px 24px;">
@@ -52,6 +56,119 @@
         <h3 id="frameListTitle">分帧模板</h3>
         <div id="frameListBody" style="max-height:55vh;overflow-y:auto;"></div>
         <div class="form-actions"><button class="btn btn-ghost" onclick="hideModal('frameListModal')">关闭</button></div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="extractAssetModal">
+    <div class="modal" style="width:860px;max-height:92vh;">
+        <div class="modal-header">
+            <h3>🏷️ 一键提取资产信息</h3>
+            <button class="modal-close" onclick="hideModal('extractAssetModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>选择大模型</label>
+                <select id="extractProviderSelect">
+                    <option value="">加载中...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>章节列表 <span id="extractChapterCount" style="font-weight:400;color:var(--text3);font-size:12px;">（全部勾选）</span></label>
+                <div id="extractChapterList" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
+            </div>
+            <div class="form-group">
+                <label>勾选章节的内容</label>
+                <div class="extract-preview-wrap">
+                    <div id="extractChapterPreview">请勾选上方的章节</div>
+                    <button class="btn btn-xs btn-ghost" onclick="copyExtractPreview()">📋 复制</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>提取资产提示词 <span id="extractTemplateType" style="font-weight:400;color:var(--text3);font-size:11px;"></span></label>
+                <textarea id="extractTemplate" rows="4" placeholder="加载提示词模板..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-info" id="extractGoBtn" onclick="doExtractAsset()">提取</button>
+            <button class="btn btn-ghost" id="extractRetryFetchBtn" onclick="retryFetchExtractResult()" style="display:none;">继续获取</button>
+            <span style="flex:1;"></span>
+            <button class="btn btn-ghost" onclick="hideModal('extractAssetModal')">取消</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="mergeAssetModal">
+    <div class="modal" style="width:760px;max-height:92vh;">
+        <div class="modal-header">
+            <h3>🏷️ 合并资产</h3>
+            <button class="modal-close" onclick="hideModal('mergeAssetModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                <p style="font-size:13px;color:var(--text2);margin:0;">勾选需要保存或覆盖的资产，已存在的资产默认不勾选，手动勾选后将覆盖原有内容。</p>
+                <button class="btn btn-xs btn-ghost" onclick="copyMergeJson()" style="white-space:nowrap;">📋 复制 JSON</button>
+            </div>
+            <div id="mergeAssetList" style="max-height:400px;overflow-y:auto;"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="hideModal('mergeAssetModal')">取消</button>
+            <button class="btn btn-primary" id="mergeSaveBtn" onclick="saveMergeConfirm()">保存勾选</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="importAssetModal">
+    <div class="modal" style="width:640px;">
+        <div class="modal-header">
+            <h3>📂 批量导入资产</h3>
+            <button class="modal-close" onclick="hideModal('importAssetModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>粘贴 JSON 资产数据</label>
+                <textarea id="importAssetJson" rows="12" placeholder='[
+  {
+    "assetType": "Actor",
+    "name": "角色名",
+    "description": "描述"
+  },
+  {
+    "assetType": "Scene",
+    "name": "场景名",
+    "description": "描述"
+  }
+]' style="font-family:monospace;font-size:12px;"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="hideModal('importAssetModal')">取消</button>
+            <button class="btn btn-primary" id="importAssetGoBtn" onclick="doImportAsset()">导入并合并</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="importMergeModal">
+    <div class="modal" style="width:860px;max-height:90vh;">
+        <div class="modal-header">
+            <h3>📂 导入资产 - 合并确认</h3>
+            <button class="modal-close" onclick="hideModal('importMergeModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div>
+                    <div style="font-size:12px;font-weight:600;color:var(--text3);margin-bottom:6px;">📦 现有项目资产</div>
+                    <div id="importExistingAssets" style="max-height:300px;overflow-y:auto;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text3);">加载中...</div>
+                </div>
+                <div>
+                    <div style="font-size:12px;font-weight:600;color:var(--text3);margin-bottom:6px;">📥 导入的新资产</div>
+                    <div id="importNewAssets" style="max-height:300px;overflow-y:auto;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="hideModal('importMergeModal')">取消</button>
+            <button class="btn btn-primary" id="importMergeSaveBtn" onclick="saveImportMerge()">保存合并</button>
+        </div>
     </div>
 </div>
 
@@ -526,9 +643,465 @@
         showModal('frameListModal');
     }
 
+    // ---- 一键提取资产信息 ----
+    var _extractPoller = null;
+    var _lastExtractPromptId = null;
+    var _lastExtractWorkflowType = null;
+
+    function showExtractAssetModal() {
+        renderExtractChapterList();
+        document.getElementById('extractGoBtn').style.display = '';
+        document.getElementById('extractGoBtn').disabled = false;
+        document.getElementById('extractGoBtn').textContent = '提取';
+        document.getElementById('extractRetryFetchBtn').style.display = 'none';
+        _lastExtractPromptId = null;
+        _lastExtractWorkflowType = null;
+        loadExtractProviders();
+        loadExtractTemplate();
+        showModal('extractAssetModal');
+    }
+
+    function loadExtractProviders() {
+        var sel = document.getElementById('extractProviderSelect');
+        var saved = localStorage.getItem('extractAsset_providerId');
+        fetch('/api/v1/providers/list')
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+                var list = (res.data || []).filter(function(p){ return p.capability === 1; });
+                var html = '';
+                var preSelected = saved || (list.length > 0 ? list[0].id : null);
+                list.forEach(function(p) {
+                    var s = preSelected && preSelected == p.id ? ' selected' : '';
+                    html += '<option value="' + p.id + '"' + s + '>' + p.name + ' [' + (p.model || '') + ']</option>';
+                });
+                sel.innerHTML = html || '<option value="">未找到提供者</option>';
+            })
+            .catch(function(){
+                sel.innerHTML = '<option value="">加载失败</option>';
+            });
+    }
+
+    function loadExtractTemplate() {
+        fetch('/api/v1/production/template?type=AssetExtraction')
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+                if (res.success && res.content) {
+                    document.getElementById('extractTemplate').value = res.content;
+                    document.getElementById('extractTemplateType').textContent = 'AssetExtraction';
+                }
+            });
+    }
+
+    function renderExtractChapterList() {
+        var container = document.getElementById('extractChapterList');
+        if (chapters.length === 0) {
+            container.innerHTML = '<div style="padding:8px;color:var(--text3);font-size:13px;">暂无章节</div>';
+            document.getElementById('extractChapterCount').textContent = '';
+            return;
+        }
+        var html = '';
+        chapters.forEach(function(c, i) {
+            var num = '第' + (c.chapterNumber || (i+1)) + '章';
+            html += '<div class="extract-chapter-btn selected" data-idx="' + i + '" onclick="toggleExtractChapter(this)">'
+                + '<span class="chk-icon">✓</span>'
+                + '<span class="ch-num">' + num + '</span>'
+                + '<span class="ch-name">' + (c.chapterName || '') + '</span>'
+                + '</div>';
+        });
+        container.innerHTML = html;
+        updateExtractChapterCount();
+        updateExtractPreview();
+    }
+
+    function toggleExtractChapter(el) {
+        el.classList.toggle('selected');
+        updateExtractChapterCount();
+        updateExtractPreview();
+    }
+
+    function updateExtractChapterCount() {
+        var total = chapters.length;
+        var sel = document.querySelectorAll('#extractChapterList .extract-chapter-btn.selected').length;
+        var label = document.getElementById('extractChapterCount');
+        if (sel === 0) label.textContent = '（未选择）';
+        else if (sel === total) label.textContent = '（全部勾选）';
+        else label.textContent = '（' + sel + '/' + total + '）';
+    }
+
+    function updateExtractPreview() {
+        var chks = document.querySelectorAll('#extractChapterList .extract-chapter-btn.selected');
+        if (chks.length === 0) {
+            document.getElementById('extractChapterPreview').textContent = '请勾选上方的章节';
+            return;
+        }
+        var texts = [];
+        chks.forEach(function(el) {
+            var idx = parseInt(el.getAttribute('data-idx'));
+            var c = chapters[idx];
+            if (c) {
+                var num = '第' + (c.chapterNumber || (idx+1)) + '章';
+                texts.push(num + ': ' + c.chapterName + '\n' + (c.content || ''));
+            }
+        });
+        document.getElementById('extractChapterPreview').textContent = texts.join('\n\n');
+    }
+
+    function copyExtractPreview() {
+        var text = document.getElementById('extractChapterPreview').textContent;
+        if (!text || text === '请勾选上方的章节') { alert('没有可复制的内容'); return; }
+        navigator.clipboard.writeText(text).then(function() {
+            showToast('已复制到剪贴板', 'success');
+        }).catch(function() {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast('已复制到剪贴板', 'success');
+        });
+    }
+
+    function doExtractAsset() {
+        var chks = document.querySelectorAll('#extractChapterList .extract-chapter-btn.selected');
+        if (chks.length === 0) { alert('请至少勾选一个章节'); return; }
+
+        var providerId = document.getElementById('extractProviderSelect').value;
+        if (!providerId) { alert('请选择 AI 提供者'); return; }
+        localStorage.setItem('extractAsset_providerId', providerId);
+
+        var chapterIds = [];
+        chks.forEach(function(el) {
+            var idx = parseInt(el.getAttribute('data-idx'));
+            var c = chapters[idx];
+            if (c) chapterIds.push(c.id);
+        });
+        var template = document.getElementById('extractTemplate').value.trim();
+
+        var goBtn = document.getElementById('extractGoBtn');
+        goBtn.disabled = true;
+        goBtn.textContent = '正在提取中...';
+
+        fetch('/api/v1/production/extract-asset-info', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ providerId: parseInt(providerId), template: template, chapterIds: chapterIds })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            goBtn.disabled = false;
+            goBtn.textContent = '重新提取';
+
+            if (res.success) {
+                if (res.isComfyui) {
+                    _lastExtractPromptId = res.promptId;
+                    _lastExtractWorkflowType = res.workflowType;
+                    pollExtractAssetResult(res.promptId, res.workflowType);
+                    return;
+                }
+                var text = res.data || '';
+                if (showMergeView(text)) {
+                    showToast('提取完成', 'success');
+                } else {
+                    showToast('提取完成（格式异常）', 'success');
+                }
+            } else {
+                showToast('提取失败：' + (res.message || '未知错误'), 'error');
+            }
+        })
+        .catch(function(err) {
+            goBtn.disabled = false;
+            goBtn.textContent = '重新提取';
+            showToast('请求失败：' + err.message, 'error');
+        });
+    }
+
+    function pollExtractAssetResult(promptId, workflowType) {
+        var goBtn = document.getElementById('extractGoBtn');
+        goBtn.disabled = true;
+        goBtn.textContent = '正在提取中...';
+
+        _extractPoller = createPoller({
+            promptId: promptId,
+            workflowType: workflowType,
+            resultType: 'text',
+            intervalMs: 10000,
+            timeoutMs: 600000,
+            onSuccess: function(data) {
+                goBtn.disabled = false;
+                goBtn.textContent = '重新提取';
+                var text = data.text || '';
+                try {
+                    var raw = text;
+                    var m = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+                    if (m) raw = m[1].trim();
+                    JSON.parse(raw);
+                } catch(e) {}
+                if (!showMergeView(text)) {
+                    document.getElementById('extractSubmitBtn').style.display = '';
+                }
+                showToast('提取完成', 'success');
+            },
+            onTimeout: function() {
+                goBtn.disabled = false;
+                goBtn.textContent = '重新提取';
+                document.getElementById('extractRetryFetchBtn').style.display = '';
+                showToast('等待超时（10分钟），任务仍在后台执行', 'error');
+            },
+            onFetchError: function(msg) {
+                goBtn.disabled = false;
+                goBtn.textContent = '重新提取';
+                document.getElementById('extractRetryFetchBtn').style.display = '';
+                showToast('请求失败：' + (msg || '未知错误'), 'error');
+            },
+            onError: function(msg) {
+                goBtn.disabled = false;
+                goBtn.textContent = '重新提取';
+                showToast('生成失败：' + (msg || '未知错误'), 'error');
+            }
+        });
+    }
+
+    function retryFetchExtractResult() {
+        if (!_lastExtractPromptId) { showToast('没有可重新获取的任务', 'error'); return; }
+        document.getElementById('extractRetryFetchBtn').style.display = 'none';
+        pollExtractAssetResult(_lastExtractPromptId, _lastExtractWorkflowType);
+    }
+
     // ---- Shot & Asset Extraction Dialog ----
     var _allProviders = [];
     var _shotAssetExtractPoller = null;
+
+    var _extractedNewAssets = null;
+
+    function showMergeView(aiText) {
+        var raw = aiText;
+        var m = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (m) raw = m[1].trim();
+        var parsed;
+        try { parsed = JSON.parse(raw); } catch(e) { return false; }
+        var assets = Array.isArray(parsed) ? parsed : (parsed.assets || []);
+        if (assets.length === 0) return false;
+
+        hideModal('extractAssetModal');
+        _extractedNewAssets = assets;
+
+        var typeNames = { 'Actor':'角色', 'Scene':'场景', 'Bgm':'BGM', 'Prop':'道具', 'VoiceVoice':'声音' };
+        var typeIcons = { 'Actor':'\uD83D\uDC64', 'Scene':'\uD83C\uDFD0\uFE0F', 'Bgm':'\uD83C\uDFB5', 'Prop':'\uD83D\uDD25', 'VoiceVoice':'\uD83C\uDFA4' };
+
+        fetch('/Assets/ListByProject?projectId=' + projectId)
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+                var existingNames = new Set((res.data || []).map(function(a){ return a.name.toLowerCase(); }));
+                renderMergeList(assets, existingNames);
+            })
+            .catch(function(){
+                renderMergeList(assets, new Set());
+            });
+
+        return true;
+    }
+
+    function renderMergeList(assets, existingNames) {
+        var typeNames = { 'Actor':'角色', 'Scene':'场景', 'Bgm':'BGM', 'Prop':'道具', 'VoiceVoice':'声音' };
+        var typeIcons = { 'Actor':'\uD83D\uDC64', 'Scene':'\uD83C\uDFD0\uFE0F', 'Bgm':'\uD83C\uDFB5', 'Prop':'\uD83D\uDD25', 'VoiceVoice':'\uD83C\uDFA4' };
+        var html = '';
+        assets.forEach(function(a, i){
+            var icon = typeIcons[a.assetType] || '\uD83D\uDCC4';
+            var typeLabel = typeNames[a.assetType] || a.assetType || '';
+            var exists = existingNames.has((a.name || '').toLowerCase());
+            var indent = a.parentName || a.belong ? 'margin-left:20px;' : '';
+            var existsTag = exists ? '<span style="color:var(--danger);font-size:10px;font-weight:600;">已存在</span>' : '<span style="color:var(--ok);font-size:10px;font-weight:600;">新资产</span>';
+            html += '<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);' + indent + '">'
+                + '<input type="checkbox" class="merge-item-chk" value="' + i + '" ' + (exists ? '' : 'checked') + ' data-exists="' + exists + '" style="margin-top:3px;accent-color:var(--primary);">'
+                + '<div style="flex:1;min-width:0;">'
+                + '<div style="display:flex;align-items:center;gap:4px;font-size:13px;">'
+                + '<span>' + icon + '</span>'
+                + '<strong>' + escapeHtml(a.name || '') + '</strong>'
+                + '<span style="color:var(--text3);font-size:10px;">[' + typeLabel + ']</span>'
+                + (a.parentName || a.belong ? '<span style="color:var(--sec);font-size:10px;">→ ' + escapeHtml(a.parentName || a.belong) + '</span>' : '')
+                + '</div>'
+                + '<div style="font-size:12px;color:var(--text3);margin-top:2px;line-height:1.5;">' + escapeHtml((a.description || '') || '暂无描述') + '</div>'
+                + '</div>'
+                + '<div style="white-space:nowrap;font-size:11px;">' + existsTag + '</div>'
+                + '</div>';
+        });
+        document.getElementById('mergeAssetList').innerHTML = html;
+        updateMergeCount();
+        document.querySelectorAll('#mergeAssetList .merge-item-chk').forEach(function(c){
+            c.addEventListener('change', updateMergeCount);
+        });
+        showModal('mergeAssetModal');
+    }
+
+    function updateMergeCount() {
+        var total = document.querySelectorAll('#mergeAssetList .merge-item-chk').length;
+        var sel = document.querySelectorAll('#mergeAssetList .merge-item-chk:checked').length;
+        document.getElementById('mergeSaveBtn').textContent = '保存勾选 (' + sel + '/' + total + ')';
+    }
+
+    function copyMergeJson() {
+        var json = JSON.stringify(_extractedNewAssets, null, 2);
+        navigator.clipboard.writeText(json).then(function() {
+            showToast('已复制 JSON 到剪贴板', 'success');
+        }).catch(function() {
+            var ta = document.createElement('textarea');
+            ta.value = json;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast('已复制 JSON 到剪贴板', 'success');
+        });
+    }
+
+    function saveMergeConfirm() {
+        var chks = document.querySelectorAll('#mergeAssetList .merge-item-chk:checked');
+        if (chks.length === 0) { alert('请至少勾选一个资产'); return; }
+
+        var selected = [];
+        chks.forEach(function(c){
+            var idx = parseInt(c.value);
+            var item = _extractedNewAssets[idx];
+            var exists = c.getAttribute('data-exists') === 'true';
+            selected.push({
+                name: item.name,
+                assetType: item.assetType,
+                description: item.description || '',
+                parentName: item.parentName || item.belong || '',
+                override: exists
+            });
+        });
+
+        var btn = document.getElementById('mergeSaveBtn');
+        btn.disabled = true;
+        btn.textContent = '保存中...';
+
+        fetch('/Assets/BulkCreate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectId: projectId, assets: selected })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+            btn.disabled = false;
+            btn.textContent = '保存勾选';
+            if (res.success) {
+                showToast(res.message, 'success');
+                hideModal('mergeAssetModal');
+            } else {
+                alert('保存失败：' + (res.message || '未知错误'));
+            }
+        })
+        .catch(function(err){
+            btn.disabled = false;
+            btn.textContent = '保存勾选';
+            alert('网络错误：' + err.message);
+        });
+    }
+
+    var _importNewAssets = null;
+
+    function showImportAssetModal() {
+        document.getElementById('importAssetJson').value = '';
+        document.getElementById('importAssetGoBtn').disabled = false;
+        document.getElementById('importAssetGoBtn').textContent = '导入并合并';
+        showModal('importAssetModal');
+    }
+
+    function doImportAsset() {
+        var jsonStr = document.getElementById('importAssetJson').value.trim();
+        if (!jsonStr) { alert('请粘贴 JSON 资产数据'); return; }
+
+        var parsed;
+        try { parsed = JSON.parse(jsonStr); } catch(e) {
+            alert('JSON 格式错误：' + e.message);
+            return;
+        }
+        var assets = Array.isArray(parsed) ? parsed : (parsed.assets || []);
+        if (assets.length === 0) { alert('未找到资产数据'); return; }
+
+        hideModal('importAssetModal');
+        showImportMergeView(assets);
+    }
+
+    function showImportMergeView(importAssets) {
+        _importNewAssets = importAssets;
+        var typeNames = { 'Actor':'角色', 'Scene':'场景', 'Bgm':'BGM', 'Prop':'道具', 'VoiceVoice':'声音' };
+
+        fetch('/Assets/ListByProject?projectId=' + projectId)
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+                var existing = res.data || [];
+                var html = existing.length === 0
+                    ? '<div style="padding:12px;text-align:center;color:var(--text3);font-size:12px;">暂无资产</div>'
+                    : existing.map(function(a){
+                        var icon = a.assetType === 'Actor' ? '\uD83D\uDC64' : a.assetType === 'Scene' ? '\uD83C\uDFD0\uFE0F' : a.assetType === 'Bgm' ? '\uD83C\uDFB5' : '\uD83D\uDD25';
+                        return '<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-bottom:1px solid var(--border);font-size:12px;">'
+                            + '<span>' + icon + '</span>'
+                            + '<span style="font-weight:600;">' + escapeHtml(a.name) + '</span>'
+                            + '<span style="color:var(--text3);font-size:10px;">[' + (typeNames[a.assetType] || a.assetType) + ']</span>'
+                            + '</div>';
+                    }).join('');
+                document.getElementById('importExistingAssets').innerHTML = html;
+            });
+
+        var newHtml = importAssets.map(function(a, i){
+            var icon = a.assetType === 'Actor' ? '\uD83D\uDC64' : a.assetType === 'Scene' ? '\uD83C\uDFD0\uFE0F' : a.assetType === 'Bgm' ? '\uD83C\uDFB5' : '\uD83D\uDD25';
+            return '<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border);cursor:pointer;" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">'
+                + '<input type="checkbox" class="import-new-chk" value="' + i + '" checked style="margin-top:2px;accent-color:var(--primary);">'
+                + '<div style="flex:1;min-width:0;">'
+                + '<div style="display:flex;align-items:center;gap:4px;font-size:12px;">'
+                + '<span>' + icon + '</span>'
+                + '<strong>' + escapeHtml(a.name || '') + '</strong>'
+                + '<span style="color:var(--text3);font-size:10px;">[' + (typeNames[a.assetType] || a.assetType || '') + ']</span>'
+                + '</div>'
+                + '<div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4;">' + escapeHtml((a.description || '') || '暂无描述') + '</div>'
+                + '</div>'
+                + '</label>';
+        }).join('');
+        document.getElementById('importNewAssets').innerHTML = newHtml;
+
+        document.getElementById('importMergeSaveBtn').textContent = '保存合并 (' + importAssets.length + ')';
+        showModal('importMergeModal');
+    }
+
+    function saveImportMerge() {
+        var chks = document.querySelectorAll('#importNewAssets .import-new-chk:checked');
+        if (chks.length === 0) { alert('请至少勾选一个资产'); return; }
+
+        var selected = [];
+        chks.forEach(function(c){
+            var idx = parseInt(c.value);
+            selected.push(_importNewAssets[idx]);
+        });
+
+        var btn = document.getElementById('importMergeSaveBtn');
+        btn.disabled = true;
+        btn.textContent = '保存中...';
+
+        fetch('/Assets/BulkCreate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectId: projectId, assets: selected })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+            btn.disabled = false;
+            if (res.success) {
+                showToast(res.message, 'success');
+                hideModal('importMergeModal');
+            } else {
+                alert('保存失败：' + (res.message || '未知错误'));
+                btn.textContent = '保存合并 (' + selected.length + ')';
+            }
+        })
+        .catch(function(err){
+            btn.disabled = false;
+            btn.textContent = '保存合并 (' + selected.length + ')';
+            alert('网络错误：' + err.message);
+        });
+    }
 
     function showShotExtractionModal() {
         showShotAssetExtractionModal();

@@ -11,12 +11,12 @@ namespace ManjuCraft.Application.Service
             _env = env;
         }
 
-        public string GetAssetUrl(long projectId, string assetType, long assetId, string extension)
+        public string GetAssetUrl(long projectId, string assetType, Guid assetId, string extension)
         {
             return $"asset/{assetType.ToLower()}/{assetId}{extension}";
         }
 
-        public async Task<string> SaveAssetAsync(long projectId, string assetType, long assetId, byte[] data, string extension)
+        public async Task<string> SaveAssetAsync(long projectId, string assetType, Guid assetId, byte[] data, string extension)
         {
             var wwwroot = _env.WebRootPath;
             var dirPath = Path.Combine(wwwroot, "asset", assetType.ToLower());

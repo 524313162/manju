@@ -6,22 +6,24 @@ namespace ManjuCraft.Application.Service
     {
         Task<List<Asset>> GetByProjectAsync(long projectId, AssetTypeEnum? assetType = null);
 
-        Task<Asset> GetByIdAsync(long id);
+        Task<Asset?> GetByIdAsync(Guid id);
 
         Task<Asset> CreateAsync(Asset asset);
 
-        Task<Asset> UpdateAsync(Asset asset);
+        Task<List<Asset>> BulkCreateAsync(List<Asset> assets);
 
-        Task DeleteAsync(long id);
+        Task<Asset?> UpdateAsync(Asset asset);
+
+        Task DeleteAsync(Guid id);
 
         Task ReorderAsync(List<ReorderItem> items);
 
-        Task<List<Asset>> GetVariantsAsync(long parentId);
+        Task<List<Asset>> GetVariantsAsync(Guid parentId);
     }
 
     public class ReorderItem
     {
-        public long Id { get; set; }
+        public Guid Id { get; set; }
         public int Order { get; set; }
     }
 }

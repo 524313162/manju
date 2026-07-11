@@ -48,11 +48,13 @@
                 <input type="text" id="searchInput" placeholder="搜索资产名称..." oninput="filterAssets()">
             </div>
             <button class="btn btn-primary" onclick="showAddModal()">+ 添加</button>
+            <button class="btn btn-ghost" onclick="showAssetImportModal()">📂 批量导入</button>
+            <button class="btn btn-danger" onclick="clearAllAssets()" style="margin-left:4px;">🗑️ 清除所有资产</button>
         </div>
     </div>
 
     <div class="asset-type-grid">
-        @foreach (var t in new[] { AssetTypeEnum.Actor, AssetTypeEnum.VoiceVoice, AssetTypeEnum.Scene, AssetTypeEnum.Bgm, AssetTypeEnum.Prop })
+        @foreach (var t in new[] { AssetTypeEnum.Actor, AssetTypeEnum.Prop, AssetTypeEnum.Scene, AssetTypeEnum.Bgm, AssetTypeEnum.VoiceVoice })
         {
             <a href="?type=@((int)t)&projectId=@projectId" class="asset-type-card @(assetType == t ? "active" : "")" data-type="@t.ToString()">
                 <div class="asset-type-icon actor-icon">@GetEmoji(t)</div>
@@ -100,10 +102,10 @@
                         if (parts.Length > 1) extension = "." + parts[parts.Length - 1];
                     }
                     var badgeClass = a.AssetType == AssetTypeEnum.Scene ? "type-scene" : a.AssetType == AssetTypeEnum.Bgm ? "type-bgm" : a.AssetType == AssetTypeEnum.Prop ? "type-prop" : a.AssetType == AssetTypeEnum.VoiceVoice ? "type-voicevoice" : "type-actor";
-                    <div class="asset-detail-card" data-type="@a.AssetType.ToString()" data-imgsrc="@imgSrc" data-isbgm="@(isBgm.ToString().ToLower())">
+                    <div class="asset-detail-card" data-type="@a.AssetType.ToString()" data-imgsrc="@imgSrc" data-isbgm="@(isBgm.ToString().ToLower())" data-parentid="@a.ParentId?.ToString()">
                         @if (isBgm)
                         {
-                            <div class="asset-image-placeholder bgm-card @(string.IsNullOrEmpty(imgSrc) ? "has-placeholder" : "")" onclick="playBgm('@imgSrc', '@a.Name.Replace("'", "\\'")')">
+                            <div class="asset-image-placeholder bgm-card @(string.IsNullOrEmpty(imgSrc) ? "has-placeholder" : "")" onclick="showReplaceModalFromClick(@a.Id, '@a.Name.Replace("'", "\\'")', true)">
                                 <div class="bgm-icon">🎵</div>
                                 @if (!string.IsNullOrEmpty(imgSrc))
                                 {
@@ -113,7 +115,7 @@
                         }
                         else
                         {
-                            <div class="asset-image-placeholder @(string.IsNullOrEmpty(imgSrc) ? "has-placeholder" : "")" onclick="showImagePreview('@imgSrc', '@a.Name.Replace("'", "\\'")')">
+                            <div class="asset-image-placeholder @(string.IsNullOrEmpty(imgSrc) ? "has-placeholder" : "")" onclick="showReplaceModalFromClick(@a.Id, '@a.Name.Replace("'", "\\'")', false)">
                                 @if (!string.IsNullOrEmpty(imgSrc))
                                 {
                                     <img src="@imgSrc" alt="@a.Name" />
@@ -134,26 +136,11 @@
                             <button type="button" class="action-btn action-ai" data-id="@a.Id" data-type="@a.AssetType.ToString()" data-name='@Json.Serialize(a.Name)' data-url="@imgSrc" data-isbgm="@(isBgm.ToString().ToLower())">
                                 <span class="action-icon">&#129302;</span> AI 生成
                             </button>
-                            @if (a.AssetType == AssetTypeEnum.Actor)
-                            {
-                                <button type="button" class="action-btn action-tts" data-id="@a.Id" data-name='@Json.Serialize(a.Name)'>
-                                    <span class="action-icon">&#127908;</span> AI 配音
-                                </button>
-                            }
-                            <button type="button" class="action-btn action-edit" data-id="@a.Id" data-name='@Json.Serialize(a.Name)' data-desc='@Json.Serialize(a.Description)' data-order="@a.Order">
+                            <button type="button" class="action-btn action-edit" data-id="@a.Id" data-name='@Json.Serialize(a.Name)' data-desc='@Json.Serialize(a.Description)' data-order="@a.Order" data-imgsrc="@imgSrc" data-isbgm="@(isBgm.ToString().ToLower())">
                                 <span class="action-icon">&#9998;</span> 编辑
                             </button>
-                            @if (isBgm)
+                            @if (a.AssetType == AssetTypeEnum.Actor)
                             {
-                                <button type="button" class="action-btn action-replace" data-id="@a.Id" data-name='@Json.Serialize(a.Name)' data-imgsrc="@imgSrc" data-isbgm="true">
-                                    <span class="action-icon">&#128266;</span> 替换音频
-                                </button>
-                            }
-                            else
-                            {
-                                <button type="button" class="action-btn action-replace" data-id="@a.Id" data-name='@Json.Serialize(a.Name)' data-imgsrc="@imgSrc" data-isbgm="false">
-                                    <span class="action-icon">&#128249;</span> 替换图片
-                                </button>
                             }
                             <button type="button" class="action-btn action-delete" data-id="@a.Id" data-name='@Json.Serialize(a.Name)'>
                                 <span class="action-icon">&#128465;</span>
@@ -166,6 +153,61 @@
     </div>
 </div>
 
+<div class="modal-overlay" id="assetImportModal">
+    <div class="modal" style="width:640px;">
+        <div class="modal-header">
+            <h3>📂 批量导入资产</h3>
+            <button class="modal-close" onclick="hideModal('assetImportModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>当前项目</label>
+                <div style="padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-weight:600;background:var(--bg);">@ViewBag.ProjectName</div>
+            </div>
+            <div class="form-group">
+                <label>粘贴 JSON 资产数据</label>
+                <textarea id="assetImportJson" rows="14" placeholder='[
+  {
+    "assetType": "Actor",
+    "name": "角色名",
+    "description": "描述"
+  },
+  {
+    "assetType": "VoiceVoice",
+    "name": "角色声线",
+    "description": "描述",
+    "belong": "角色名"
+  }
+]' style="font-family:monospace;font-size:12px;"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="hideModal('assetImportModal')">取消</button>
+            <button class="btn btn-primary" onclick="doAssetImport()">导入并合并</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="assetImportMergeModal">
+    <div class="modal" style="width:760px;max-height:92vh;">
+        <div class="modal-header">
+            <h3>📂 导入资产 - 合并确认</h3>
+            <button class="modal-close" onclick="hideModal('assetImportMergeModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                <p style="font-size:13px;color:var(--text2);margin:0;">勾选需要保存或覆盖的资产，已存在的资产默认不勾选，手动勾选后将覆盖原有内容。</p>
+                <button class="btn btn-xs btn-ghost" onclick="copyAssetImportJson()" style="white-space:nowrap;">📋 复制 JSON</button>
+            </div>
+            <div id="assetImportMergeList" style="max-height:400px;overflow-y:auto;"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="hideModal('assetImportMergeModal')">取消</button>
+            <button class="btn btn-primary" id="assetImportMergeSaveBtn" onclick="saveAssetImportMerge()">保存勾选</button>
+        </div>
+    </div>
+</div>
+
 <div class="modal-overlay" id="assetModal">
     <div class="modal modal-medium">
         <div class="modal-header">
@@ -174,6 +216,7 @@
         </div>
         <input type="hidden" id="editAssetId">
         <div class="modal-body">
+            <div class="form-group" id="parentSelectGroup" style="display:none;"><label>父节点（所属角色/道具）*</label><select id="assetParentId"><option value="">请选择父资产...</option></select></div>
             <div class="form-group"><label>名称 *</label><input type="text" id="assetName" placeholder="输入名称"></div>
             <div class="form-group"><label>描述</label><textarea id="assetDesc" rows="3" placeholder="详细描述..."></textarea></div>
             <div class="form-group"><label>排序</label><input type="number" id="assetOrder" value="0" min="0"></div>
@@ -275,6 +318,7 @@
             document.getElementById('assetDesc').value = '';
             document.getElementById('assetOrder').value = '0';
             showResourcePreviewInEdit(null, '');
+            setupParentSelect(false);
             showModal('assetModal');
             setTimeout(function() { document.getElementById('assetName').focus(); }, 100);
         }
@@ -286,14 +330,61 @@
             var order = parseInt(btn.getAttribute('data-order')) || 0;
             var card = btn.closest('.asset-detail-card');
             var imgSrc = card ? card.getAttribute('data-imgsrc') || '' : '';
+            var parentId = card ? card.getAttribute('data-parentid') || '' : '';
             document.getElementById('editAssetId').value = id;
             document.getElementById('assetModalTitle').textContent = '编辑' + typeName;
             document.getElementById('assetName').value = name;
             document.getElementById('assetDesc').value = desc;
             document.getElementById('assetOrder').value = order;
+            document.getElementById('assetParentId').value = parentId;
             showResourcePreviewInEdit('编辑资源', imgSrc);
+            setupParentSelect(true);
             showModal('assetModal');
             setTimeout(function() { document.getElementById('assetName').focus(); }, 100);
+        }
+
+        function setupParentSelect(forEdit) {
+            var isVoice = currentType === 2;
+            var group = document.getElementById('parentSelectGroup');
+            var sel = document.getElementById('assetParentId');
+
+            if (!isVoice) {
+                group.style.display = 'none';
+                sel.required = false;
+                return;
+            }
+
+            group.style.display = '';
+            sel.required = true;
+            sel.innerHTML = '<option value="">请选择父资产...</option>';
+
+            // parent types: Actor (1) and Prop (5)
+            var parentTypes = [1, 5];
+            var parentTypeNames = { 1: '角色', 5: '道具' };
+            var fetches = parentTypes.map(function(t) {
+                return fetch('/Assets/ListByProject?projectId=' + projectId + '&type=' + t)
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        var list = res.data || [];
+                        if (list.length > 0) {
+                            var optgroup = document.createElement('optgroup');
+                            optgroup.label = parentTypeNames[t];
+                            list.forEach(function(a) {
+                                var opt = document.createElement('option');
+                                opt.value = a.id;
+                                opt.textContent = a.name;
+                                optgroup.appendChild(opt);
+                            });
+                            sel.appendChild(optgroup);
+                        }
+                    });
+            });
+
+            Promise.all(fetches).then(function() {
+                if (forEdit) {
+                    // restore parent value after options load
+                }
+            });
         }
 
         function showResourcePreviewInEdit(title, imgSrc) {
@@ -324,11 +415,15 @@
             var order = parseInt(document.getElementById('assetOrder').value) || 0;
             if (!name) { alert('请输入名称'); return; }
 
+            var parentId = document.getElementById('assetParentId').value;
+            var isVoice = currentType === 2;
+            if (isVoice && !parentId) { alert('声音资产必须选择父节点（所属角色或道具）'); return; }
+
             if (id) {
                 fetch('/Assets/Edit', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: parseInt(id), name: name, description: desc, order: order })
+                    body: JSON.stringify({ id: id, name: name, description: desc, order: order, parentId: parentId })
                 })
                 .then(function(r) { return r.text().then(function(t) { try { return JSON.parse(t); } catch(e) { return {success:false,message:t}; } }); })
                 .then(function(res) {
@@ -344,7 +439,7 @@
                 fetch('/Assets/Create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ projectId: projectId, assetType: currentType, name: name, description: desc, order: order })
+                    body: JSON.stringify({ projectId: projectId, assetType: currentType, name: name, description: desc, order: order, parentId: parentId || '' })
                 })
                 .then(function(r) { return r.text().then(function(t) { try { return JSON.parse(t); } catch(e) { return {success:false,message:t}; } }); })
                 .then(function(res) {
@@ -418,19 +513,44 @@
             .catch(function(err) { alert('删除请求失败: ' + err.message); });
         }
 
-        function setupButtonListeners() {
+        function clearAllAssets() {
+            if (!confirm('确认清除当前项目所有资产？此操作不可撤销！')) return;
+            if (!confirm('再次确认：将删除当前项目的全部资产数据！')) return;
+            fetch('/Assets/ClearAll', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectId: projectId })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.success) {
+                    showToast(res.message, 'success');
+                    window.location.reload();
+                } else {
+                    alert('清除失败: ' + (res.message || ''));
+                }
+            })
+            .catch(function(err) { alert('请求失败: ' + err.message); });
+        }
+
+        function showReplaceModalFromClick(assetId, name, isBgm) {
+            document.getElementById('replaceAssetId').value = assetId;
+            document.getElementById('replaceResourceTitle').textContent = isBgm ? '替换音频: ' + name : '替换图片: ' + name;
+            var fileInput = document.getElementById('replaceFileInput');
+            fileInput.accept = isBgm ? "audio/*" : "image/*";
+            fileInput.value = '';
+            document.getElementById('replacePreviewImg').style.display = 'none';
+            document.getElementById('replacePreviewImg').src = '';
+            showModal('replaceResourceModal');
+            setTimeout(function() { fileInput.focus(); }, 100);
+        }
+
+        function showEditModal(btn) {
             document.querySelectorAll('.action-edit').forEach(function(btn) {
                 btn.addEventListener('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     showEditModal(this);
-                });
-            });
-            document.querySelectorAll('.action-replace').forEach(function(btn) {
-                btn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    showReplaceModal(this);
                 });
             });
             document.querySelectorAll('.action-ai').forEach(function(btn) {
@@ -440,19 +560,11 @@
                     showAiGenerateModal(this);
                 });
             });
-            document.querySelectorAll('.action-tts').forEach(function(btn) {
-                btn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    var name = JSON.parse(btn.getAttribute('data-name'));
-                    alert('AI 配音功能开发中，敬请期待！\n角色：' + name);
-                });
-            });
             document.querySelectorAll('.action-delete').forEach(function(btn) {
                 btn.addEventListener('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    var id = parseInt(btn.getAttribute('data-id'));
+                    var id = btn.getAttribute('data-id');
                     var name = JSON.parse(btn.getAttribute('data-name'));
                     deleteAssetFromId(id, name);
                 });
@@ -624,7 +736,7 @@
                 fetch('/Assets/ReplaceAudio', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ assetId: parseInt(assetId), fileUrl: fileUrl })
+                    body: JSON.stringify({ assetId: assetId, fileUrl: fileUrl })
                 })
                 .then(function(r) { return r.json(); })
                 .then(function(res) {
@@ -648,7 +760,7 @@
                 fetch('/Assets/ReplaceResource', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ assetId: parseInt(assetId), fileUrl: fileUrl })
+                    body: JSON.stringify({ assetId: assetId, fileUrl: fileUrl })
                 })
                 .then(function(r) { return r.json(); })
                 .then(function(res) {
@@ -693,6 +805,250 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             setupButtonListeners();
+            checkPendingExtractAssets();
         });
+
+        function checkPendingExtractAssets() {
+            var key = 'extractAssetResult_' + projectId;
+            var raw = sessionStorage.getItem(key);
+            if (!raw) return;
+
+            sessionStorage.removeItem(key);
+            var parsed;
+            try { parsed = JSON.parse(raw); } catch(e) { return; }
+
+            var assetsArray = Array.isArray(parsed) ? parsed : (parsed.assets && Array.isArray(parsed.assets) ? parsed.assets : null);
+            if (!assetsArray || assetsArray.length === 0) return;
+
+            showExtractMergeModal(assetsArray);
+        }
+
+        var _mergeAssetList = [];
+
+        function showExtractMergeModal(aiAssets) {
+            _mergeAssetList = aiAssets;
+            var typeIcons = { 'Actor':'\uD83D\uDCC8', 'Scene':'\uD83C\uDFD0', 'Bgm':'\uD83C\uDFA5', 'Prop':'\uD83D\uDD25', 'VoiceVoice':'\uD83C\uDFA4' };
+            var names = { 'Actor':'角色', 'Scene':'场景', 'Bgm':'BGM', 'Prop':'道具', 'VoiceVoice':'声音' };
+
+            var h = '<div class="modal-header"><h3>\uD83C\uDFAF AI 提取资产 - 确认合并</h3><button class="modal-close" onclick="hideModal(\'extractMergeModal\')">&times;</button></div>';
+            h += '<div class="modal-body">';
+            h += '<p style="color:var(--text2);font-size:13px;margin-bottom:16px;">AI 从章节中提取了以下资产，请勾选需要保存的项：</p>';
+            h += '<div id="mergeAssetList" style="max-height:400px;overflow-y:auto;">';
+
+            aiAssets.forEach(function(a, i) {
+                var icon = typeIcons[a.assetType] || '\uD83D\uDCC4';
+                var typeLabel = names[a.assetType] || a.assetType || '';
+                h += '<label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;cursor:pointer;transition:.1s;" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">'
+                    + '<input type="checkbox" class="merge-chk" value="' + i + '" checked style="margin-top:3px;accent-color:var(--primary);">'
+                    + '<div style="flex:1;min-width:0;">'
+                    + '<div style="display:flex;align-items:center;gap:6px;">'
+                    + '<span>' + icon + '</span>'
+                    + '<strong style="font-size:14px;">' + escapeHtml(a.name || '') + '</strong>'
+                    + '<span class="asset-badge asset-badge-' + (a.assetType || '').toLowerCase() + '" style="font-size:10px;">' + typeLabel + '</span>'
+                    + '</div>'
+                    + '<div style="font-size:12px;color:var(--text3);margin-top:4px;line-height:1.5;">' + escapeHtml(a.description || '暂无描述') + '</div>'
+                    + '</div>'
+                    + '</label>';
+            });
+
+            h += '</div></div>';
+            h += '<div class="modal-footer">'
+                + '<button class="btn btn-ghost" onclick="hideModal(\'extractMergeModal\')">取消</button>'
+                + '<button class="btn btn-primary" id="mergeSaveBtn" onclick="saveMergeAssets()">保存勾选 (' + aiAssets.length + ')</button>'
+                + '</div>';
+
+            var overlay = document.getElementById('extractMergeModal');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.className = 'modal-overlay';
+                overlay.id = 'extractMergeModal';
+                document.body.appendChild(overlay);
+            }
+            overlay.innerHTML = '<div class="modal" style="width:600px;max-height:90vh;">' + h + '</div>';
+            showModal('extractMergeModal');
+
+            document.querySelectorAll('#mergeAssetList .merge-chk').forEach(function(c) {
+                c.addEventListener('change', function() {
+                    var total = _mergeAssetList.length;
+                    var sel = document.querySelectorAll('#mergeAssetList .merge-chk:checked').length;
+                    document.getElementById('mergeSaveBtn').textContent = '保存勾选 (' + sel + ')';
+                });
+            });
+        }
+
+        function saveMergeAssets() {
+            var chks = document.querySelectorAll('#mergeAssetList .merge-chk:checked');
+            if (chks.length === 0) { alert('请至少勾选一个资产'); return; }
+
+            var selected = [];
+            chks.forEach(function(c) {
+                var idx = parseInt(c.value);
+                selected.push(_mergeAssetList[idx]);
+            });
+
+            var btn = document.getElementById('mergeSaveBtn');
+            btn.disabled = true;
+            btn.textContent = '保存中...';
+
+            fetch('/Assets/BulkCreate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectId: projectId, assets: selected })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.success) {
+                    showToast(res.message, 'success');
+                    hideModal('extractMergeModal');
+                    setTimeout(function() { window.location.reload(); }, 800);
+                } else {
+                    alert('保存失败：' + (res.message || '未知错误'));
+                    btn.disabled = false;
+                    btn.textContent = '保存勾选 (' + selected.length + ')';
+                }
+            })
+            .catch(function(err) {
+                alert('网络错误：' + err.message);
+                btn.disabled = false;
+                btn.textContent = '保存勾选 (' + selected.length + ')';
+            });
+        }
+
+        // ---- 批量导入 ----
+        var _assetImportNewAssets = null;
+
+        function showAssetImportModal() {
+            document.getElementById('assetImportJson').value = '';
+            showModal('assetImportModal');
+        }
+
+        function doAssetImport() {
+            var jsonStr = document.getElementById('assetImportJson').value.trim();
+            if (!jsonStr) { alert('请粘贴 JSON 资产数据'); return; }
+
+            var parsed;
+            try { parsed = JSON.parse(jsonStr); } catch(e) {
+                alert('JSON 格式错误：' + e.message);
+                return;
+            }
+            var assets = Array.isArray(parsed) ? parsed : (parsed.assets || []);
+            if (assets.length === 0) { alert('未找到资产数据'); return; }
+
+            hideModal('assetImportModal');
+            showAssetImportMergeView(assets);
+        }
+
+        function showAssetImportMergeView(importAssets) {
+            _assetImportNewAssets = importAssets;
+            var typeNames = { 'Actor':'角色', 'Scene':'场景', 'Bgm':'BGM', 'Prop':'道具', 'VoiceVoice':'声音' };
+
+            fetch('/Assets/ListByProject?projectId=' + projectId)
+                .then(function(r){ return r.json(); })
+                .then(function(res){
+                    var existingNames = new Set((res.data || []).map(function(a){ return a.name.toLowerCase(); }));
+                    renderAssetImportMergeList(importAssets, existingNames);
+                })
+                .catch(function(){
+                    renderAssetImportMergeList(importAssets, new Set());
+                });
+        }
+
+        function renderAssetImportMergeList(assets, existingNames) {
+            var typeNames = { 'Actor':'角色', 'Scene':'场景', 'Bgm':'BGM', 'Prop':'道具', 'VoiceVoice':'声音' };
+            var typeIcons = { 'Actor':'\uD83D\uDC64', 'Scene':'\uD83C\uDFD0\uFE0F', 'Bgm':'\uD83C\uDFB5', 'Prop':'\uD83D\uDD25', 'VoiceVoice':'\uD83C\uDFA4' };
+            var html = '';
+            assets.forEach(function(a, i){
+                var icon = typeIcons[a.assetType] || '\uD83D\uDCC4';
+                var typeLabel = typeNames[a.assetType] || a.assetType || '';
+                var exists = existingNames.has((a.name || '').toLowerCase());
+                var indent = a.belong ? 'margin-left:20px;' : '';
+                var existsTag = exists ? '<span style="color:var(--danger);font-size:10px;font-weight:600;">已存在</span>' : '<span style="color:var(--ok);font-size:10px;font-weight:600;">新资产</span>';
+                html += '<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);' + indent + '">'
+                    + '<input type="checkbox" class="asset-import-chk" value="' + i + '" ' + (exists ? '' : 'checked') + ' data-exists="' + exists + '" style="margin-top:3px;accent-color:var(--primary);">'
+                    + '<div style="flex:1;min-width:0;">'
+                    + '<div style="display:flex;align-items:center;gap:4px;font-size:13px;">'
+                    + '<span>' + icon + '</span>'
+                    + '<strong>' + escapeHtml(a.name || '') + '</strong>'
+                    + '<span style="color:var(--text3);font-size:10px;">[' + typeLabel + ']</span>'
+                    + (a.belong ? '<span style="color:var(--sec);font-size:10px;">→ ' + escapeHtml(a.belong) + '</span>' : '')
+                    + '</div>'
+                    + '<div style="font-size:12px;color:var(--text3);margin-top:2px;line-height:1.5;">' + escapeHtml((a.description || '') || '暂无描述') + '</div>'
+                    + '</div>'
+                    + '<div style="white-space:nowrap;font-size:11px;">' + existsTag + '</div>'
+                    + '</div>';
+            });
+            document.getElementById('assetImportMergeList').innerHTML = html;
+            var total = assets.length;
+            var sel = document.querySelectorAll('#assetImportMergeList .asset-import-chk:checked').length;
+            document.getElementById('assetImportMergeSaveBtn').textContent = '保存勾选 (' + sel + '/' + total + ')';
+            document.querySelectorAll('#assetImportMergeList .asset-import-chk').forEach(function(c){
+                c.addEventListener('change', function(){
+                    var s = document.querySelectorAll('#assetImportMergeList .asset-import-chk:checked').length;
+                    document.getElementById('assetImportMergeSaveBtn').textContent = '保存勾选 (' + s + '/' + total + ')';
+                });
+            });
+            showModal('assetImportMergeModal');
+        }
+
+        function copyAssetImportJson() {
+            var json = JSON.stringify(_assetImportNewAssets, null, 2);
+            navigator.clipboard.writeText(json).then(function() {
+                showToast('已复制 JSON 到剪贴板', 'success');
+            }).catch(function() {
+                var ta = document.createElement('textarea');
+                ta.value = json;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast('已复制 JSON 到剪贴板', 'success');
+            });
+        }
+
+        function saveAssetImportMerge() {
+            var chks = document.querySelectorAll('#assetImportMergeList .asset-import-chk:checked');
+            if (chks.length === 0) { alert('请至少勾选一个资产'); return; }
+
+            var selected = [];
+            chks.forEach(function(c){
+                var idx = parseInt(c.value);
+                var item = _assetImportNewAssets[idx];
+                var exists = c.getAttribute('data-exists') === 'true';
+                selected.push({
+                    name: item.name,
+                    assetType: item.assetType,
+                    description: item.description || '',
+                    parentName: item.belong || '',
+                    override: exists
+                });
+            });
+
+            var btn = document.getElementById('assetImportMergeSaveBtn');
+            btn.disabled = true;
+            btn.textContent = '保存中...';
+
+            fetch('/Assets/BulkCreate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectId: projectId, assets: selected })
+            })
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+                btn.disabled = false;
+                btn.textContent = '保存勾选';
+                if (res.success) {
+                    showToast(res.message, 'success');
+                    hideModal('assetImportMergeModal');
+                    setTimeout(function() { window.location.reload(); }, 800);
+                } else {
+                    alert('保存失败：' + (res.message || '未知错误'));
+                }
+            })
+            .catch(function(err){
+                btn.disabled = false;
+                btn.textContent = '保存勾选';
+                alert('网络错误：' + err.message);
+            });
+        }
     </script>
 }

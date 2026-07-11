@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace ManjuCraft.Domain.Models
 {
-    public class Asset : BaseEntity
+    public class Asset : BaseEntity<Guid>
     {
         public long ProjectId { get; set; }
 
@@ -17,7 +17,7 @@ namespace ManjuCraft.Domain.Models
 
         public string Description { get; set; } = default!;
 
-        public long? ParentId { get; set; }
+        public Guid? ParentId { get; set; }
 
         public int Order { get; set; }
 

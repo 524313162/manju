@@ -66,8 +66,9 @@ public class ProductionController : Controller
             var chapter = chapters[req.ChapterIdx];
 
             // Get selected existing assets
+            var selectedGuids = req.SelectedAssetIds.Select(s => { Guid.TryParse(s, out var g); return g; }).Where(g => g != Guid.Empty).ToList();
             var existingAssets = await db.Assets
-                .Where(a => a.ProjectId == req.ProjectId && req.SelectedAssetIds.Contains(a.Id))
+                .Where(a => a.ProjectId == req.ProjectId && selectedGuids.Contains(a.Id))
                 .ToListAsync();
 
             // Get prompt template
@@ -130,7 +131,7 @@ public class ProductionController : Controller
             var existingAssetNames = existingAssets.Select(a => a.Name).ToHashSet();
 
             // Process new assets and collect their names (with role classification)
-            var newAssetEntries = new Dictionary<string, long>(); // name -> id
+            var newAssetEntries = new Dictionary<string, Guid>(); // name -> id
             var allAssetNames = new HashSet<string>(existingAssetNames);
 
             if (parsed.newAssets != null)
@@ -542,6 +543,197 @@ public class ProductionController : Controller
     }
 
     #endregion
+
+    [HttpGet]
+    [Route("/api/v1/production/template")]
+    public async Task<IActionResult> GetTemplate([FromQuery] string type)
+    {
+        var db = HttpContext.RequestServices.GetRequiredService<ProjectDbContext>();
+        var tpl = await db.PromptTemplates
+            .Where(p => p.TemplateType == type)
+            .OrderBy(p => p.Id)
+            .FirstOrDefaultAsync();
+        if (tpl == null)
+            return Json(new { success = false, message = "模板不存在" });
+        return Json(new { success = true, content = tpl.Content, name = tpl.Name });
+    }
+
+    [HttpPost]
+    [Route("/api/v1/production/extract-asset-info")]
+    public async Task<IActionResult> ExtractAssetInfo([FromBody] JsonElement body)
+    {
+        try
+        {
+            var providerId = body.TryGetProperty("providerId", out var pid) ? pid.GetInt64() : 0L;
+            var template = body.TryGetProperty("template", out var tpl) ? tpl.GetString() : null;
+            var chapterIds = body.TryGetProperty("chapterIds", out var cids) && cids.ValueKind == JsonValueKind.Array
+                ? cids.EnumerateArray().Select(e => e.GetInt64()).ToList()
+                : new List<long>();
+
+            if (chapterIds.Count == 0)
+                return Json(new { success = false, message = "请选择至少一个章节" });
+
+            if (providerId <= 0)
+                return Json(new { success = false, message = "请选择 AI 提供者" });
+
+            var db = HttpContext.RequestServices.GetRequiredService<ProjectDbContext>();
+
+            var chapters = await db.StoryChapters
+                .Where(c => chapterIds.Contains(c.Id))
+                .OrderBy(c => c.SortOrder)
+                .ToListAsync();
+
+            if (chapters.Count == 0)
+                return Json(new { success = false, message = "未找到选中的章节" });
+
+            var storyId = chapters[0].StoryId;
+            var story = await db.Stories.FindAsync(storyId);
+            if (story == null)
+                return Json(new { success = false, message = "剧本不存在" });
+            var projectId = story.ProjectId;
+
+            var existingAssets = await db.Assets
+                .Where(a => a.ProjectId == projectId)
+                .Select(a => new { a.Name, a.AssetType, a.Description })
+                .ToListAsync();
+
+            var existingAssetsText = string.Join("\n", existingAssets.Select(a => $"- {a.Name} ({a.AssetType})"));
+
+            var chaptersText = string.Join("\n\n", chapters.Select(c =>
+                $"【第{c.ChapterNumber}章 {c.ChapterName}】\n{c.Content}"));
+
+            var templateContent = template;
+            if (string.IsNullOrEmpty(templateContent))
+            {
+                var t = await db.PromptTemplates
+                    .Where(p => p.TemplateType == "AssetExtraction")
+                    .OrderBy(p => p.Id)
+                    .FirstOrDefaultAsync();
+                templateContent = t?.Content ?? "";
+            }
+
+            var userMsg = $"## 已有项目资产\n{existingAssetsText}\n\n## 章节内容\n{chaptersText}\n\n请严格按JSON格式输出提取的资产信息。";
+
+            var aiService = HttpContext.RequestServices.GetRequiredService<IAiAgentService>();
+            var result = await aiService.ChatAsync(providerId, templateContent, userMsg);
+            if (!result.success)
+                return Json(new { success = false, message = result.message ?? "提取失败" });
+
+            if (result.isComfyui)
+                return Json(new { success = true, data = result.data, promptId = result.promptId, workflowType = result.workflowType, isComfyui = true });
+
+            return Json(new { success = true, data = result.data });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    [Route("/api/v1/production/extract-asset-info-save")]
+    public async Task<IActionResult> ExtractAssetInfoSave([FromBody] JsonElement body)
+    {
+        try
+        {
+            var projectId = body.TryGetProperty("projectId", out var pid) ? pid.GetInt64() : 0L;
+            if (projectId <= 0)
+                return Json(new { success = false, message = "缺少项目ID" });
+
+            if (!body.TryGetProperty("assets", out var assetsProp))
+                return Json(new { success = false, message = "缺少资产数据" });
+
+            var db = HttpContext.RequestServices.GetRequiredService<ProjectDbContext>();
+
+            var assetTypeMap = new Dictionary<string, AssetTypeEnum>
+            {
+                ["Actor"] = AssetTypeEnum.Actor,
+                ["角色"] = AssetTypeEnum.Actor,
+                ["Scene"] = AssetTypeEnum.Scene,
+                ["场景"] = AssetTypeEnum.Scene,
+                ["Bgm"] = AssetTypeEnum.Bgm,
+                ["BGM"] = AssetTypeEnum.Bgm,
+                ["Prop"] = AssetTypeEnum.Prop,
+                ["道具"] = AssetTypeEnum.Prop,
+                ["VoiceVoice"] = AssetTypeEnum.VoiceVoice,
+                ["声音"] = AssetTypeEnum.VoiceVoice,
+            };
+
+            var assetsList = new List<Asset>();
+            var existingNames = await db.Assets
+                .Where(a => a.ProjectId == projectId)
+                .Select(a => a.Name)
+                .ToListAsync();
+            var existingNameSet = new HashSet<string>(existingNames, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var item in assetsProp.EnumerateArray())
+            {
+                var name = item.TryGetProperty("name", out var n) ? n.GetString()?.Trim() : "";
+                var assetTypeStr = item.TryGetProperty("assetType", out var at) ? at.GetString()?.Trim() : "";
+                var description = item.TryGetProperty("description", out var d) ? d.GetString()?.Trim() ?? "" : "";
+                var parentName = item.TryGetProperty("belong", out var bn) ? bn.GetString()?.Trim() : null;
+
+                if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(assetTypeStr))
+                    continue;
+
+                if (!assetTypeMap.TryGetValue(assetTypeStr, out var assetType))
+                    continue;
+
+                if (existingNameSet.Contains(name))
+                    continue;
+
+                var maxOrder = 0;
+                var lastAsset = await db.Assets
+                    .Where(a => a.ProjectId == projectId && a.AssetType == assetType)
+                    .OrderByDescending(a => a.Order)
+                    .FirstOrDefaultAsync();
+                if (lastAsset != null)
+                    maxOrder = lastAsset.Order;
+
+                assetsList.Add(new Asset
+                {
+                    ProjectId = projectId,
+                    AssetType = assetType,
+                    Name = name,
+                    Description = description,
+                    Order = maxOrder + 1
+                });
+
+                existingNameSet.Add(name);
+            }
+
+            // Pre-assign IDs
+            foreach (var asset in assetsList)
+            {
+                if (asset.Id == Guid.Empty)
+                    asset.Id = Guid.NewGuid();
+            }
+
+            // Set ParentId from belong field (second pass)
+            var nameToAsset = assetsList.ToDictionary(a => a.Name, a => a, StringComparer.OrdinalIgnoreCase);
+            var allByName = existingNames.ToDictionary(n => n, n => (Asset?)null, StringComparer.OrdinalIgnoreCase);
+            foreach (var item in assetsProp.EnumerateArray())
+            {
+                var name = item.TryGetProperty("name", out var n) ? n.GetString()?.Trim() : "";
+                var parentName = item.TryGetProperty("belong", out var bn) ? bn.GetString()?.Trim() : null;
+                if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(parentName)) continue;
+                if (nameToAsset.TryGetValue(name, out var child) && nameToAsset.TryGetValue(parentName, out var parent))
+                    child.ParentId = parent.Id;
+            }
+
+            if (assetsList.Count == 0)
+                return Json(new { success = false, message = "没有需要新增的资产（可能已存在）" });
+
+            await db.Assets.AddRangeAsync(assetsList);
+            await db.SaveChangesAsync();
+
+            return Json(new { success = true, message = $"成功保存 {assetsList.Count} 个资产", count = assetsList.Count });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
 }
 
 public class ShotExtractionRequest
@@ -549,7 +741,7 @@ public class ShotExtractionRequest
     public long ProjectId { get; set; }
     public int ChapterIdx { get; set; }
     public long ProviderId { get; set; }
-    public List<long> SelectedAssetIds { get; set; }
+    public List<string> SelectedAssetIds { get; set; }
     public string CustomPrompt { get; set; }
 }
 
@@ -558,7 +750,7 @@ public class ShotAssetExtractionRequest
     public long ProjectId { get; set; }
     public int ChapterIdx { get; set; }
     public long ProviderId { get; set; }
-    public List<long>? SelectedAssetIds { get; set; }
+    public List<string>? SelectedAssetIds { get; set; }
     public string? CustomPrompt { get; set; }
 }
 

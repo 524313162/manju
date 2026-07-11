@@ -18,11 +18,13 @@ namespace ManjuCraft.Application.Service
             return await query.Include(a => a.Resource).OrderBy(a => a.Order).ToListAsync();
         }
 
-        public async Task<Asset> GetByIdAsync(long id)
+        public async Task<Asset?> GetByIdAsync(Guid id)
             => await _db.Assets.FindAsync(id);
 
         public async Task<Asset> CreateAsync(Asset asset)
         {
+            if (asset.Id == Guid.Empty)
+                asset.Id = Guid.NewGuid();
             asset.CreatedTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             asset.UpdatedTime = asset.CreatedTime;
             await _db.Assets.AddAsync(asset);
@@ -30,7 +32,22 @@ namespace ManjuCraft.Application.Service
             return asset;
         }
 
-        public async Task<Asset> UpdateAsync(Asset asset)
+        public async Task<List<Asset>> BulkCreateAsync(List<Asset> assets)
+        {
+            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            foreach (var asset in assets)
+            {
+                if (asset.Id == Guid.Empty)
+                    asset.Id = Guid.NewGuid();
+                asset.CreatedTime = now;
+                asset.UpdatedTime = now;
+            }
+            await _db.Assets.AddRangeAsync(assets);
+            await _db.SaveChangesAsync();
+            return assets;
+        }
+
+        public async Task<Asset?> UpdateAsync(Asset asset)
         {
             var existing = await _db.Assets.FindAsync(asset.Id);
             if (existing == null) return null;
@@ -45,7 +62,7 @@ namespace ManjuCraft.Application.Service
             return existing;
         }
 
-        public async Task DeleteAsync(long id)
+        public async Task DeleteAsync(Guid id)
         {
             var asset = await _db.Assets.FindAsync(id);
             if (asset != null)
@@ -69,7 +86,7 @@ namespace ManjuCraft.Application.Service
             await _db.SaveChangesAsync();
         }
 
-        public async Task<List<Asset>> GetVariantsAsync(long parentId)
+        public async Task<List<Asset>> GetVariantsAsync(Guid parentId)
             => await _db.Assets.Where(a => a.ParentId == parentId).OrderBy(a => a.Order).ToListAsync();
     }
 }

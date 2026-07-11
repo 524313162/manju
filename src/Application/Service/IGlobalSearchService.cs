@@ -21,7 +21,7 @@ namespace ManjuCraft.Application.Service
 
     public class ProjectResult { public long Id { get; set; } public string Name { get; set; } = ""; }
     public class StoryResult { public long Id { get; set; } public string Title { get; set; } = ""; }
-    public class AssetResult { public long Id { get; set; } public string Name { get; set; } = ""; public AssetTypeEnum AssetType { get; set; } }
+    public class AssetResult { public Guid Id { get; set; } public string Name { get; set; } = ""; public AssetTypeEnum AssetType { get; set; } }
     public class StoryChapterResult { public long Id { get; set; } public string ChapterName { get; set; } = ""; public string Content { get; set; } = ""; }
     public class EpisodeResult { public long Id { get; set; } public string Name { get; set; } = ""; }
     public class ShotResult { public long Id { get; set; } public string Description { get; set; } = ""; }
