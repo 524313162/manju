@@ -41,8 +41,8 @@ public class Program
         builder.Services.AddScoped<IShotFrameService, ShotFrameService>();
         builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();
 
-        builder.Services.AddHttpClient("ai_agent");
-        builder.Services.AddHttpClient();
+        builder.Services.AddHttpClient("ai_agent", c => c.Timeout = Timeout.InfiniteTimeSpan);
+        builder.Services.AddHttpClient("default", c => c.Timeout = Timeout.InfiniteTimeSpan);
         builder.Services.AddScoped<IAiAgentService, AiAgentService>();
         builder.Services.AddScoped<IAiChatClientFactory, AiChatClientFactory>();
 
@@ -54,7 +54,7 @@ public class Program
         using (var scope = app.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ProjectDbContext>();
-            db.Database.EnsureCreated();
+            db.Database.Migrate();
             await DatabaseSeeder.SeedAsync(db);
         }
 

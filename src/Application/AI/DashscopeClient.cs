@@ -12,9 +12,9 @@ public class DashscopeClient : IAiChatClient
     private readonly string _apiKey;
     private readonly string _model;
 
-    public DashscopeClient(string apiUrl, string apiKey, string model)
+public DashscopeClient(string apiUrl, string apiKey, string model)
     {
-        _http = new HttpClient { BaseAddress = new Uri(apiUrl) };
+        _http = new HttpClient { BaseAddress = new Uri(apiUrl), Timeout = Timeout.InfiniteTimeSpan };
         _apiKey = apiKey;
         _model = model;
     }

@@ -10,6 +10,10 @@ namespace ManjuCraft.Domain.Models
 
         [Required]
         [StringLength(32)]
+        public string ShotNumber { get; set; }
+
+        [Required]
+        [StringLength(32)]
         public string FrameType { get; set; }
 
         [Required]

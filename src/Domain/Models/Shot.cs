@@ -6,7 +6,9 @@ namespace ManjuCraft.Domain.Models
     {
         public long EpisodeId { get; set; }
 
-        public string AssetRefs { get; set; }
+        [Required]
+        [StringLength(32)]
+        public string ShotNumber { get; set; }
 
         [Required]
         public string Description { get; set; }
@@ -24,5 +26,7 @@ namespace ManjuCraft.Domain.Models
         public Episode Episode { get; set; }
 
         public ICollection<ShotFrame> Frames { get; set; }
+
+        public ICollection<ShotAsset> ShotAssets { get; set; }
     }
 }

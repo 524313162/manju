@@ -12,9 +12,9 @@ public class OllamaClient : IAiChatClient
     private readonly HttpClient _http;
     private readonly string _model;
 
-    public OllamaClient(string apiUrl, string model)
+public OllamaClient(string apiUrl, string model)
     {
-        _http = new HttpClient { BaseAddress = new Uri(apiUrl) };
+        _http = new HttpClient { BaseAddress = new Uri(apiUrl), Timeout = Timeout.InfiniteTimeSpan };
         _model = model;
     }
 

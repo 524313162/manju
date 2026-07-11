@@ -17,6 +17,7 @@ namespace ManjuCraft.Infrastructure
         public DbSet<Episode> Episodes => Set<Episode>();
         public DbSet<Shot> Shots => Set<Shot>();
         public DbSet<ShotFrame> ShotFrames => Set<ShotFrame>();
+        public DbSet<ShotAsset> ShotAssets => Set<ShotAsset>();
         public DbSet<PromptTemplate> PromptTemplates => Set<PromptTemplate>();
         public DbSet<ApiProvider> ApiProviders => Set<ApiProvider>();
 
@@ -74,6 +75,23 @@ namespace ManjuCraft.Infrastructure
                 .WithOne(f => f.Shot)
                 .HasForeignKey(f => f.ShotId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Shot -> ShotAsset
+            modelBuilder.Entity<Shot>()
+                .HasMany(s => s.ShotAssets)
+                .WithOne(sa => sa.Shot)
+                .HasForeignKey(sa => sa.ShotId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ShotAsset>()
+                .HasOne(sa => sa.Asset)
+                .WithMany()
+                .HasForeignKey(sa => sa.AssetId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ShotAsset>()
+                .HasIndex(sa => new { sa.ShotId, sa.AssetId })
+                .IsUnique();
 
             // Asset self-reference (ParentId for variants)
             modelBuilder.Entity<Asset>()

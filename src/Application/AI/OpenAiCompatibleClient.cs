@@ -12,9 +12,9 @@ public class OpenAiCompatibleClient : IAiChatClient
     private readonly HttpClient _http;
     private readonly string _model;
 
-    public OpenAiCompatibleClient(string apiUrl, string apiKey, string model)
+public OpenAiCompatibleClient(string apiUrl, string apiKey, string model)
     {
-        _http = new HttpClient { BaseAddress = new Uri(apiUrl) };
+        _http = new HttpClient { BaseAddress = new Uri(apiUrl), Timeout = Timeout.InfiniteTimeSpan };
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         _model = model;
     }
