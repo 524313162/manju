@@ -136,12 +136,6 @@
                             <button type="button" class="action-btn action-ai" data-id="@a.Id" data-type="@a.AssetType.ToString()" data-name='@Json.Serialize(a.Name)' data-url="@imgSrc" data-isbgm="@(isBgm.ToString().ToLower())">
                                 <span class="action-icon">&#129302;</span> AI 生成
                             </button>
-                            @if (a.AssetType == AssetTypeEnum.Actor || a.AssetType == AssetTypeEnum.Scene || a.AssetType == AssetTypeEnum.Prop)
-                            {
-                                <button type="button" class="action-btn action-single-gen" data-id="@a.Id" data-type="@a.AssetType.ToString()" data-name='@Json.Serialize(a.Name)'>
-                                    <span class="action-icon">&#128247;</span> 单图生成
-                                </button>
-                            }
                             <button type="button" class="action-btn action-edit" data-id="@a.Id" data-name='@Json.Serialize(a.Name)' data-desc='@Json.Serialize(a.Description)' data-order="@a.Order" data-imgsrc="@imgSrc" data-isbgm="@(isBgm.ToString().ToLower())">
                                 <span class="action-icon">&#9998;</span> 编辑
                             </button>
@@ -259,31 +253,6 @@
     </div>
 </div>
 
-<!-- AI 生成模态框 (旧版) -->
-<div class="modal-overlay" id="aiGenerateModal">
-    <div class="modal modal-medium">
-        <div class="modal-header">
-            <h3 id="aiGenerateTitle">AI 生成</h3>
-            <button class="modal-close" onclick="hideModal('aiGenerateModal')">&times;</button>
-        </div>
-        <input type="hidden" id="aiAssetId">
-        <input type="hidden" id="aiAssetType">
-        <input type="hidden" id="aiAssetName">
-        <div class="modal-body">
-            <div class="form-group">
-                <label>AI 生成提示词 *</label>
-                <textarea id="aiGenPrompt" rows="4" placeholder="描述你想要生成的内容..."></textarea>
-            </div>
-            <div id="aiGenExtraFields"></div>
-            <div id="aiGenResult" style="display:none;"></div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-ghost" onclick="hideModal('aiGenerateModal')">取消</button>
-            <button class="btn btn-primary" id="aiGenBtn" onclick="doAiGenerate()">开始生成</button>
-        </div>
-    </div>
-</div>
-
 <!-- 单个资产 AI 图片生成模态框 (新版: 角色+道具+场景) -->
 <div class="modal-overlay" id="singleAssetGenModal">
     <div class="modal modal-large" style="width:900px;">
@@ -303,7 +272,12 @@
                     <option value="">加载中...</option>
                 </select>
             </div>
-            <!-- 第2行: 提示词 -->
+            <!-- 第2行: 模板提示词 (可编辑) -->
+            <div class="form-group" id="sagTemplateGroup" style="display:none;">
+                <label>系统模板提示词</label>
+                <textarea id="sagTemplatePromptDisplay" rows="8" style="font-family:monospace;font-size:12px;"></textarea>
+            </div>
+            <!-- 第3行: 用户提示词 -->
             <div class="form-group">
                 <label>生成提示词 *</label>
                 <textarea id="sagPrompt" rows="4" placeholder="描述你想要生成的图片内容..."></textarea>
@@ -321,7 +295,7 @@
             <div class="form-group" id="sagActionGroup">
                 <div style="display:flex;gap:12px;justify-content:flex-end;">
                     <button class="btn btn-ghost" id="sagCloseBtn" onclick="hideModal('singleAssetGenModal')">关闭</button>
-                    <button class="btn btn-primary" id="sagGenerateBtn" onclick="doSingleAssetGenerate()">生成图片</button>
+                    <button class="btn btn-primary" id="sagGenerateBtn" onclick="doSingleAssetGenerate()">生成</button>
                     <button class="btn btn-success" id="sagSaveBtn" onclick="saveSingleAssetImage()" style="display:none;">保存到资产</button>
                 </div>
             </div>
@@ -594,7 +568,7 @@
             setTimeout(function() { fileInput.focus(); }, 100);
         }
 
-        function showEditModal(btn) {
+        function setupButtonListeners() {
             document.querySelectorAll('.action-edit').forEach(function(btn) {
                 btn.addEventListener('click', function(e) {
                     e.preventDefault();
@@ -606,14 +580,12 @@
                 btn.addEventListener('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    showAiGenerateModal(this);
-                });
-            });
-            document.querySelectorAll('.action-single-gen').forEach(function(btn) {
-                btn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    showSingleAssetGenModal(this);
+                    var type = btn.getAttribute('data-type');
+                    if (type === 'Bgm' || type === 'VoiceVoice') {
+                        showAudioGenerateModal(this);
+                    } else {
+                        showSingleAssetGenModal(this);
+                    }
                 });
             });
             document.querySelectorAll('.action-delete').forEach(function(btn) {
@@ -627,214 +599,74 @@
             });
         }
 
-        function showAiGenerateModal(btn) {
+        function showAudioGenerateModal(btn) {
             var id = btn.getAttribute('data-id');
             var type = btn.getAttribute('data-type');
             var name = JSON.parse(btn.getAttribute('data-name'));
-            var isBgm = btn.getAttribute('data-isbgm') === 'true';
+            var isBgm = type === 'Bgm';
 
-            document.getElementById('aiAssetId').value = id;
-            document.getElementById('aiAssetType').value = type;
-            document.getElementById('aiAssetName').value = name;
+            var card = btn.closest('.asset-detail-card');
+            var desc = card ? (card.querySelector('.asset-detail-desc')?.textContent?.trim() || '') : '';
 
-            var titles = { 'Actor': 'AI 生成角色图', 'Scene': 'AI 生成场景图', 'Bgm': 'AI 生成 BGM', 'Prop': 'AI 生成道具图', 'VoiceVoice': 'AI 生成角色声音' };
-            document.getElementById('aiGenerateTitle').textContent = (titles[type] || 'AI 生成') + ': ' + name;
+            document.getElementById('sagAssetId').value = id;
+            document.getElementById('sagAssetType').value = type;
+            document.getElementById('sagAssetName').value = name;
+            document.getElementById('sagGeneratedImageUrl').value = '';
 
-            var promptEl = document.getElementById('aiGenPrompt');
-            promptEl.value = '';
-            promptEl.placeholder = isBgm ? '描述你想要的 BGM 风格、情绪、节奏...' : assetType === 'VoiceVoice' ? '描述角色的声音特征、语气、语速、情感...' : '输入描述词，如：穿着红色长裙的女性角色，正面视角，白背景...';
+            var typeName = isBgm ? 'BGM' : '角色声音';
+            document.getElementById('singleAssetGenTitle').textContent = '单个资产 AI 生成音频: ' + name + ' (' + typeName + ')';
 
-            var extraFields = document.getElementById('aiGenExtraFields');
-            extraFields.innerHTML = '';
+            // 加载模板
+            loadAssetGenTemplates().then(function(templates) {
+                var templateKeyMap = {
+                    'Bgm': 'BGM生成提示词',
+                    'VoiceVoice': '角色声音生成提示词'
+                };
+                var templateContent = templates[templateKeyMap[type]] || '';
 
-            var resultEl = document.getElementById('aiGenResult');
-            resultEl.style.display = 'none';
-            resultEl.innerHTML = '';
+                var prompts = {
+                    'Bgm': '示例：轻快愉悦的钢琴曲，适合日常生活场景，节目场景BGM，循环播放',
+                    'VoiceVoice': '示例：温柔甜美的少女音，语速适中，带有治愈感，适合旁白或对话'
+                };
+                var promptEl = document.getElementById('sagPrompt');
+                promptEl.placeholder = prompts[type] || '输入描述词...';
+                document.getElementById('sagPromptHint').textContent = prompts[type] || '';
 
-            var genBtn = document.getElementById('aiGenBtn');
-            genBtn.disabled = false;
-            genBtn.textContent = '开始生成';
-
-            showModal('aiGenerateModal');
-        }
-
-        function doAiGenerate() {
-            var assetId = document.getElementById('aiAssetId').value;
-            var assetType = document.getElementById('aiAssetType').value;
-            var prompt = document.getElementById('aiGenPrompt').value.trim();
-
-            if (!prompt) { alert('请输入提示词'); return; }
-
-            var genBtn = document.getElementById('aiGenBtn');
-            var resultEl = document.getElementById('aiGenResult');
-            var extraFields = document.getElementById('aiGenExtraFields');
-
-            genBtn.disabled = true;
-            genBtn.textContent = '生成中...';
-            resultEl.style.display = 'none';
-            extraFields.innerHTML = '<div style="padding:12px;background:#f0f0f0;border-radius:8px;margin-top:12px;text-align:center;color:#666;">正在提交任务，请稍候...</div>';
-
-            var payload = { prompt: prompt };
-            var endpoint = '';
-            var workflowType = '';
-
-            if (assetType === 'Bgm') {
-                endpoint = '/api/comfyui/stable-bgm/generate';
-                workflowType = 'stable-bgm-generate';
-            } else if (assetType === 'VoiceVoice') {
-                endpoint = '/api/comfyui/ace-music/compose';
-                workflowType = 'ace-music-compose';
-            } else {
-                endpoint = '/api/comfyui/zimage/text-to-image';
-                workflowType = 'zimage-text-to-image';
-            }
-
-            fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(res) {
-                var promptId = res && res.promptId;
-
-                if (!promptId) {
-                    alert('提交失败: ' + (res.message || '未知错误'));
-                    genBtn.disabled = false;
-                    genBtn.textContent = '开始生成';
-                    extraFields.innerHTML = '';
-                    return;
+                // sagPrompt 预填资产描述
+                if (desc) {
+                    promptEl.value = '资产描述：' + desc + '\n';
+                } else {
+                    promptEl.value = '';
                 }
 
-                extraFields.innerHTML = '<div style="padding:12px;background:#e8f4fd;border-radius:8px;margin-top:12px;"><div style="color:#004085;font-weight:bold;margin-bottom:8px;">任务已提交，正在后台生成中...</div><div style="color:#666;font-size:13px;">promptId: ' + promptId + '</div></div>';
-
-                pollAiResult(promptId, workflowType, assetId, assetType);
-            })
-            .catch(function(err) {
-                alert('请求失败: ' + err.message);
-                genBtn.disabled = false;
-                genBtn.textContent = '开始生成';
-                extraFields.innerHTML = '';
+                // 系统模板内容不做任何变更
+                var templateDisplay = document.getElementById('sagTemplatePromptDisplay');
+                if (templateContent) {
+                    templateDisplay.value = templateContent;
+                    if (desc) {
+                        filledTemplate = '资产描述：' + desc + '\n\n' + filledTemplate;
+                    }
+                    templateDisplay.value = filledTemplate.trim();
+                    document.getElementById('sagTemplateGroup').style.display = '';
+                } else {
+                    document.getElementById('sagTemplateGroup').style.display = 'none';
+                }
             });
-        }
 
-        function pollAiResult(promptId, workflowType, assetId, assetType) {
-            var resultEl = document.getElementById('aiGenResult');
-            var extraFields = document.getElementById('aiGenExtraFields');
-            var genBtn = document.getElementById('aiGenBtn');
-            var pollCount = 0;
-            var maxPolls = 120;
-            var pollInterval = 5000;
+            // 隐藏图片预览相关UI
+            document.getElementById('sagPreviewGroup').style.display = 'none';
+            document.getElementById('sagPreviewImg').style.display = 'none';
+            document.getElementById('sagPreviewPlaceholder').style.display = '';
+            document.getElementById('sagGenerateBtn').style.display = '';
+            document.getElementById('sagSaveBtn').style.display = 'none';
+            document.getElementById('sagCloseBtn').textContent = '关闭';
+            document.getElementById('sagStatus').style.display = 'none';
+            document.getElementById('sagStatus').innerHTML = '';
 
-            var pollTimer = setInterval(function() {
-                pollCount++;
+            // 加载模型（图片或音频）
+            loadSingleAssetGenModels(type);
 
-                if (pollCount >= maxPolls) {
-                    clearInterval(pollTimer);
-                    extraFields.innerHTML = '<div style="padding:12px;background:#fff3cd;border-radius:8px;margin-top:12px;"><div style="color:#856404;font-weight:bold;">生成超时</div><div style="color:#666;font-size:13px;margin-top:4px;">promptId: ' + promptId + '</div><button class="btn btn-sm btn-primary" style="margin-top:8px;" onclick=\'fetchAiResult("' + promptId + '","' + workflowType + '",' + assetId + ',"' + assetType + '")\'>获取结果</button><button class="btn btn-sm btn-ghost" style="margin-top:8px;margin-left:4px;" onclick="hideModal(\'aiGenerateModal\')">关闭</button></div>';
-                    genBtn.disabled = false;
-                    genBtn.textContent = '重新生成';
-                    return;
-                }
-
-                var resultType = (assetType === 'Bgm' || assetType === 'VoiceVoice') ? 'audio' : 'image';
-                var url = '/api/v1/comfyui/result/' + promptId + '/' + resultType + '?workflowType=' + encodeURIComponent(workflowType);
-                fetch(url)
-                .then(function(r) { return r.json(); })
-                .then(function(res) {
-                    if (res.success && res.data) {
-                        clearInterval(pollTimer);
-                        var urls = [];
-                        var data = res.data;
-
-                        if (data.imageUrls && Array.isArray(data.imageUrls)) {
-                            urls = data.imageUrls;
-                        } else if (data.audioUrls && Array.isArray(data.audioUrls)) {
-                            urls = data.audioUrls;
-                        } else if (data.videoUrls && Array.isArray(data.videoUrls)) {
-                            urls = data.videoUrls;
-                        }
-
-                        if (urls.length > 0) {
-                            handleAiResultSuccess(assetId, assetType, urls[0]);
-                        } else {
-                            extraFields.innerHTML = '<div style="padding:12px;background:#f0f0f0;border-radius:8px;margin-top:12px;color:#666;">任务已完成但未找到结果</div>';
-                            genBtn.disabled = false;
-                            genBtn.textContent = '重新生成';
-                        }
-                    } else if (!res.pending) {
-                        clearInterval(pollTimer);
-                        extraFields.innerHTML = '<div style="padding:12px;background:#f0f0f0;border-radius:8px;margin-top:12px;color:#666;">' + (res.message || '任务执行失败') + '</div>';
-                        genBtn.disabled = false;
-                        genBtn.textContent = '重新生成';
-                    }
-                })
-                .catch(function() {
-                    if (pollCount >= maxPolls) return;
-                });
-            }, pollInterval);
-        }
-
-        function fetchAiResult(promptId, wfType, assetId, assetType) {
-            pollAiResult(promptId, wfType || 'zimage-text-to-image', assetId, assetType);
-        }
-
-        function handleAiResultSuccess(assetId, assetType, fileUrl) {
-            var resultEl = document.getElementById('aiGenResult');
-            var extraFields = document.getElementById('aiGenExtraFields');
-            var genBtn = document.getElementById('aiGenBtn');
-
-            resultEl.style.display = 'none';
-
-            if (assetType === 'Bgm' || assetType === 'VoiceVoice') {
-                extraFields.innerHTML = '<div style="padding:12px;background:#d4edda;border-radius:8px;margin-top:12px;"><div style="color:#155724;font-weight:bold;">✅ ' + (assetType === 'Bgm' ? 'BGM' : '角色声音') + ' 生成成功</div><div style="margin-top:8px;"><a href="' + fileUrl + '" target="_blank" style="color:#004085;">播放音频</a></div></div>';
-
-                fetch('/Assets/ReplaceAudio', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ assetId: assetId, fileUrl: fileUrl })
-                })
-                .then(function(r) { return r.json(); })
-                .then(function(res) {
-                    if (res.success) {
-                        showToast(assetType === 'VoiceVoice' ? '角色声音已更新' : 'BGM 已更新', 'success');
-                        setTimeout(function() { window.location.reload(); }, 1000);
-                    } else {
-                        extraFields.innerHTML += '<div style="padding:8px;background:#fff3cd;border-radius:8px;margin-top:8px;color:#856404;">⚠️ 生成成功但更新资源失败</div>';
-                        genBtn.disabled = false;
-                        genBtn.textContent = '重新生成';
-                    }
-                })
-                .catch(function() {
-                    extraFields.innerHTML += '<div style="padding:8px;background:#f8d7da;border-radius:8px;margin-top:8px;color:#721c24;">⚠️ 更新资源请求失败</div>';
-                    genBtn.disabled = false;
-                    genBtn.textContent = '重新生成';
-                });
-            } else {
-                extraFields.innerHTML += '<div style="padding:12px;background:#d4edda;border-radius:8px;margin-top:12px;"><div style="color:#155724;font-weight:bold;">✅ 图片生成成功</div><img src="' + fileUrl + '" style="max-width:100%;margin-top:8px;border-radius:8px;" /></div>';
-
-                fetch('/Assets/ReplaceResource', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ assetId: assetId, fileUrl: fileUrl })
-                })
-                .then(function(r) { return r.json(); })
-                .then(function(res) {
-                    if (res.success) {
-                        showToast('资源已更新', 'success');
-                        setTimeout(function() { window.location.reload(); }, 1000);
-                    } else {
-                        extraFields.innerHTML += '<div style="padding:8px;background:#fff3cd;border-radius:8px;margin-top:8px;color:#856404;">⚠️ 生成成功但更新资源失败</div>';
-                        genBtn.disabled = false;
-                        genBtn.textContent = '重新生成';
-                    }
-                })
-                .catch(function() {
-                    extraFields.innerHTML += '<div style="padding:8px;background:#f8d7da;border-radius:8px;margin-top:8px;color:#721c24;">⚠️ 更新资源请求失败</div>';
-                    genBtn.disabled = false;
-                    genBtn.textContent = '重新生成';
-                });
-            }
+            showModal('singleAssetGenModal');
         }
 
         function showImagePreview(src, title) {
@@ -1109,11 +941,31 @@
 
         // ========== 单个资产 AI 图片生成 ==========
         var _sagModels = [];
+        var _assetGenTemplates = null;
+
+        async function loadAssetGenTemplates() {
+            if (_assetGenTemplates) return _assetGenTemplates;
+            try {
+                var res = await fetch('/Assets/GetGenerationTemplates');
+                var data = await res.json();
+                if (data.success) {
+                    _assetGenTemplates = data.data;
+                } else {
+                    _assetGenTemplates = {};
+                }
+            } catch (e) {
+                _assetGenTemplates = {};
+            }
+            return _assetGenTemplates;
+        }
 
         function showSingleAssetGenModal(btn) {
             var id = btn.getAttribute('data-id');
             var type = btn.getAttribute('data-type');
             var name = JSON.parse(btn.getAttribute('data-name'));
+
+            var card = btn.closest('.asset-detail-card');
+            var desc = card ? (card.querySelector('.asset-detail-desc')?.textContent?.trim() || '') : '';
 
             document.getElementById('sagAssetId').value = id;
             document.getElementById('sagAssetType').value = type;
@@ -1124,16 +976,40 @@
             var typeName = typeNames[type] || type;
             document.getElementById('singleAssetGenTitle').textContent = '单个资产 AI 生成图片: ' + name + ' (' + typeName + ')';
 
-            // 根据资产类型设置提示词提示
-            var prompts = {
-                'Actor': '示例：穿着红色长裙的女性角色，正面视角，白背景，动漫风格，高质量',
-                'Scene': '示例：古代京城街道，青石板路，两侧店铺林立，晨光穿过屋檐，赛博朋克风格',
-                'Prop': '示例：精致的青瓷碗，热气腾腾，白瓷质感，特写镜头，产品摄影风格'
-            };
-            var promptEl = document.getElementById('sagPrompt');
-            promptEl.value = '';
-            promptEl.placeholder = prompts[type] || '输入描述词...';
-            document.getElementById('sagPromptHint').textContent = prompts[type] || '';
+            // 加载模板
+            loadAssetGenTemplates().then(function(templates) {
+                var templateKeyMap = {
+                    'Actor': '角色档案生成提示词',
+                    'Scene': '场景档案生成提示词',
+                    'Prop': '道具档案生成提示词'
+                };
+                var templateContent = templates[templateKeyMap[type]] || '';
+
+                var prompts = {
+                    'Actor': '示例：穿着红色长裙的女性角色，正面视角，白背景，动漫风格，高质量',
+                    'Scene': '示例：古代京城街道，青石板路，两侧店铺林立，晨光穿过屋檐，赛博朋克风格',
+                    'Prop': '示例：精致的青瓷碗，热气腾腾，白瓷质感，特写镜头，产品摄影风格'
+                };
+                var promptEl = document.getElementById('sagPrompt');
+                promptEl.placeholder = prompts[type] || '输入描述词...';
+                document.getElementById('sagPromptHint').textContent = prompts[type] || '';
+
+                // sagPrompt 预填资产描述
+                if (desc) {
+                    promptEl.value = '资产描述：' + desc + '\n';
+                } else {
+                    promptEl.value = '';
+                }
+
+                // 系统模板内容不做任何变更
+                var templateDisplay = document.getElementById('sagTemplatePromptDisplay');
+                if (templateContent) {
+                    templateDisplay.value = templateContent;
+                    document.getElementById('sagTemplateGroup').style.display = '';
+                } else {
+                    document.getElementById('sagTemplateGroup').style.display = 'none';
+                }
+            });
 
             // 重置UI状态
             document.getElementById('sagPreviewGroup').style.display = 'none';
@@ -1191,6 +1067,7 @@
             var assetType = document.getElementById('sagAssetType').value;
             var modelId = document.getElementById('sagModelSelect').value;
             var prompt = document.getElementById('sagPrompt').value.trim();
+            var templateContent = document.getElementById('sagTemplatePromptDisplay').value.trim();
 
             if (!modelId) { alert('请选择生成模型'); return; }
             if (!prompt) { alert('请输入提示词'); return; }
@@ -1215,14 +1092,34 @@
                 var model = _sagModels.find(function(m) { return m.id == modelId; });
                 if (!model) throw new Error('未找到选中的模型');
 
-                // 调用 ComfyUI 文生图 API
-                var payload = {
-                    prompt: prompt,
-                    width: 1024,
-                    height: 768
-                };
+                // 组合模板和用户提示词
+                var fullPrompt = templateContent + '\n\n' + prompt;
 
-                var endpoint = '/api/comfyui/zimage/text-to-image';
+                // 根据资产类型确定端点和工作流类型
+                var endpoint = '';
+                var workflowType = '';
+                var isAudio = assetType === 'Bgm' || assetType === 'VoiceVoice';
+
+                if (isAudio) {
+                    if (assetType === 'Bgm') {
+                        endpoint = '/api/comfyui/stable-bgm/generate';
+                        workflowType = 'stable-bgm-generate';
+                    } else {
+                        endpoint = '/api/comfyui/ace-music/compose';
+                        workflowType = 'ace-music-compose';
+                    }
+                } else {
+                    endpoint = '/api/comfyui/zimage/text-to-image';
+                    workflowType = 'zimage-text-to-image';
+                }
+
+                // 构建请求载荷
+                var payload = { prompt: fullPrompt };
+                if (!isAudio) {
+                    payload.width = 1024;
+                    payload.height = 768;
+                }
+
                 var res = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1238,18 +1135,25 @@
                 statusEl.innerHTML = '⏳ 任务已提交，正在生成中... (promptId: ' + promptId + ')';
 
                 // 轮询结果
-                var imageUrl = await pollSingleAssetGenResult(promptId);
-                if (!imageUrl) throw new Error('生成超时或失败');
+                var resultUrl = await pollSingleAssetGenResult(promptId, workflowType, isAudio);
+                if (!resultUrl) throw new Error('生成超时或失败');
 
-                // 显示预览
-                previewGroup.style.display = '';
-                previewImg.src = imageUrl;
-                previewImg.style.display = '';
-                previewPlaceholder.style.display = 'none';
-                document.getElementById('sagGeneratedImageUrl').value = imageUrl;
+                if (isAudio) {
+                    // 音频预览
+                    statusEl.className = 'status-success';
+                    statusEl.innerHTML = '✅ 音频生成成功！<br><audio controls src="' + resultUrl + '" style="width:100%;margin-top:8px;"></audio>';
+                    document.getElementById('sagGeneratedImageUrl').value = resultUrl;
+                } else {
+                    // 图片预览
+                    previewGroup.style.display = '';
+                    previewImg.src = resultUrl;
+                    previewImg.style.display = '';
+                    previewPlaceholder.style.display = 'none';
+                    document.getElementById('sagGeneratedImageUrl').value = resultUrl;
 
-                statusEl.className = 'status-success';
-                statusEl.innerHTML = '✅ 图片生成成功！';
+                    statusEl.className = 'status-success';
+                    statusEl.innerHTML = '✅ 图片生成成功！';
+                }
 
                 // 切换按钮：隐藏生成，显示保存
                 genBtn.style.display = 'none';
@@ -1266,7 +1170,7 @@
             }
         }
 
-        function pollSingleAssetGenResult(promptId) {
+        function pollSingleAssetGenResult(promptId, workflowType, isAudio) {
             return new Promise(function(resolve, reject) {
                 var pollCount = 0;
                 var maxPolls = 120;
@@ -1281,14 +1185,19 @@
                     }
 
                     try {
-                        var url = '/api/v1/comfyui/result/' + promptId + '/image?workflowType=zimage-text-to-image';
+                        var resultType = isAudio ? 'audio' : 'image';
+                        var url = '/api/v1/comfyui/result/' + promptId + '/' + resultType + '?workflowType=' + encodeURIComponent(workflowType);
                         var res = await fetch(url);
                         var data = await res.json();
 
                         if (data.success && data.data) {
                             var urls = [];
                             var d = data.data;
-                            if (d.imageUrls && Array.isArray(d.imageUrls)) urls = d.imageUrls;
+                            if (isAudio) {
+                                if (d.audioUrls && Array.isArray(d.audioUrls)) urls = d.audioUrls;
+                            } else {
+                                if (d.imageUrls && Array.isArray(d.imageUrls)) urls = d.imageUrls;
+                            }
                             
                             if (urls.length > 0) {
                                 clearInterval(timer);
@@ -1309,12 +1218,14 @@
 
         async function saveSingleAssetImage() {
             var assetId = document.getElementById('sagAssetId').value;
-            var imageUrl = document.getElementById('sagGeneratedImageUrl').value;
+            var assetType = document.getElementById('sagAssetType').value;
+            var resourceUrl = document.getElementById('sagGeneratedImageUrl').value;
+            var isAudio = assetType === 'Bgm' || assetType === 'VoiceVoice';
             var saveBtn = document.getElementById('sagSaveBtn');
             var closeBtn = document.getElementById('sagCloseBtn');
             var statusEl = document.getElementById('sagStatus');
 
-            if (!imageUrl) { alert('没有可保存的图片'); return; }
+            if (!resourceUrl) { alert('没有可保存的资源'); return; }
 
             saveBtn.disabled = true;
             saveBtn.textContent = '保存中...';
@@ -1323,16 +1234,17 @@
             statusEl.innerHTML = '🔄 正在保存到资产...';
 
             try {
-                var res = await fetch('/Assets/ReplaceResource', {
+                var endpoint = isAudio ? '/Assets/ReplaceAudio' : '/Assets/ReplaceResource';
+                var res = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ assetId: assetId, fileUrl: imageUrl })
+                    body: JSON.stringify({ assetId: assetId, fileUrl: resourceUrl })
                 });
                 var data = await res.json();
 
                 if (data.success) {
                     statusEl.className = 'status-success';
-                    statusEl.innerHTML = '✅ 图片已保存到资产！';
+                    statusEl.innerHTML = '✅ ' + (isAudio ? '音频' : '图片') + '已保存到资产！';
                     showToast('资源已更新', 'success');
                     setTimeout(function() {
                         hideModal('singleAssetGenModal');

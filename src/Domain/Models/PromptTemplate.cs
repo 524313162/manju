@@ -3,11 +3,17 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ManjuCraft.Domain.Models
 {
-    public enum PromptTemplateType
+public enum PromptTemplateType
     {
         SystemPrompt,
         RewriteStory,
-        ShotAssetExtraction
+        ShotAssetExtraction,
+        AssetGeneration,
+        AssetGenerationActor,
+        AssetGenerationScene,
+        AssetGenerationProp,
+        AssetGenerationBgm,
+        AssetGenerationVoiceVoice
     }
 
     public class PromptTemplate : BaseEntity

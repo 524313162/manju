@@ -3,11 +3,17 @@
     ViewData["Title"] = "提示词管理";
     var templates = ViewBag.Templates as List<PromptTemplate> ?? new();
     
-    // 定义保留的模板类型及其中文名称和图标
+// 定义保留的模板类型及其中文名称和图标
     var templateTypeInfos = new Dictionary<string, (string Name, string Icon)> {
         { "SystemPrompt", ("系统提示词", "💡") },
+        { "StoryGeneration", ("故事生成", "📖") },
         { "RewriteStory", ("故事重写", "🤖") },
-        { "ShotAssetExtraction", ("分镜资产提取", "📋") }
+        { "ShotAssetExtraction", ("分镜资产提取", "📋") },
+        { "AssetGenerationActor", ("角色档案生成", "🎭") },
+        { "AssetGenerationScene", ("场景档案生成", "🏞️") },
+        { "AssetGenerationProp", ("道具档案生成", "📦") },
+        { "AssetGenerationBgm", ("BGM生成", "🎵") },
+        { "AssetGenerationVoiceVoice", ("角色声音生成", "🎙️") }
     };
 }
 
@@ -47,8 +53,7 @@
                 <div class="res-item">
                     <div class="res-icon">@icon</div>
                     <div class="res-info">
-                        <h4>@t.Name <span class="badge badge-purple" style="margin-left:8px;font-size:11px;">@typeDisplayName</span>
-                        @(t.IsDefault ? " <span class=\"badge badge-ok\" style=\"font-size:11px;\">默认</span>" : "")</h4>
+                        <h4>@t.Name <span class="badge badge-purple" style="margin-left:8px;font-size:11px;">@typeDisplayName</span></h4>
                         <p>@contentPreview@(t.Content != null && t.Content.Length > 120 ? "..." : "")</p>
                     </div>
                     <div class="res-actions">

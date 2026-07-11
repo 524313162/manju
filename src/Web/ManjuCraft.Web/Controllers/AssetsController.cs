@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ManjuCraft.Application.Service;
 using ManjuCraft.Domain.Models;
+using ManjuCraft.Infrastructure;
 using System.Text.Json;
 
 namespace ManjuCraft.Web.Controllers;
@@ -11,13 +13,15 @@ public class AssetsController : Controller
     private readonly IProjectService _projectService;
     private readonly IFileStorageService _fileStorageService;
     private readonly IWebHostEnvironment _env;
+    private readonly IProjectDbContext _db;
 
-    public AssetsController(IAssetService assetService, IProjectService projectService, IFileStorageService fileStorageService, IWebHostEnvironment env)
+    public AssetsController(IAssetService assetService, IProjectService projectService, IFileStorageService fileStorageService, IWebHostEnvironment env, IProjectDbContext db)
     {
         _assetService = assetService;
         _projectService = projectService;
         _fileStorageService = fileStorageService;
         _env = env;
+        _db = db;
     }
 
     public async Task<IActionResult> Index(long projectId, AssetTypeEnum type = AssetTypeEnum.Actor)
@@ -464,6 +468,23 @@ public class AssetsController : Controller
         if (!string.IsNullOrEmpty(message))
             obj["message"] = message;
         return JsonSerializer.Serialize(obj);
+    }
+
+    [HttpGet]
+    [Route("/Assets/GetGenerationTemplates")]
+    public async Task<IActionResult> GetGenerationTemplates()
+    {
+        var templates = await _db.PromptTemplates
+            .Where(t => t.TemplateType.StartsWith("AssetGeneration"))
+            .ToListAsync();
+
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var t in templates)
+        {
+            result[t.Name] = t.Content;
+        }
+
+        return Json(new { success = true, data = result });
     }
 }
 
