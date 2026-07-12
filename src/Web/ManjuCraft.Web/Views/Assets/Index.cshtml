@@ -634,7 +634,7 @@
 
                 // sagPrompt 预填资产描述
                 if (desc) {
-                    promptEl.value = '资产描述：' + desc + '\n';
+                    promptEl.value = desc + '\n';
                 } else {
                     promptEl.value = '';
                 }
@@ -644,7 +644,7 @@
                 if (templateContent) {
                     templateDisplay.value = templateContent;
                     if (desc) {
-                        filledTemplate = '资产描述：' + desc + '\n\n' + filledTemplate;
+                        filledTemplate = desc + '\n\n' + filledTemplate;
                     }
                     templateDisplay.value = filledTemplate.trim();
                     document.getElementById('sagTemplateGroup').style.display = '';
@@ -996,7 +996,7 @@
 
                 // sagPrompt 预填资产描述
                 if (desc) {
-                    promptEl.value = '资产描述：' + desc + '\n';
+                    promptEl.value = desc + '\n';
                 } else {
                     promptEl.value = '';
                 }
