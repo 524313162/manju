@@ -160,26 +160,28 @@
         if (!shot) return;
 
         showToast('正在生成分镜视频...', 'info');
-        window.shotState[window.currentChapterIdx].shots[shotIdx].generatingVideo = true;
-        renderShotsTab();
-
-        var systemPrompt = '你是一个视频生成助手。';
         var userMessage = shot.frames ? shot.frames.map(function(f){ return f.description; }).join('\n') : '';
 
-        fetch('/api/comfyui/ltx/text-to-video', {
+        fetch('/api/v1/production/generate-video', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt: userMessage })
         })
             .then(function(r){ return r.json(); })
             .then(function(res) {
-                if (res && res.promptId) {
-                    var promptId = res.promptId;
-                    pollAiResultForShot(promptId, 'ltx-text-to-video', shotIdx, 'video');
-                } else {
+                if (!res.success) {
                     window.shotState[window.currentChapterIdx].shots[shotIdx].generatingVideo = false;
                     renderShotsTab();
-                    alert('视频生成失败: ' + (res && res.message ? res.message : '未知错误'));
+                    alert('视频生成失败: ' + (res.message || '未知错误'));
+                    return;
+                }
+                if (res.isComfyui && res.promptId) {
+                    pollAiResultForShot(res.promptId, res.workflowType || 'ltx-text-to-video', shotIdx, 'video');
+                } else if (res.data) {
+                    window.shotState[window.currentChapterIdx].shots[shotIdx].videoUrl = res.data;
+                    window.shotState[window.currentChapterIdx].shots[shotIdx].generatingVideo = false;
+                    renderShotsTab();
+                    showToast('视频生成完成！', 'success');
                 }
             })
             .catch(function(err) {

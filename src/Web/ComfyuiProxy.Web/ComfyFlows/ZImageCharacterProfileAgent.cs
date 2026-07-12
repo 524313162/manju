@@ -19,7 +19,7 @@ public class ZImageCharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfi
             throw new FileNotFoundException($"工作流文件不存在: {WorkflowFileName}");
 
         var systemNode = workflow["57:200"]?.AsObject();
-        if (systemNode != null)
+        if (systemNode != null && !string.IsNullOrEmpty(dto.SystemPrompt))
         {
             var inputs = systemNode["inputs"]?.AsObject();
             if (inputs != null)
@@ -29,7 +29,7 @@ public class ZImageCharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfi
         }
 
         var characterNode = workflow["57:202"]?.AsObject();
-        if (characterNode != null)
+        if (characterNode != null && !string.IsNullOrEmpty(dto.CharacterPrompt))
         {
             var inputs = characterNode["inputs"]?.AsObject();
             if (inputs != null)
@@ -39,7 +39,7 @@ public class ZImageCharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfi
         }
 
         var negativeNode = workflow["57:201"]?.AsObject();
-        if (negativeNode != null)
+        if (negativeNode != null && !string.IsNullOrEmpty(dto.NegativePrompt))
         {
             var inputs = negativeNode["inputs"]?.AsObject();
             if (inputs != null)
@@ -49,7 +49,7 @@ public class ZImageCharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfi
         }
 
         var latentNode = workflow["57:72"]?.AsObject();
-        if (latentNode != null)
+        if (latentNode != null && dto.Width > 0 && dto.Height > 0)
         {
             var inputs = latentNode["inputs"]?.AsObject();
             if (inputs != null)
