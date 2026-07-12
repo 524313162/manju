@@ -57,3 +57,4 @@ node_modules/
 Thumbs.db
 desktop.ini
 publish/*
+/src/Web/ManjuCraft.Web/wwwroot/asset/*
