@@ -59,6 +59,15 @@ public class ZImageCharacterProfileAgent : ComfyUIAgentBase<ZImageCharacterProfi
             }
         }
 
+        var seedNode = workflow["57:74"]?.AsObject();
+        if (seedNode != null)
+        {
+            var inputs = seedNode["inputs"]?.AsObject();
+            if (inputs != null)
+            {
+                inputs["seed"] = (int)(DateTime.UtcNow.Ticks % int.MaxValue);
+            }
+        }
         return workflow.ToJsonString();
     }
 

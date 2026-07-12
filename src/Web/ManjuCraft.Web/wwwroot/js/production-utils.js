@@ -297,6 +297,16 @@
             .replace(/\n/gim, '<br>');
     }
 
+    function showModal(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.add('show');
+    }
+
+    function hideModal(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.remove('show');
+    }
+
     function showToast(msg, type) {
         var toast = document.createElement('div');
         var color = type === 'success' ? 'var(--ok)' : type === 'error' ? 'var(--danger)' : 'var(--info)';
@@ -304,16 +314,6 @@
         toast.textContent = msg;
         document.body.appendChild(toast);
         setTimeout(function(){ toast.remove(); }, 3000);
-    }
-
-    function showModal(id) {
-        var el = document.getElementById(id);
-        if (el) el.style.display = 'flex';
-    }
-
-    function hideModal(id) {
-        var el = document.getElementById(id);
-        if (el) el.style.display = 'none';
     }
 
     function escapeHtml(text) {

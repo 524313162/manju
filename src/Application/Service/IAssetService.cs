@@ -1,3 +1,4 @@
+using ManjuCraft.Application.Service.Dtos;
 using ManjuCraft.Domain.Models;
 
 namespace ManjuCraft.Application.Service
@@ -8,11 +9,11 @@ namespace ManjuCraft.Application.Service
 
         Task<Asset?> GetByIdAsync(Guid id);
 
-        Task<Asset> CreateAsync(Asset asset);
+        Task<Asset> CreateAsync(CreateAssetDto dto);
 
-        Task<List<Asset>> BulkCreateAsync(List<Asset> assets);
+        Task<List<Asset>> BulkCreateAsync(BulkCreateDto dto);
 
-        Task<Asset?> UpdateAsync(Asset asset);
+        Task<Asset?> UpdateAsync(UpdateAssetDto dto);
 
         Task DeleteAsync(Guid id);
 

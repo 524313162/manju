@@ -16,6 +16,7 @@ public interface IAiAgentService
     Task<ApiProvider?> GetProviderByCapabilityAsync(AiCapability capability, CancellationToken ct = default);
     Task<(bool success, string? data, string? message, bool isComfyui, string? promptId, string? workflowType)> ChatAsync(long providerId, string systemPrompt, string userPrompt, CancellationToken ct = default);
     Task<(bool success, string? resultUrl, string? message)> GenerateImageAsync(string prompt, int? width = null, int? height = null, long? seed = null, long? providerId = null, CancellationToken ct = default);
+    Task<(bool success, string? promptId, string? workflowType, string? message)> SubmitCharacterProfileAsync(string systemPrompt, string characterPrompt, string? negativePrompt = null, int width = 1792, int height = 1024, CancellationToken ct = default);
     Task<(bool success, string? resultUrl, string? message)> GenerateVideoAsync(string prompt, string? imageUrl = null, CancellationToken ct = default, long? providerId = null);
     Task<(bool success, string? resultUrl, string? message)> GenerateAudioAsync(string prompt, string? tags = null, CancellationToken ct = default, long? providerId = null);
     Task<JsonElement> GetComfyuiResultAsync(string promptId, string workflowType, CancellationToken ct = default);
@@ -109,6 +110,34 @@ public class AiAgentService : IAiAgentService
 
         // 第三方 API — 走 OpenAI 兼容接口
         return await GenerateImageViaApi(provider, prompt, width, height, seed, ct);
+    }
+
+    public async Task<(bool success, string? promptId, string? workflowType, string? message)> SubmitCharacterProfileAsync(string systemPrompt, string characterPrompt, string? negativePrompt = null, int width = 1792, int height = 1024, CancellationToken ct = default)
+    {
+        try
+        {
+            var payload = new
+            {
+                systemPrompt,
+                characterPrompt,
+                negativePrompt = negativePrompt ?? string.Empty,
+                width,
+                height
+            };
+            var json = JsonSerializer.Serialize(payload);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var res = await _http.PostAsync($"{_comfyuiProxyUrl.TrimEnd('/')}/api/comfyui/zimage/character-profile", content, ct);
+            res.EnsureSuccessStatusCode();
+            var body = await res.Content.ReadFromJsonAsync<ComfyuiSubmitResponseDto>(cancellationToken: ct);
+            var promptId = body?.PromptId;
+            if (string.IsNullOrEmpty(promptId))
+                return (false, null, null, "ComfyUI 返回的 promptId 为空");
+            return (true, promptId, "zimage-character-profile", null);
+        }
+        catch (Exception ex)
+        {
+            return (false, null, null, ex.Message);
+        }
     }
 
     public async Task<(bool success, string? resultUrl, string? message)> GenerateVideoAsync(string prompt, string? imageUrl = null, CancellationToken ct = default, long? providerId = null)

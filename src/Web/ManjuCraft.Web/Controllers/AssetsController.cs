@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using ManjuCraft.Application.AI;
 using ManjuCraft.Application.Service;
+using ManjuCraft.Application.Service.Dtos;
 using ManjuCraft.Domain.Models;
 using ManjuCraft.Infrastructure;
 using System.Text.Json;
@@ -14,14 +16,16 @@ public class AssetsController : Controller
     private readonly IFileStorageService _fileStorageService;
     private readonly IWebHostEnvironment _env;
     private readonly IProjectDbContext _db;
+    private readonly IAiAgentService _aiAgent;
 
-    public AssetsController(IAssetService assetService, IProjectService projectService, IFileStorageService fileStorageService, IWebHostEnvironment env, IProjectDbContext db)
+    public AssetsController(IAssetService assetService, IProjectService projectService, IFileStorageService fileStorageService, IWebHostEnvironment env, IProjectDbContext db, IAiAgentService aiAgent)
     {
         _assetService = assetService;
         _projectService = projectService;
         _fileStorageService = fileStorageService;
         _env = env;
         _db = db;
+        _aiAgent = aiAgent;
     }
 
     public async Task<IActionResult> Index(long projectId, AssetTypeEnum type = AssetTypeEnum.Actor)
@@ -73,123 +77,25 @@ public class AssetsController : Controller
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create(long? projectId, AssetTypeEnum? assetType, string? name, string? description, string? parentId, int order = 0)
+    public async Task<IActionResult> Create([FromBody] CreateAssetDto dto)
     {
-        if (string.IsNullOrEmpty(name))
+        if (string.IsNullOrEmpty(dto.Name))
             return Content(ToJson(false, "名称不能为空"));
 
-        var asset = new Asset
-        {
-            ProjectId = projectId ?? 0,
-            AssetType = assetType ?? AssetTypeEnum.Actor,
-            Name = name,
-            Description = description ?? "",
-            Order = order
-        };
-
-        if (!string.IsNullOrEmpty(parentId) && Guid.TryParse(parentId, out var pid))
-            asset.ParentId = pid;
-
-        await _assetService.CreateAsync(asset);
+        await _assetService.CreateAsync(dto);
         return Content(ToJson(true));
     }
 
     [HttpPost]
     [Route("/Assets/BulkCreate")]
-    public async Task<IActionResult> BulkCreate([FromBody] BulkCreateRequest req)
+    public async Task<IActionResult> BulkCreate([FromBody] BulkCreateDto dto)
     {
-        if (req == null || req.Assets == null || req.Assets.Count == 0)
+        if (dto == null || dto.Assets == null || dto.Assets.Count == 0)
             return Json(new { success = false, message = "资产数据为空" });
 
-        var existingAssets = await _assetService.GetByProjectAsync(req.ProjectId);
-        var existingByName = existingAssets.ToDictionary(a => a.Name, a => a, StringComparer.OrdinalIgnoreCase);
+        var result = await _assetService.BulkCreateAsync(dto);
 
-        var toAdd = new List<Asset>();
-        var toUpdate = new List<Asset>();
-        var nameToAsset = new Dictionary<string, Asset>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var item in req.Assets)
-        {
-            if (string.IsNullOrWhiteSpace(item.Name) || string.IsNullOrWhiteSpace(item.AssetType))
-                continue;
-
-            var name = item.Name.Trim();
-            var type = item.AssetType.Trim() switch
-            {
-                "Actor" => AssetTypeEnum.Actor,
-                "角色" => AssetTypeEnum.Actor,
-                "Scene" => AssetTypeEnum.Scene,
-                "场景" => AssetTypeEnum.Scene,
-                "Bgm" or "BGM" => AssetTypeEnum.Bgm,
-                "Prop" => AssetTypeEnum.Prop,
-                "道具" => AssetTypeEnum.Prop,
-                "VoiceVoice" => AssetTypeEnum.VoiceVoice,
-                "声音" => AssetTypeEnum.VoiceVoice,
-                "Voice" => AssetTypeEnum.VoiceVoice,
-                _ => AssetTypeEnum.Actor
-            };
-
-            if (existingByName.TryGetValue(name, out var existing))
-            {
-                if (item.Override)
-                {
-                    existing.Description = item.Description?.Trim() ?? existing.Description;
-                    existing.AssetType = type;
-                    toUpdate.Add(existing);
-                }
-                nameToAsset[name] = existing;
-                continue;
-            }
-
-            var maxOrder = 0;
-            var last = (await _assetService.GetByProjectAsync(req.ProjectId, type)).LastOrDefault();
-            if (last != null) maxOrder = last.Order;
-            var sameType = toAdd.Where(a => a.AssetType == type).ToList();
-            if (sameType.Count > 0) maxOrder = Math.Max(maxOrder, sameType.Max(a => a.Order));
-
-            var asset = new Asset
-            {
-                ProjectId = req.ProjectId,
-                AssetType = type,
-                Name = name,
-                Description = item.Description?.Trim() ?? "",
-                Order = maxOrder + 1
-            };
-
-            toAdd.Add(asset);
-            nameToAsset[name] = asset;
-        }
-
-        // Pre-assign IDs to new assets so ParentId references work
-        foreach (var asset in toAdd)
-        {
-            if (asset.Id == Guid.Empty)
-                asset.Id = Guid.NewGuid();
-        }
-
-        foreach (var item in req.Assets)
-        {
-            var parentName = item.ParentName?.Trim();
-            if (string.IsNullOrEmpty(parentName)) continue;
-            if (!nameToAsset.TryGetValue(item.Name.Trim(), out var child)) continue;
-            if (nameToAsset.TryGetValue(parentName, out var parent))
-                child.ParentId = parent.Id;
-        }
-
-        var saved = 0;
-        if (toAdd.Count > 0)
-        {
-            await _assetService.BulkCreateAsync(toAdd);
-            saved += toAdd.Count;
-        }
-        foreach (var asset in toUpdate)
-            await _assetService.UpdateAsync(asset);
-        saved += toUpdate.Count;
-
-        if (saved == 0)
-            return Json(new { success = false, message = "没有需要操作的资产" });
-
-        return Json(new { success = true, message = $"成功保存 {saved} 个资产（新增 {toAdd.Count}，更新 {toUpdate.Count}）", count = saved });
+        return Json(new { success = true, message = $"成功保存 {result.Count} 个资产", count = result.Count });
     }
 
     [HttpPost]
@@ -218,39 +124,12 @@ public class AssetsController : Controller
     }
 
     [HttpPost]
-    public async Task<IActionResult> Edit()
+    public async Task<IActionResult> Edit([FromBody] UpdateAssetDto dto)
     {
-        string body;
-        using (var reader = new StreamReader(Request.Body)) { body = await reader.ReadToEndAsync(); }
-        body = body.Trim();
-        if (string.IsNullOrEmpty(body))
+        if (string.IsNullOrEmpty(dto.Id))
             return Content(ToJson(false, "参数错误"));
 
-        using var doc = JsonDocument.Parse(body);
-        var root = doc.RootElement;
-
-        var idStr = root.TryGetProperty("id", out var idProp) ? idProp.GetString() : "";
-        if (!Guid.TryParse(idStr, out var id))
-            return Content(ToJson(false, "参数错误"));
-
-        var name = root.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : "";
-        var description = root.TryGetProperty("description", out var descProp) ? descProp.GetString() : "";
-
-        if (string.IsNullOrEmpty(name))
-            return Content(ToJson(false, "名称不能为空"));
-
-        var asset = await _assetService.GetByIdAsync(id);
-        if (asset == null)
-            return Content(ToJson(false, "资产不存在"));
-
-        asset.Name = name;
-        asset.Description = description ?? "";
-
-        var parentIdStr = root.TryGetProperty("parentId", out var pidProp) ? pidProp.GetString() : "";
-        if (!string.IsNullOrEmpty(parentIdStr) && Guid.TryParse(parentIdStr, out var pid))
-            asset.ParentId = pid;
-
-        await _assetService.UpdateAsync(asset);
+        await _assetService.UpdateAsync(dto);
         return Content(ToJson(true));
     }
 
@@ -280,7 +159,7 @@ public class AssetsController : Controller
         string? fileUrl = null;
         long? projectId = null;
 
-        var hasFileUpload = Request.Form.Files.Count > 0;
+        var hasFileUpload = Request.HasFormContentType && Request.Form.Files.Count > 0;
 
         if (!hasFileUpload)
         {
@@ -486,19 +365,33 @@ public class AssetsController : Controller
 
         return Json(new { success = true, data = result });
     }
+
+    [HttpPost]
+    [Route("/Assets/GenerateCharacterImage")]
+    public async Task<IActionResult> GenerateCharacterImage([FromBody] GenerateCharacterImageRequest request)
+    {
+        if (string.IsNullOrEmpty(request.CharacterPrompt))
+            return Json(new { success = false, message = "提示词不能为空" });
+
+        var (success, promptId, workflowType, message) = await _aiAgent.SubmitCharacterProfileAsync(
+            request.SystemPrompt ?? "",
+            request.CharacterPrompt,
+            request.NegativePrompt,
+            request.Width > 0 ? request.Width : 1792,
+            request.Height > 0 ? request.Height : 1024);
+
+        if (!success)
+            return Json(new { success = false, message = message ?? "生成失败" });
+
+        return Json(new { success = true, promptId, workflowType });
+    }
 }
 
-public class BulkCreateRequest
+public class GenerateCharacterImageRequest
 {
-    public long ProjectId { get; set; }
-    public List<BulkAssetItem> Assets { get; set; } = new();
-}
-
-public class BulkAssetItem
-{
-    public string Name { get; set; } = "";
-    public string AssetType { get; set; } = "";
-    public string Description { get; set; } = "";
-    public string? ParentName { get; set; }
-    public bool Override { get; set; }
+    public string? SystemPrompt { get; set; }
+    public string CharacterPrompt { get; set; } = "";
+    public string? NegativePrompt { get; set; }
+    public int Width { get; set; } = 1792;
+    public int Height { get; set; } = 1024;
 }
