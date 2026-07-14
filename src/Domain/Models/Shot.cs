@@ -26,7 +26,5 @@ namespace ManjuCraft.Domain.Models
         public Episode Episode { get; set; }
 
         public ICollection<ShotFrame> Frames { get; set; }
-
-        public ICollection<ShotAsset> ShotAssets { get; set; }
     }
 }

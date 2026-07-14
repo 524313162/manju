@@ -180,8 +180,35 @@ public class ProductionController : Controller
                 db.Shots.Add(shot);
                 await db.SaveChangesAsync();
 
-                // Save shot assets
-                if (shotData.assetRefs != null)
+                // Save frames
+                if (shotData.frames != null)
+                {
+                    var frameOrder = 0;
+                    foreach (var frameData in shotData.frames.OrderBy(f => f.order))
+                    {
+                        db.ShotFrames.Add(new ShotFrame
+                        {
+                            ShotId = shot.Id,
+                            ProjectId = req.ProjectId,
+                            ShotNumber = shot.ShotNumber,
+                            FrameType = frameData.frameType ?? (frameOrder == 0 ? "First" : "Last"),
+                            Description = frameData.description ?? "",
+                            StartTime = frameData.startTime,
+                            Duration = frameData.duration,
+                            Order = frameOrder++
+                        });
+                    }
+                    await db.SaveChangesAsync();
+                }
+
+                // Get first frame for asset binding
+                var firstFrame = await db.ShotFrames
+                    .Where(f => f.ShotId == shot.Id)
+                    .OrderBy(f => f.Order)
+                    .FirstOrDefaultAsync();
+
+                // Save shot frame assets
+                if (shotData.assetRefs != null && firstFrame != null)
                 {
                     var order = 0;
                     foreach (var refName in shotData.assetRefs)
@@ -191,19 +218,22 @@ public class ProductionController : Controller
                             var asset = existingAssets.FirstOrDefault(a => a.Name == refName);
                             if (asset != null)
                             {
-                                db.ShotAssets.Add(new ShotAsset
+                                var exists = await db.ShotFrameAssets
+                                    .AnyAsync(sfa => sfa.ShotFrameId == firstFrame.Id && sfa.AssetId == asset.Id);
+                                if (!exists)
                                 {
-                                    ShotId = shot.Id,
-                                    AssetId = asset.Id,
-                                    Order = order++
-                                });
+                                    db.ShotFrameAssets.Add(new ShotFrameAsset
+                                    {
+                                        ShotFrameId = firstFrame.Id,
+                                        AssetId = asset.Id,
+                                        Order = order++
+                                    });
+                                }
                             }
                         }
                     }
                     await db.SaveChangesAsync();
                 }
-
-                // Save frames
                 if (shotData.frames != null)
                 {
                     foreach (var frameData in shotData.frames.OrderBy(f => f.order))
@@ -506,29 +536,6 @@ public class ProductionController : Controller
                     db.Shots.Add(shot);
                     await db.SaveChangesAsync();
 
-                    // Save shot assets
-                    if (shotData.assetRefs != null)
-                    {
-                        var order = 0;
-                        foreach (var refName in shotData.assetRefs)
-                        {
-                            if (allAssetNames.Contains(refName))
-                            {
-                                var asset = existingAssets.FirstOrDefault(a => a.Name == refName);
-                                if (asset != null)
-                                {
-                                    db.ShotAssets.Add(new ShotAsset
-                                    {
-                                        ShotId = shot.Id,
-                                        AssetId = asset.Id,
-                                        Order = order++
-                                    });
-                                }
-                            }
-                        }
-                        await db.SaveChangesAsync();
-                    }
-
                     if (shotData.frames != null)
                     {
                         foreach (var frameData in shotData.frames.OrderBy(f => f.order))
@@ -619,17 +626,6 @@ public class ProductionController : Controller
                 .OrderBy(s => s.Order)
                 .ToListAsync();
 
-            // Get shot assets
-            var shotAssets = await db.ShotAssets
-                .Where(sa => shots.Select(s => s.Id).Contains(sa.ShotId))
-                .Include(sa => sa.Asset)
-                .OrderBy(sa => sa.ShotId)
-                .ThenBy(sa => sa.Order)
-                .ToListAsync();
-
-            var shotAssetsByShot = shotAssets.GroupBy(sa => sa.ShotId)
-                .ToDictionary(g => g.Key, g => g.ToList());
-
             var shotDtos = new List<object>();
             foreach (var shot in shots)
             {
@@ -648,21 +644,75 @@ public class ProductionController : Controller
                     })
                     .ToListAsync();
 
-                // Get shot assets from ShotAsset join table
-                var shotAssetsList = shotAssetsByShot.TryGetValue(shot.Id, out var sas) ? sas.ToList() : new List<ShotAsset>();
-                var shotAssetIds = shotAssetsList.Select(sa => sa.AssetId).ToList();
-                var assetResources = await db.Assets
-                    .Where(a => shotAssetIds.Contains(a.Id))
-                    .Select(a => new { a.Id, a.ResourceId, a.Resource })
-                    .ToDictionaryAsync(a => a.Id);
+                // Get frame assets from ShotFrameAsset join table
+                var frameIds = frames.Select(f => f.Id).ToList();
+                var shotFrameAssets = await db.ShotFrameAssets
+                    .Where(sfa => frameIds.Contains(sfa.ShotFrameId))
+                    .Include(sfa => sfa.Asset)
+                    .ThenInclude(a => a.Resource)
+                    .ToListAsync();
 
-                var assetRefs = new List<object>();
-                if (shotAssetsList.Count > 0)
+                // Group assets by frame
+                var assetsByFrameId = shotFrameAssets
+                    .GroupBy(sfa => sfa.ShotFrameId)
+                    .ToDictionary(g => g.Key, g => g.ToList());
+
+                // Build frames with their assets
+                var frameIdsList = frames.Select(f => f.Id).ToList();
+                var frameResourceIds = frames.Where(f => f.ResourceId.HasValue).Select(f => f.ResourceId!.Value).ToList();
+                var frameResources = frameResourceIds.Count > 0
+                    ? await db.Resources.Where(r => frameResourceIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, r => r)
+                    : new Dictionary<long, Resource>();
+
+                var framesWithAssets = frames.Select(f =>
                 {
-                    foreach (var sa in shotAssetsList)
+                    var frameAssetList = new List<object>();
+                    if (assetsByFrameId.TryGetValue(f.Id, out var sfas))
                     {
-                        var asset = sa.Asset;
-                        var resource = assetResources.TryGetValue(asset.Id, out var ar) ? ar.Resource : asset.Resource;
+                        var seen = new HashSet<Guid>();
+                        foreach (var sfa in sfas)
+                        {
+                            var a = sfa.Asset;
+                            if (a == null || seen.Contains(a.Id)) continue;
+                            seen.Add(a.Id);
+                            var resource = a.Resource;
+                            frameAssetList.Add(new
+                            {
+                                a.Id,
+                                a.Name,
+                                a.AssetType,
+                                a.Description,
+                                ResourceId = a.ResourceId,
+                                ResourceFilePath = resource?.FilePath,
+                                ResourceMediaType = resource?.MediaType
+                            });
+                        }
+                    }
+                    var frameResource = f.ResourceId.HasValue && frameResources.TryGetValue(f.ResourceId.Value, out var fr) ? fr : null;
+                    return new
+                    {
+                        f.Id,
+                        f.FrameType,
+                        f.Description,
+                        f.Order,
+                        f.StartTime,
+                        f.Duration,
+                        f.ResourceId,
+                        ImagePath = frameResource?.FilePath,
+                        Assets = frameAssetList
+                    };
+                }).ToList();
+
+                // All shot-level assets (deduplicated)
+                var assetRefs = new List<object>();
+                {
+                    var seenAssetIds = new HashSet<Guid>();
+                    foreach (var sfa in shotFrameAssets)
+                    {
+                        var asset = sfa.Asset;
+                        if (asset == null || seenAssetIds.Contains(asset.Id)) continue;
+                        seenAssetIds.Add(asset.Id);
+                        var resource = asset.Resource;
                         assetRefs.Add(new
                         {
                             asset.Id,
@@ -671,9 +721,7 @@ public class ProductionController : Controller
                             asset.Description,
                             ResourceId = asset.ResourceId,
                             ResourceFilePath = resource?.FilePath,
-                            ResourceMediaType = resource?.MediaType,
-                            sa.Role,
-                            sa.Order
+                            ResourceMediaType = resource?.MediaType
                         });
                     }
                 }
@@ -691,83 +739,11 @@ public class ProductionController : Controller
                     Assets = assetRefs,
                     StoryboardUrl = "",
                     VideoUrl = "",
-                    frames
+                    frames = framesWithAssets
                 });
             }
 
             return Json(new { success = true, data = new { episodeId = episode.Id, shots = shotDtos } });
-        }
-        catch (Exception ex)
-        {
-            return Json(new { success = false, message = ex.Message });
-        }
-    }
-
-    [HttpPost]
-    [Route("/api/v1/production/extract-asset-info")]
-    public async Task<IActionResult> ExtractAssetInfo([FromBody] JsonElement body)
-    {
-        try
-        {
-            var providerId = body.TryGetProperty("providerId", out var pid) ? pid.GetInt64() : 0L;
-            var template = body.TryGetProperty("template", out var tpl) ? tpl.GetString() : null;
-            var chapterIds = body.TryGetProperty("chapterIds", out var cids) && cids.ValueKind == JsonValueKind.Array
-                ? cids.EnumerateArray().Select(e => e.GetInt64()).ToList()
-                : new List<long>();
-
-            if (chapterIds.Count == 0)
-                return Json(new { success = false, message = "请选择至少一个章节" });
-
-            if (providerId <= 0)
-                return Json(new { success = false, message = "请选择 AI 提供者" });
-
-            var db = HttpContext.RequestServices.GetRequiredService<ProjectDbContext>();
-
-            var chapters = await db.StoryChapters
-                .Where(c => chapterIds.Contains(c.Id))
-                .OrderBy(c => c.SortOrder)
-                .ToListAsync();
-
-            if (chapters.Count == 0)
-                return Json(new { success = false, message = "未找到选中的章节" });
-
-            var storyId = chapters[0].StoryId;
-            var story = await db.Stories.FindAsync(storyId);
-            if (story == null)
-                return Json(new { success = false, message = "剧本不存在" });
-            var projectId = story.ProjectId;
-
-            var existingAssets = await db.Assets
-                .Where(a => a.ProjectId == projectId)
-                .Select(a => new { a.Name, a.AssetType, a.Description })
-                .ToListAsync();
-
-            var existingAssetsText = string.Join("\n", existingAssets.Select(a => $"- {a.Name} ({a.AssetType})"));
-
-            var chaptersText = string.Join("\n\n", chapters.Select(c =>
-                $"【第{c.ChapterNumber}章 {c.ChapterName}】\n{c.Content}"));
-
-            var templateContent = template;
-            if (string.IsNullOrEmpty(templateContent))
-            {
-                var t = await db.PromptTemplates
-                    .Where(p => p.TemplateType == "AssetExtraction")
-                    .OrderBy(p => p.Id)
-                    .FirstOrDefaultAsync();
-                templateContent = t?.Content ?? "";
-            }
-
-            var userMsg = $"## 已有项目资产\n{existingAssetsText}\n\n## 章节内容\n{chaptersText}\n\n请严格按JSON格式输出提取的资产信息。";
-
-            var aiService = HttpContext.RequestServices.GetRequiredService<IAiAgentService>();
-            var result = await aiService.ChatAsync(providerId, templateContent, userMsg);
-            if (!result.success)
-                return Json(new { success = false, message = result.message ?? "提取失败" });
-
-            if (result.isComfyui)
-                return Json(new { success = true, data = result.data, promptId = result.promptId, workflowType = result.workflowType, isComfyui = true });
-
-            return Json(new { success = true, data = result.data });
         }
         catch (Exception ex)
         {
@@ -932,55 +908,52 @@ public class ProductionController : Controller
     }
 
     [HttpPost]
-    [Route("/api/v1/production/shots/{shotId}/assets")]
-    public async Task<IActionResult> SaveShotAssets(long shotId, [FromBody] SaveShotAssetsRequest req)
+    [Route("/api/v1/production/save-frame-image")]
+    public async Task<IActionResult> SaveFrameImage([FromBody] JsonElement body)
     {
         try
         {
+            var imageUrl = body.TryGetProperty("imageUrl", out var iu) ? iu.GetString() : "";
+            var frameId = body.TryGetProperty("frameId", out var fid) ? fid.GetInt64() : 0L;
+
+            if (frameId <= 0 || string.IsNullOrEmpty(imageUrl))
+                return Json(new { success = false, message = "参数错误" });
+
             var db = HttpContext.RequestServices.GetRequiredService<ProjectDbContext>();
+            var frame = await db.ShotFrames.FindAsync(frameId);
+            if (frame == null)
+                return Json(new { success = false, message = "帧不存在" });
 
-            var shot = await db.Shots.FindAsync(shotId);
-            if (shot == null)
-                return Json(new { success = false, message = "分镜不存在" });
+            var httpClient = HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>().CreateClient();
+            var imageBytes = await httpClient.GetByteArrayAsync(imageUrl);
 
-            // Remove existing shot assets
-            var existing = await db.ShotAssets.Where(sa => sa.ShotId == shotId).ToListAsync();
-            db.ShotAssets.RemoveRange(existing);
+            var fileName = $"frame_{frameId}_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}.png";
+            var wwwRoot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var targetDir = Path.Combine(wwwRoot, "asset", "frame-images");
+            Directory.CreateDirectory(targetDir);
+            var targetPath = Path.Combine(targetDir, fileName);
+            await System.IO.File.WriteAllBytesAsync(targetPath, imageBytes);
 
-            // Add new shot assets with roles
-            if (req.Assets != null && req.Assets.Count > 0)
+            var relativePath = "/asset/frame-images/" + fileName;
+            var resource = new ManjuCraft.Domain.Models.Resource
             {
-                var assets = await db.Assets
-                    .Where(a => req.Assets.Select(x => x.Name).Contains(a.Name))
-                    .ToListAsync();
-
-                var assetDict = assets.ToDictionary(a => a.Name);
-                var order = 0;
-
-                foreach (var reqAsset in req.Assets)
-                {
-                    if (assetDict.TryGetValue(reqAsset.Name, out var asset))
-                    {
-                        db.ShotAssets.Add(new ShotAsset
-                        {
-                            ShotId = shotId,
-                            AssetId = asset.Id,
-                            Role = reqAsset.Role ?? "",
-                            Order = order++
-                        });
-                    }
-                }
-            }
-
+                MediaType = "image/png",
+                FilePath = relativePath
+            };
+            db.Resources.Add(resource);
             await db.SaveChangesAsync();
 
-            return Json(new { success = true, message = "资产绑定保存成功" });
+            frame.ResourceId = resource.Id;
+            await db.SaveChangesAsync();
+
+            return Json(new { success = true, message = "帧图片已保存", imagePath = relativePath });
         }
         catch (Exception ex)
         {
             return Json(new { success = false, message = ex.Message });
         }
     }
+
 }
 
 public class ShotExtractionRequest
@@ -1006,17 +979,6 @@ public class SaveExtractionRequest
     public long ProjectId { get; set; }
     public int ChapterIdx { get; set; }
     public string AiResponse { get; set; }
-}
-
-public class SaveShotAssetsRequest
-{
-    public List<ShotAssetBinding> Assets { get; set; }
-}
-
-public class ShotAssetBinding
-{
-    public string Name { get; set; }
-    public string Role { get; set; }
 }
 
 internal class StoryboardExtractionResult

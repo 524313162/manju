@@ -22,8 +22,11 @@ namespace ManjuCraft.Domain.Models
         /// <summary>图片到视频</summary>
         ImageToVideo = 5,
 
-        /// <summary>图片编辑（含分镜生成、角色设定等）</summary>
-        ImageEdit = 6,
+        /// <summary>人物场景档案</summary>
+        TextToImage2 = 6,
+
+        /// <summary>图片到图片</summary>
+        ImageToImage = 8,
 
         /// <summary>文生音频 - 音乐</summary>
         TextToMusic = 7

@@ -18,6 +18,12 @@ public class ComfyuiController : ControllerBase
         _agentFactory = agentFactory;
     }
 
+    /// <summary>
+    /// 通过promptId获取结果
+    /// </summary>
+    /// <param name="promptId"></param>
+    /// <param name="workflowType"></param>
+    /// <returns></returns>
     [HttpGet("result/{promptId}")]
     public async Task<ActionResult<object>> GetResult(
         string promptId,

@@ -15,6 +15,11 @@ public class ZImageController : ControllerBase
         _agentFactory = agentFactory;
     }
 
+    /// <summary>
+    /// 文本生成图片
+    /// </summary>
+    /// <param name="dto"></param>
+    /// <returns></returns>
     [HttpPost("text-to-image")]
     public async Task<ActionResult<object>> TextToImage(
         [FromBody] ZImageTextToImageRequestDto dto)
@@ -24,6 +29,11 @@ public class ZImageController : ControllerBase
         return Ok(new { promptId, workflowType = "zimage-text-to-image" });
     }
 
+    /// <summary>
+    /// 文本生成图片（多参考词=》用于人物，场景等档案生成）
+    /// </summary>
+    /// <param name="dto"></param>
+    /// <returns></returns>
     [HttpPost("character-profile")]
     public async Task<ActionResult<object>> CharacterProfile(
         [FromBody] ZImageCharacterProfileRequestDto dto)

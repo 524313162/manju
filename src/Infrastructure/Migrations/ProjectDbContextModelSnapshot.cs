@@ -273,41 +273,6 @@ namespace ManjuCraft.Infrastructure.Migrations
                     b.ToTable("Shots");
                 });
 
-            modelBuilder.Entity("ManjuCraft.Domain.Models.ShotAsset", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<Guid>("AssetId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<long>("CreatedTime")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("Order")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Role")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<long>("ShotId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<long>("UpdatedTime")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssetId");
-
-                    b.HasIndex("ShotId", "AssetId")
-                        .IsUnique();
-
-                    b.ToTable("ShotAssets");
-                });
-
             modelBuilder.Entity("ManjuCraft.Domain.Models.ShotFrame", b =>
                 {
                     b.Property<long>("Id")
@@ -361,6 +326,41 @@ namespace ManjuCraft.Infrastructure.Migrations
                     b.HasIndex("ShotId");
 
                     b.ToTable("ShotFrames");
+                });
+
+            modelBuilder.Entity("ManjuCraft.Domain.Models.ShotFrameAsset", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("AssetId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedTime")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ShotFrameId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UpdatedTime")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssetId");
+
+                    b.HasIndex("ShotFrameId", "AssetId")
+                        .IsUnique();
+
+                    b.ToTable("ShotFrameAssets");
                 });
 
             modelBuilder.Entity("ManjuCraft.Domain.Models.Story", b =>
@@ -488,25 +488,6 @@ namespace ManjuCraft.Infrastructure.Migrations
                     b.Navigation("Episode");
                 });
 
-            modelBuilder.Entity("ManjuCraft.Domain.Models.ShotAsset", b =>
-                {
-                    b.HasOne("ManjuCraft.Domain.Models.Asset", "Asset")
-                        .WithMany()
-                        .HasForeignKey("AssetId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ManjuCraft.Domain.Models.Shot", "Shot")
-                        .WithMany("ShotAssets")
-                        .HasForeignKey("ShotId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Asset");
-
-                    b.Navigation("Shot");
-                });
-
             modelBuilder.Entity("ManjuCraft.Domain.Models.ShotFrame", b =>
                 {
                     b.HasOne("ManjuCraft.Domain.Models.Project", "Project")
@@ -531,6 +512,25 @@ namespace ManjuCraft.Infrastructure.Migrations
                     b.Navigation("Resource");
 
                     b.Navigation("Shot");
+                });
+
+            modelBuilder.Entity("ManjuCraft.Domain.Models.ShotFrameAsset", b =>
+                {
+                    b.HasOne("ManjuCraft.Domain.Models.Asset", "Asset")
+                        .WithMany()
+                        .HasForeignKey("AssetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ManjuCraft.Domain.Models.ShotFrame", "ShotFrame")
+                        .WithMany("ShotFrameAssets")
+                        .HasForeignKey("ShotFrameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Asset");
+
+                    b.Navigation("ShotFrame");
                 });
 
             modelBuilder.Entity("ManjuCraft.Domain.Models.Story", b =>
@@ -579,8 +579,11 @@ namespace ManjuCraft.Infrastructure.Migrations
             modelBuilder.Entity("ManjuCraft.Domain.Models.Shot", b =>
                 {
                     b.Navigation("Frames");
+                });
 
-                    b.Navigation("ShotAssets");
+            modelBuilder.Entity("ManjuCraft.Domain.Models.ShotFrame", b =>
+                {
+                    b.Navigation("ShotFrameAssets");
                 });
 
             modelBuilder.Entity("ManjuCraft.Domain.Models.Story", b =>

@@ -32,5 +32,7 @@ namespace ManjuCraft.Domain.Models
         public Project Project { get; set; }
 
         public Resource Resource { get; set; }
+
+        public ICollection<ShotFrameAsset> ShotFrameAssets { get; set; }
     }
 }

@@ -173,20 +173,6 @@ public static class DatabaseSeeder
         await db.Shots.AddRangeAsync(shots);
         await db.SaveChangesAsync();
 
-        // Create ShotAssets
-        var shotAssets = new List<ShotAsset>
-        {
-            new ShotAsset { ShotId = shots[0].Id, AssetId = assets.First(a => a.Name == "公主府").Id, Role = "场景", Order = 0, CreatedTime = now, UpdatedTime = now },
-            new ShotAsset { ShotId = shots[0].Id, AssetId = assets.First(a => a.Name == "李轩(男一号)").Id, Role = "主角", Order = 1, CreatedTime = now, UpdatedTime = now },
-            new ShotAsset { ShotId = shots[0].Id, AssetId = assets.First(a => a.Name == "太平公主(女一号)").Id, Role = "主角", Order = 2, CreatedTime = now, UpdatedTime = now },
-            new ShotAsset { ShotId = shots[0].Id, AssetId = assets.First(a => a.Name == "醒酒汤").Id, Role = "道具", Order = 3, CreatedTime = now, UpdatedTime = now },
-            new ShotAsset { ShotId = shots[1].Id, AssetId = assets.First(a => a.Name == "公主府").Id, Role = "场景", Order = 0, CreatedTime = now, UpdatedTime = now },
-            new ShotAsset { ShotId = shots[1].Id, AssetId = assets.First(a => a.Name == "李轩(男一号)").Id, Role = "主角", Order = 1, CreatedTime = now, UpdatedTime = now },
-            new ShotAsset { ShotId = shots[1].Id, AssetId = assets.First(a => a.Name == "太平公主(女一号)").Id, Role = "主角", Order = 2, CreatedTime = now, UpdatedTime = now }
-        };
-        await db.ShotAssets.AddRangeAsync(shotAssets);
-        await db.SaveChangesAsync();
-
         // Create ShotFrames for Shot 1
         var frames1 = new List<ShotFrame>
         {
@@ -245,10 +231,10 @@ public static class DatabaseSeeder
 
             // ═══ ComfyUI (Local) - 每个工作流独立记录 ═══
             new() { Name = "ComfyUI (Local) - 文生图",     Capability = AiCapability.TextToImage, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "01.ZIMAGE-text-to-image.json",  CreatedTime = now, UpdatedTime = now },
-            new() { Name = "ComfyUI (Local) - 人物档案",   Capability = AiCapability.ImageEdit, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "02.ZIMAGE-character-profile.json", CreatedTime = now, UpdatedTime = now },
+            new() { Name = "ComfyUI (Local) - 人物档案",   Capability = AiCapability.ImageToImage, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "02.ZIMAGE-character-profile.json", CreatedTime = now, UpdatedTime = now },
             new() { Name = "ComfyUI (Local) - 文生视频",   Capability = AiCapability.TextToVideo, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "03.LTX-text-to-video.json",     CreatedTime = now, UpdatedTime = now },
             new() { Name = "ComfyUI (Local) - 图生视频",   Capability = AiCapability.ImageToVideo, Type = ProviderType.ComfyUI, ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "04.LTX-image-to-video.json",    CreatedTime = now, UpdatedTime = now },
-            new() { Name = "ComfyUI (Local) - 分镜生成",   Capability = AiCapability.ImageEdit, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "05.Hidream-storyboard.json",    CreatedTime = now, UpdatedTime = now },
+            new() { Name = "ComfyUI (Local) - 分镜生成",   Capability = AiCapability.ImageToImage, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "05.Hidream-storyboard.json",    CreatedTime = now, UpdatedTime = now },
             new() { Name = "ComfyUI (Local) - 音乐生成",   Capability = AiCapability.TextToMusic, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "06.ACE-music-compose.json",     CreatedTime = now, UpdatedTime = now },
             new() { Name = "ComfyUI (Local) - BGM生成",    Capability = AiCapability.TextToAudio, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "07.Stable-bgm-generate.json",   CreatedTime = now, UpdatedTime = now },
             new() { Name = "ComfyUI (Local) - LLM对话",    Capability = AiCapability.TextToText, Type = ProviderType.ComfyUI,  ApiUrl = "http://localhost:8188",              ApiKey = "", Model = "08.LLM-QWen.json",            CreatedTime = now, UpdatedTime = now },

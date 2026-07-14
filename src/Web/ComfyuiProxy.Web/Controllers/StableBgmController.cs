@@ -15,6 +15,11 @@ public class StableBgmController : ControllerBase
         _agentFactory = agentFactory;
     }
 
+    /// <summary>
+    /// 背景英语生成
+    /// </summary>
+    /// <param name="dto"></param>
+    /// <returns></returns>
     [HttpPost("generate")]
     public async Task<ActionResult<object>> Generate(
         [FromBody] StableBgmRequestDto dto)

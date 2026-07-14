@@ -15,6 +15,12 @@ public class LtxController : ControllerBase
         _agentFactory = agentFactory;
     }
 
+
+    /// <summary>
+    /// 文本生成视频
+    /// </summary>
+    /// <param name="dto"></param>
+    /// <returns></returns>
     [HttpPost("text-to-video")]
     public async Task<ActionResult<object>> TextToVideo(
         [FromBody] LtxTextToVideoRequestDto dto)
@@ -24,6 +30,11 @@ public class LtxController : ControllerBase
         return Ok(new { promptId, workflowType = "ltx-text-to-video" });
     }
 
+    /// <summary>
+    /// 图片生成视频
+    /// </summary>
+    /// <param name="dto"></param>
+    /// <returns></returns>
     [HttpPost("image-to-video")]
     public async Task<ActionResult<object>> ImageToVideo(
         [FromBody] LtxImageToVideoRequestDto dto)

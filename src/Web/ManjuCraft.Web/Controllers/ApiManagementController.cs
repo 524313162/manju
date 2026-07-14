@@ -84,7 +84,7 @@ public class ApiManagementController : Controller
         var upper = cap?.ToLowerInvariant() ?? "";
         if (upper.Contains("texttoaudio") || upper.Contains("texttomusic") || upper.Contains("audio")) return AiCapability.TextToAudio;
         if (upper.Contains("texttomusic")) return AiCapability.TextToMusic;
-        if (upper.Contains("imageedit")) return AiCapability.ImageEdit;
+        if (upper.Contains("imageedit")) return AiCapability.ImageToImage;
         if (upper.Contains("imagetovideo")) return AiCapability.ImageToVideo;
         if (upper.Contains("texttoimage")) return AiCapability.TextToImage;
         if (upper.Contains("video")) return AiCapability.TextToVideo;

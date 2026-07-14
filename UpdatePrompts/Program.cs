@@ -42,7 +42,7 @@ if (isFixNvidia)
 
 if (isVerify)
 {
-    var types = new[] { "ShotAssetExtraction", "StoryboardExtraction" };
+    var types = new[] { "AssetExtraction", "ShotAssetExtraction", "ShotFrameAssetExtraction", "StoryboardExtraction" };
     
     foreach (var type in types)
     {

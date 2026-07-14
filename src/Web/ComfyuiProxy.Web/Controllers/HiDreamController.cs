@@ -15,6 +15,11 @@ public class HiDreamController : ControllerBase
         _agentFactory = agentFactory;
     }
 
+    /// <summary>
+    /// 分镜生成请求，图片为多张参考图合并在一张上用来生成分镜。
+    /// </summary>
+    /// <param name="dto"></param>
+    /// <returns></returns>
     [HttpPost("storyboard")]
     public async Task<ActionResult<object>> Storyboard(
         [FromBody] HiDreamStoryboardRequestDto dto)

@@ -30,7 +30,26 @@ public class ProvidersController : ControllerBase
     public async Task<IActionResult> GetImageModels()
     {
         var providers = await _db.ApiProviders
-            .Where(p => p.Type == ProviderType.ComfyUI && (p.Capability == AiCapability.TextToImage || p.Capability == AiCapability.ImageEdit))
+            .Where(p => p.Type == ProviderType.ComfyUI && (p.Capability == AiCapability.TextToImage || p.Capability == AiCapability.ImageToImage))
+            .OrderByDescending(p => p.Id)
+            .ToListAsync();
+        
+        var result = providers.Select(p => new {
+            id = p.Id,
+            name = p.Name,
+            model = p.Model,
+            apiUrl = p.ApiUrl,
+            capability = p.Capability.ToString()
+        }).ToList();
+        
+        return Ok(new { success = true, data = result });
+    }
+
+    [HttpGet("asset-gen-models")]
+    public async Task<IActionResult> GetAssetGenModels()
+    {
+        var providers = await _db.ApiProviders
+            .Where(p => p.Type == ProviderType.ComfyUI && p.Capability == AiCapability.TextToImage2)
             .OrderByDescending(p => p.Id)
             .ToListAsync();
         
@@ -119,7 +138,7 @@ public class ProvidersController : ControllerBase
         var upper = cap?.ToLowerInvariant() ?? "";
         if (upper.Contains("texttoaudio") || upper.Contains("texttomusic") || upper.Contains("audio")) return AiCapability.TextToAudio;
         if (upper.Contains("texttomusic")) return AiCapability.TextToMusic;
-        if (upper.Contains("imageedit")) return AiCapability.ImageEdit;
+        if (upper.Contains("imageedit")) return AiCapability.ImageToImage;
         if (upper.Contains("imagetovideo")) return AiCapability.ImageToVideo;
         if (upper.Contains("texttoimage")) return AiCapability.TextToImage;
         if (upper.Contains("video")) return AiCapability.TextToVideo;

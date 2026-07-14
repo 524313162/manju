@@ -14,6 +14,13 @@ public class UploadController : ControllerBase
         _proxyService = proxyService;
     }
 
+    /// <summary>
+    /// 上传图片到ComfyUI的输入文件夹
+    /// </summary>
+    /// <param name="image"></param>
+    /// <param name="subfolder"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
     [HttpPost]
     [RequestSizeLimit(50 * 1024 * 1024)]
     public async Task<ActionResult<object>> Upload(

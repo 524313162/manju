@@ -46,7 +46,11 @@ public class Program
         builder.Services.AddScoped<IAiAgentService, AiAgentService>();
         builder.Services.AddScoped<IAiChatClientFactory, AiChatClientFactory>();
 
-        builder.Services.AddControllersWithViews();
+        builder.Services.AddControllersWithViews()
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+            });
         builder.Services.AddHttpContextAccessor();
 
         var app = builder.Build();

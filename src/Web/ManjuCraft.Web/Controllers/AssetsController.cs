@@ -385,6 +385,329 @@ public class AssetsController : Controller
 
         return Json(new { success = true, promptId, workflowType });
     }
+
+    // ---- Asset binding endpoints (moved from AIGenerationController) ----
+
+    [HttpPost]
+    [Route("/api/v1/assets/extract-asset-info-save")]
+    public async Task<IActionResult> ExtractAssetInfoSave([FromBody] JsonElement body)
+    {
+        try
+        {
+            var projectId = body.TryGetProperty("projectId", out var pid) ? pid.GetInt64() : 0L;
+            if (projectId <= 0)
+                return Json(new { success = false, message = "缺少项目ID" });
+
+            if (!body.TryGetProperty("assets", out var assetsProp))
+                return Json(new { success = false, message = "缺少资产数据" });
+
+            var db = HttpContext.RequestServices.GetRequiredService<ProjectDbContext>();
+
+            var assetTypeMap = new Dictionary<string, AssetTypeEnum>
+            {
+                ["Actor"] = AssetTypeEnum.Actor,
+                ["角色"] = AssetTypeEnum.Actor,
+                ["Scene"] = AssetTypeEnum.Scene,
+                ["场景"] = AssetTypeEnum.Scene,
+                ["Bgm"] = AssetTypeEnum.Bgm,
+                ["BGM"] = AssetTypeEnum.Bgm,
+                ["Prop"] = AssetTypeEnum.Prop,
+                ["道具"] = AssetTypeEnum.Prop,
+                ["VoiceVoice"] = AssetTypeEnum.VoiceVoice,
+                ["声音"] = AssetTypeEnum.VoiceVoice,
+            };
+
+            var assetsList = new List<Asset>();
+            var existingNames = await db.Assets
+                .Where(a => a.ProjectId == projectId)
+                .Select(a => a.Name)
+                .ToListAsync();
+            var existingNameSet = new HashSet<string>(existingNames, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var item in assetsProp.EnumerateArray())
+            {
+                var name = item.TryGetProperty("name", out var n) ? n.GetString()?.Trim() : "";
+                var assetTypeStr = item.TryGetProperty("assetType", out var at) ? at.GetString()?.Trim() : "";
+                var description = item.TryGetProperty("description", out var d) ? d.GetString()?.Trim() ?? "" : "";
+                var parentName = item.TryGetProperty("belong", out var bn) ? bn.GetString()?.Trim() : null;
+
+                if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(assetTypeStr))
+                    continue;
+
+                if (!assetTypeMap.TryGetValue(assetTypeStr, out var assetType))
+                    continue;
+
+                if (existingNameSet.Contains(name))
+                    continue;
+
+                var maxOrder = 0;
+                var lastAsset = await db.Assets
+                    .Where(a => a.ProjectId == projectId && a.AssetType == assetType)
+                    .OrderByDescending(a => a.Order)
+                    .FirstOrDefaultAsync();
+                if (lastAsset != null)
+                    maxOrder = lastAsset.Order;
+
+                assetsList.Add(new Asset
+                {
+                    ProjectId = projectId,
+                    AssetType = assetType,
+                    Name = name,
+                    Description = description,
+                    Order = maxOrder + 1
+                });
+
+                existingNameSet.Add(name);
+            }
+
+            foreach (var asset in assetsList)
+                if (asset.Id == Guid.Empty)
+                    asset.Id = Guid.NewGuid();
+
+            var nameToAsset = assetsList.ToDictionary(a => a.Name, a => a, StringComparer.OrdinalIgnoreCase);
+            foreach (var item in assetsProp.EnumerateArray())
+            {
+                var name = item.TryGetProperty("name", out var n) ? n.GetString()?.Trim() : "";
+                var parentName = item.TryGetProperty("belong", out var bn) ? bn.GetString()?.Trim() : null;
+                if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(parentName)) continue;
+                if (nameToAsset.TryGetValue(name, out var child) && nameToAsset.TryGetValue(parentName, out var parent))
+                    child.ParentId = parent.Id;
+            }
+
+            if (assetsList.Count == 0)
+                return Json(new { success = false, message = "没有需要新增的资产（可能已存在）" });
+
+            await db.Assets.AddRangeAsync(assetsList);
+            await db.SaveChangesAsync();
+
+            return Json(new { success = true, message = $"成功保存 {assetsList.Count} 个资产", count = assetsList.Count });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpGet]
+    [Route("/api/v1/assets/shot-frame-assets/{shotId}")]
+    public async Task<IActionResult> GetShotFrameAssets(long shotId)
+    {
+        try
+        {
+            var db = HttpContext.RequestServices.GetRequiredService<ProjectDbContext>();
+            var frameIds = await db.ShotFrames.Where(f => f.ShotId == shotId).Select(f => f.Id).ToListAsync();
+            if (frameIds.Count == 0)
+                return Json(new { success = true, data = new List<object>() });
+
+            var assets = await (from sfa in db.ShotFrameAssets
+                                join a in db.Assets on sfa.AssetId equals a.Id
+                                where frameIds.Contains(sfa.ShotFrameId)
+                                select new { a.Name, a.AssetType }).Distinct().ToListAsync();
+            return Json(new { success = true, data = assets });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    [Route("/api/v1/assets/save-shot-frame-assets")]
+    public async Task<IActionResult> SaveShotFrameAssets([FromBody] JsonElement body)
+    {
+        try
+        {
+            var projectId = body.TryGetProperty("projectId", out var pid) ? pid.GetInt64() : 0L;
+            var shotId = body.TryGetProperty("shotId", out var sid) ? sid.GetInt64() : 0L;
+            if (projectId <= 0 || shotId <= 0)
+                return Json(new { success = false, message = "参数错误" });
+
+            var db = HttpContext.RequestServices.GetRequiredService<ProjectDbContext>();
+
+            var shot = await db.Shots.FindAsync(shotId);
+            if (shot == null)
+                return Json(new { success = false, message = "分镜不存在" });
+
+            var allAssetIds = new List<Guid>();
+
+            var selectedNames = body.TryGetProperty("selectedAssetNames", out var san) && san.ValueKind == JsonValueKind.Array
+                ? san.EnumerateArray().Select(e => e.GetString() ?? "").Where(s => !string.IsNullOrWhiteSpace(s)).ToList()
+                : new List<string>();
+
+            if (selectedNames.Count > 0)
+            {
+                var existingAssets = await db.Assets
+                    .Where(a => a.ProjectId == projectId && selectedNames.Contains(a.Name))
+                    .ToListAsync();
+                foreach (var asset in existingAssets)
+                    allAssetIds.Add(asset.Id);
+            }
+
+            var assetTypeMap = new Dictionary<string, AssetTypeEnum>
+            {
+                ["Actor"] = AssetTypeEnum.Actor, ["角色"] = AssetTypeEnum.Actor,
+                ["Scene"] = AssetTypeEnum.Scene, ["场景"] = AssetTypeEnum.Scene,
+                ["Prop"] = AssetTypeEnum.Prop, ["道具"] = AssetTypeEnum.Prop,
+            };
+
+            var existingNames = await db.Assets
+                .Where(a => a.ProjectId == projectId)
+                .Select(a => a.Name)
+                .ToListAsync();
+            var existingNameSet = new HashSet<string>(existingNames, StringComparer.OrdinalIgnoreCase);
+
+            var newAssetRecords = new List<Asset>();
+            var newAssetFrameBindings = new List<(int FrameIndex, Guid AssetId)>();
+
+            var newAssetsProp = body.TryGetProperty("newAssets", out var nap) && nap.ValueKind == JsonValueKind.Array
+                ? nap : default;
+
+            if (newAssetsProp.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in newAssetsProp.EnumerateArray())
+                {
+                    var name = item.TryGetProperty("name", out var n) ? n.GetString()?.Trim() : "";
+                    var assetTypeStr = item.TryGetProperty("assetType", out var at) ? at.GetString()?.Trim() : "";
+                    var description = item.TryGetProperty("description", out var d) ? d.GetString()?.Trim() ?? "" : "";
+                    var belongFrame = item.TryGetProperty("belongFrame", out var bf) ? bf.GetInt32() : -1;
+
+                    if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(assetTypeStr)) continue;
+                    if (!assetTypeMap.TryGetValue(assetTypeStr, out var assetType)) continue;
+
+                    Guid assetId;
+                    if (existingNameSet.Contains(name))
+                    {
+                        var existing = await db.Assets.FirstAsync(a => a.ProjectId == projectId && a.Name == name);
+                        assetId = existing.Id;
+                    }
+                    else
+                    {
+                        assetId = Guid.NewGuid();
+                        newAssetRecords.Add(new Asset { Id = assetId, ProjectId = projectId, AssetType = assetType, Name = name, Description = description, Order = 0 });
+                        existingNameSet.Add(name);
+                    }
+
+                    allAssetIds.Add(assetId);
+                    newAssetFrameBindings.Add((belongFrame, assetId));
+                }
+
+                if (newAssetRecords.Count > 0)
+                    await db.Assets.AddRangeAsync(newAssetRecords);
+            }
+
+            var frames = await db.ShotFrames.Where(f => f.ShotId == shotId).OrderBy(f => f.Order).ToListAsync();
+            foreach (var (frameIdx, assetId) in newAssetFrameBindings)
+            {
+                var targetFrame = frameIdx >= 0 && frameIdx < frames.Count ? frames[frameIdx] : frames.FirstOrDefault();
+                if (targetFrame == null) continue;
+                if (!await db.ShotFrameAssets.AnyAsync(sfa => sfa.ShotFrameId == targetFrame.Id && sfa.AssetId == assetId))
+                    db.ShotFrameAssets.Add(new ShotFrameAsset { ShotFrameId = targetFrame.Id, AssetId = assetId, Role = "", Order = 0 });
+            }
+
+            foreach (var assetId in allAssetIds)
+            {
+                if (newAssetFrameBindings.Any(b => b.AssetId == assetId)) continue;
+                foreach (var frame in frames)
+                {
+                    if (!await db.ShotFrameAssets.AnyAsync(sfa => sfa.ShotFrameId == frame.Id && sfa.AssetId == assetId))
+                        db.ShotFrameAssets.Add(new ShotFrameAsset { ShotFrameId = frame.Id, AssetId = assetId, Role = "", Order = 0 });
+                }
+            }
+
+            await db.SaveChangesAsync();
+            return Json(new { success = true, message = $"成功绑定 {allAssetIds.Count} 个资产（新建 {newAssetRecords.Count} 个）到分镜帧" });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    [Route("/api/v1/assets/replace-frame-assets")]
+    public async Task<IActionResult> ReplaceFrameAssets([FromBody] JsonElement body)
+    {
+        try
+        {
+            var projectId = body.TryGetProperty("projectId", out var pid) ? pid.GetInt64() : 0L;
+            var shotId = body.TryGetProperty("shotId", out var sid) ? sid.GetInt64() : 0L;
+            if (projectId <= 0 || shotId <= 0)
+                return Json(new { success = false, message = "参数错误" });
+
+            var db = HttpContext.RequestServices.GetRequiredService<ProjectDbContext>();
+            var frames = await db.ShotFrames.Where(f => f.ShotId == shotId).OrderBy(f => f.Order).ToListAsync();
+            if (frames.Count == 0)
+                return Json(new { success = false, message = "该分镜没有帧" });
+
+            var frameIds = frames.Select(f => f.Id).ToList();
+            var existing = await db.ShotFrameAssets.Where(sfa => frameIds.Contains(sfa.ShotFrameId)).ToListAsync();
+            db.ShotFrameAssets.RemoveRange(existing);
+
+            var totalBound = 0;
+            var frameAssetsProp = body.TryGetProperty("frameAssets", out var fa) && fa.ValueKind == JsonValueKind.Array ? fa : default;
+
+            if (frameAssetsProp.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var entry in frameAssetsProp.EnumerateArray())
+                {
+                    var frameIdx = entry.TryGetProperty("frameIdx", out var fi) ? fi.GetInt32() : -1;
+                    var assetNames = entry.TryGetProperty("assetNames", out var an) && an.ValueKind == JsonValueKind.Array
+                        ? an.EnumerateArray().Select(e => e.GetString() ?? "").Where(s => !string.IsNullOrWhiteSpace(s)).ToList()
+                        : new List<string>();
+                    if (frameIdx < 0 || frameIdx >= frames.Count || assetNames.Count == 0) continue;
+
+                    var targetFrame = frames[frameIdx];
+                    var assets = await db.Assets.Where(a => a.ProjectId == projectId && assetNames.Contains(a.Name)).ToListAsync();
+                    var order = 0;
+                    foreach (var asset in assets)
+                    {
+                        db.ShotFrameAssets.Add(new ShotFrameAsset { ShotFrameId = targetFrame.Id, AssetId = asset.Id, Order = order++ });
+                        totalBound++;
+                    }
+                }
+            }
+
+            await db.SaveChangesAsync();
+            return Json(new { success = true, message = $"已更新 {totalBound} 个资产绑定到 {frames.Count} 帧" });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    [Route("/api/v1/assets/remove-frame-asset")]
+    public async Task<IActionResult> RemoveFrameAsset([FromBody] JsonElement body)
+    {
+        try
+        {
+            var shotId = body.TryGetProperty("shotId", out var sid) ? sid.GetInt64() : 0L;
+            var assetIdStr = body.TryGetProperty("assetId", out var aid) ? aid.GetString() : "";
+            if (shotId <= 0 || string.IsNullOrEmpty(assetIdStr))
+                return Json(new { success = false, message = "参数错误" });
+
+            if (!Guid.TryParse(assetIdStr, out var assetId))
+                return Json(new { success = false, message = "资产ID格式错误" });
+
+            var db = HttpContext.RequestServices.GetRequiredService<ProjectDbContext>();
+            var frameIds = await db.ShotFrames.Where(f => f.ShotId == shotId).Select(f => f.Id).ToListAsync();
+            var targets = await db.ShotFrameAssets
+                .Where(sfa => frameIds.Contains(sfa.ShotFrameId) && sfa.AssetId == assetId)
+                .ToListAsync();
+
+            if (targets.Count == 0)
+                return Json(new { success = false, message = "未找到绑定的资产" });
+
+            db.ShotFrameAssets.RemoveRange(targets);
+            await db.SaveChangesAsync();
+            return Json(new { success = true, message = $"已从 {targets.Count} 个帧中移除" });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
 }
 
 public class GenerateCharacterImageRequest

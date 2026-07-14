@@ -28,6 +28,40 @@ public class HiDreamStoryboardAgent : ComfyUIAgentBase<HiDreamStoryboardRequestD
             }
         }
 
+        var samplerNode = workflow["108"]?.AsObject();
+        if (samplerNode != null)
+        {
+            var inputs = samplerNode["inputs"]?.AsObject();
+            if (inputs != null)
+            {
+                inputs["noise_seed"] = dto.Seed >= 0 ? dto.Seed : (int)(DateTime.UtcNow.Ticks % int.MaxValue);
+            }
+        }
+
+        var latentNode = workflow["156"]?.AsObject();
+        if (latentNode != null)
+        {
+            var inputs = latentNode["inputs"]?.AsObject();
+            if (inputs != null)
+            {
+                inputs["width"] = dto.Width;
+                inputs["height"] = dto.Height;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(dto.ImagePath))
+        {
+            var imageNode = workflow["213"]?.AsObject();
+            if (imageNode != null)
+            {
+                var inputs = imageNode["inputs"]?.AsObject();
+                if (inputs != null)
+                {
+                    inputs["image"] = dto.ImagePath;
+                }
+            }
+        }
+
         return workflow.ToJsonString();
     }
 
@@ -37,27 +71,24 @@ public class HiDreamStoryboardAgent : ComfyUIAgentBase<HiDreamStoryboardRequestD
         if (outputs == null)
             return;
 
-        foreach (var kvp in outputs)
+        var imageNode = outputs["227"]?.AsObject();
+        if (imageNode == null)
+            return;
+
+        var images = imageNode["images"]?.AsArray();
+        if (images == null)
+            return;
+
+        foreach (var img in images)
         {
-            var nodeOutput = kvp.Value?.AsObject();
-            if (nodeOutput == null) continue;
-
-            var className = nodeOutput["class_type"]?.GetValue<string>();
-            if (className != "SaveImage") continue;
-
-            var images = nodeOutput["images"]?.AsArray();
-            if (images == null) continue;
-
-            foreach (var img in images)
+            var imgObj = img?.AsObject();
+            if (imgObj == null) continue;
+            var filename = imgObj["filename"]?.GetValue<string>();
+            var subfolder = imgObj["subfolder"]?.GetValue<string>();
+            var type = imgObj["type"]?.GetValue<string>() ?? "output";
+            if (!string.IsNullOrEmpty(filename))
             {
-                var imgObj = img?.AsObject();
-                if (imgObj == null) continue;
-                var filename = imgObj["filename"]?.GetValue<string>();
-                var subfolder = imgObj["subfolder"]?.GetValue<string>();
-                if (!string.IsNullOrEmpty(filename))
-                {
-                    result.ImageUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}");
-                }
+                result.ImageUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}&type={type}");
             }
         }
     }

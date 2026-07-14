@@ -154,13 +154,15 @@
                         videoUrl: s.videoUrl,
                         frames: (s.frames || []).map(function(f) {
                             return {
+                                id: f.id,
                                 frameType: f.frameType,
                                 description: f.description,
                                 order: f.order,
                                 startTime: f.startTime,
                                 duration: f.duration,
                                 hasImage: !!(f.imagePath || f.resourceId),
-                                imagePath: f.imagePath || f.resourceId
+                                imagePath: f.imagePath || f.resourceId,
+                                assets: f.assets || []
                             };
                         }),
                         hasFirstFrame: false,

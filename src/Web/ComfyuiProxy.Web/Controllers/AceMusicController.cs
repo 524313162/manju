@@ -15,6 +15,11 @@ public class AceMusicController : ControllerBase
         _agentFactory = agentFactory;
     }
 
+    /// <summary>
+    /// 歌曲创作生成
+    /// </summary>
+    /// <param name="dto"></param>
+    /// <returns></returns>
     [HttpPost("compose")]
     public async Task<ActionResult<object>> Compose(
         [FromBody] AceMusicRequestDto dto)

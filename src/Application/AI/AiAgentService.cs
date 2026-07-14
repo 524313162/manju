@@ -15,11 +15,13 @@ public interface IAiAgentService
     Task<ApiProvider?> GetProviderAsync(long providerId, CancellationToken ct = default);
     Task<ApiProvider?> GetProviderByCapabilityAsync(AiCapability capability, CancellationToken ct = default);
     Task<(bool success, string? data, string? message, bool isComfyui, string? promptId, string? workflowType)> ChatAsync(long providerId, string systemPrompt, string userPrompt, CancellationToken ct = default);
+    Task<(bool success, string? data, string? message, bool isComfyui, string? promptId, string? workflowType)> GenerateFrameImageAsync(string prompt, int width = 1024, int height = 576, long? providerId = null, CancellationToken ct = default);
     Task<(bool success, string? resultUrl, string? message)> GenerateImageAsync(string prompt, int? width = null, int? height = null, long? seed = null, long? providerId = null, CancellationToken ct = default);
     Task<(bool success, string? promptId, string? workflowType, string? message)> SubmitCharacterProfileAsync(string systemPrompt, string characterPrompt, string? negativePrompt = null, int width = 1792, int height = 1024, CancellationToken ct = default);
     Task<(bool success, string? resultUrl, string? message)> GenerateVideoAsync(string prompt, string? imageUrl = null, CancellationToken ct = default, long? providerId = null);
     Task<(bool success, string? resultUrl, string? message)> GenerateAudioAsync(string prompt, string? tags = null, CancellationToken ct = default, long? providerId = null);
     Task<JsonElement> GetComfyuiResultAsync(string promptId, string workflowType, CancellationToken ct = default);
+    Task<(bool success, string? promptId, string? workflowType, string? message)> SubmitFrameImageWithAssetsAsync(string prompt, string compositeImagePath, long? providerId = null, CancellationToken ct = default);
 }
 
 public class AiAgentService : IAiAgentService
@@ -87,6 +89,61 @@ public class AiAgentService : IAiAgentService
         {
             var result = await client.GenerateAsync(systemPrompt, userPrompt, ct);
             return (true, result, null, false, null, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, null, ex.Message, false, null, null);
+        }
+    }
+
+    public async Task<(bool success, string? data, string? message, bool isComfyui, string? promptId, string? workflowType)> GenerateFrameImageAsync(string prompt, int width = 1024, int height = 576, long? providerId = null, CancellationToken ct = default)
+    {
+        var provider = providerId.HasValue
+            ? await GetProviderAsync(providerId!.Value, ct)
+            : await GetProviderByCapabilityAsync(AiCapability.ImageToImage, ct);
+
+        if (provider == null)
+            return (false, null, "未找到图像生成提供者", false, null, null);
+
+        // ComfyUI → 通过 HiDream 分镜工作流生成图片，返回 promptId 供前端轮询
+        if (provider.Type == Domain.Models.ProviderType.ComfyUI)
+        {
+            try
+            {
+                var payload = new { prompt, imagePath = (string?)null };
+                var json = JsonSerializer.Serialize(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var res = await _http.PostAsync($"{_comfyuiProxyUrl.TrimEnd('/')}/api/comfyui/hidream/storyboard", content, ct);
+                res.EnsureSuccessStatusCode();
+                var body = await res.Content.ReadFromJsonAsync<ComfyuiSubmitResponseDto>(cancellationToken: ct);
+                var promptId = body?.PromptId;
+                if (string.IsNullOrEmpty(promptId))
+                    return (false, null, "HiDream 返回的 promptId 为空", false, null, null);
+                return (true, promptId, null, true, promptId, "hidream-storyboard");
+            }
+            catch (Exception ex)
+            {
+                return (false, null, ex.Message, false, null, null);
+            }
+        }
+
+        // 标准 API → 直接生成并返回图片 URL
+        try
+        {
+            var apiBody = new { model = provider.Model, prompt, n = 1, size = $"{width}x{height}" };
+            var apiJson = JsonSerializer.Serialize(apiBody);
+            var apiContent = new StringContent(apiJson, Encoding.UTF8, "application/json");
+            if (!string.IsNullOrEmpty(provider.ApiKey))
+                _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", provider.ApiKey);
+
+            var apiRes = await _http.PostAsync($"{provider.ApiUrl.TrimEnd('/')}/images/generations", apiContent, ct);
+            var apiText = await apiRes.Content.ReadAsStringAsync(ct);
+            if (!apiRes.IsSuccessStatusCode)
+                return (false, null, $"API 错误: {apiText}", false, null, null);
+
+            var j = JsonDocument.Parse(apiText);
+            var url = j.RootElement.GetProperty("data")[0].GetProperty("url").GetString();
+            return (true, url, null, false, null, null);
         }
         catch (Exception ex)
         {
@@ -405,6 +462,56 @@ public class AiAgentService : IAiAgentService
     /// <summary>
     /// 查询 ComfyUI 任务结果。{} 表示执行中，否则为执行完成。
     /// </summary>
+    public async Task<(bool success, string? promptId, string? workflowType, string? message)> SubmitFrameImageWithAssetsAsync(string prompt, string compositeImagePath, long? providerId = null, CancellationToken ct = default)
+    {
+        var provider = providerId.HasValue
+            ? await GetProviderAsync(providerId!.Value, ct)
+            : await GetProviderByCapabilityAsync(AiCapability.ImageToImage, ct);
+
+        if (provider == null || provider.Type != ProviderType.ComfyUI)
+            return (false, null, null, "未找到可用的 ComfyUI ImageToImage 提供者");
+
+        try
+        {
+            using var formData = new MultipartFormDataContent();
+            var fileStream = new FileStream(compositeImagePath, FileMode.Open, FileAccess.Read);
+            var streamContent = new StreamContent(fileStream);
+            formData.Add(streamContent, "image", Path.GetFileName(compositeImagePath));
+            formData.Add(new StringContent(""), "subfolder");
+
+            var uploadRes = await _http.PostAsync($"{_comfyuiProxyUrl.TrimEnd('/')}/api/comfyui/upload", formData, ct);
+            string compositeImageFilename = null;
+            if (uploadRes.IsSuccessStatusCode)
+            {
+                var uploadBody = await uploadRes.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+                compositeImageFilename = uploadBody.TryGetProperty("name", out var fn) ? fn.GetString()
+                    : uploadBody.TryGetProperty("filename", out var fn2) ? fn2.GetString() : null;
+            }
+            fileStream.Close();
+
+            var payload = new
+            {
+                prompt,
+                imagePath = compositeImageFilename
+            };
+            var json = JsonSerializer.Serialize(payload);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var res = await _http.PostAsync($"{_comfyuiProxyUrl.TrimEnd('/')}/api/comfyui/hidream/storyboard", content, ct);
+            res.EnsureSuccessStatusCode();
+            var responseBody = await res.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+
+            var promptId = responseBody.TryGetProperty("promptId", out var pid) ? pid.GetString() : null;
+            if (string.IsNullOrEmpty(promptId))
+                return (false, null, null, "ComfyUI 返回的 promptId 为空");
+
+            return (true, promptId, "hidream-storyboard", null);
+        }
+        catch (Exception ex)
+        {
+            return (false, null, null, ex.Message);
+        }
+    }
+
     public async Task<JsonElement> GetComfyuiResultAsync(string promptId, string workflowType, CancellationToken ct = default)
     {
         try

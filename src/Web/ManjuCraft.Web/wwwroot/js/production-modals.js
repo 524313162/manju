@@ -150,7 +150,7 @@
         goBtn.disabled = true;
         goBtn.textContent = '正在提取中...';
 
-        fetch('/api/v1/production/extract-asset-info', {
+        fetch('/api/v1/ai/extract-asset-info', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ providerId: parseInt(providerId), template: template, chapterIds: chapterIds })
@@ -1056,145 +1056,509 @@
     window.confirmSaveExtraction = confirmSaveExtraction;
 
     // ---- Shot Asset Binding Modal ----
-    var _shotAssetBindShotIdx = -1;
+    // ============ 提取分镜资产（全量资产选择+AI提取+确认合并） ============
+    var _sfaeShotIdx = -1;
+    var _sfaeSelectedExisting = null;  // user-chosen existing asset names
+    var _sfaeNewAssets = null;         // AI-extracted new assets
+    var _sfaeShotAssets = null;        // shot's current bound assets (for pre-check)
 
-    function showShotAssetBindModal(shotIdx) {
-        _shotAssetBindShotIdx = shotIdx;
+    function showShotFrameAssetExtractModal(shotIdx) {
+        _sfaeShotIdx = shotIdx;
         var state = window.shotState[window.currentChapterIdx];
         var shot = state.shots[shotIdx];
+        if (!shot) return;
 
-        var bindAssetModal = document.getElementById('bindAssetModal');
-        if (!bindAssetModal) {
-            var overlay = document.createElement('div');
+        var shotDesc = shot.description || '';
+        var frameDescs = (shot.frames || []).map(function(f) { return f.description || ''; });
+
+        // Build modal overlay once
+        var overlay = document.getElementById('sfaeMainModal');
+        if (!overlay) {
+            overlay = document.createElement('div');
             overlay.className = 'modal-overlay';
-            overlay.id = 'bindAssetModal';
-            overlay.innerHTML = '<div class="modal" style="width:720px;max-height:90vh;">'
+            overlay.id = 'sfaeMainModal';
+            overlay.innerHTML = '<div class="modal" style="width:860px;max-height:94vh;">'
                 + '<div class="modal-header">'
-                + '<h3>🏷️ 绑定分镜资产 - Shot ' + (shotIdx + 1) + '</h3>'
-                + '<button class="modal-close" onclick="hideModal(\'bindAssetModal\')">&times;</button>'
+                + '<h3>🔍 提取分镜资产</h3>'
+                + '<button class="modal-close" onclick="hideModal(\'sfaeMainModal\')">&times;</button>'
                 + '</div>'
-                + '<div class="modal-body" style="padding:16px;max-height:60vh;overflow-y:auto;">'
-                + '<div style="margin-bottom:12px;padding:10px;background:var(--bg);border-radius:6px;font-size:13px;color:var(--text2);">'
-                + '<strong>分镜：</strong>' + (shot.shotName || '未命名') + ' | <strong>已绑定：</strong><span id="bindAssetCurrent" style="color:var(--text);"></span>'
+                + '<div class="modal-body" style="padding:16px;">'
+                + '<div class="form-group"><label>选择大模型</label><select id="sfaeProviderSelect" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:14px;"><option value="">加载中...</option></select></div>'
+                + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">'
+                + '<div><div class="form-group" style="margin:0;"><label>分镜描述</label><div id="sfaeShotDesc" style="padding:8px 10px;background:var(--bg);border-radius:6px;max-height:80px;overflow-y:auto;font-size:13px;line-height:1.5;color:var(--text2);"></div></div></div>'
+                + '<div><div class="form-group" style="margin:0;"><label>帧描述（共 <span id="sfaeFrameCount">0</span> 帧）</label><div id="sfaeFrameDescs" style="padding:8px 10px;background:var(--bg);border-radius:6px;max-height:120px;overflow-y:auto;font-size:13px;line-height:1.5;"></div></div></div>'
                 + '</div>'
-                + '<div class="form-group">'
-                + '<label>搜索资产</label>'
-                + '<input type="text" id="bindAssetSearch" placeholder="输入名称筛选..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px;">'
-                + '</div>'
-                + '<div id="bindAssetList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;max-height:400px;overflow-y:auto;"></div>'
+                + '<div class="form-group" style="margin-bottom:4px;"><label>选择已有资产作为参考（勾选的将一同绑定到分镜帧） <span id="sfaeAssetCount" style="font-weight:400;color:var(--text3);font-size:12px;"></span></label>'
+                + '<div style="display:flex;gap:8px;margin-bottom:6px;"><button class="btn btn-xs btn-ghost" onclick="sfaeToggleAll(true)" style="font-size:11px;">✅ 全选</button><button class="btn btn-xs btn-ghost" onclick="sfaeToggleAll(false)" style="font-size:11px;">⬜ 取消全选</button></div>'
+                + '<div id="sfaeAssetList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;max-height:220px;overflow-y:auto;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:8px;"></div></div>'
                 + '</div>'
                 + '<div class="modal-footer">'
-                + '<button class="btn btn-ghost" onclick="hideModal(\'bindAssetModal\')">取消</button>'
-                + '<button class="btn btn-primary" onclick="saveShotAssetBinding()">保存绑定</button>'
+                + '<button class="btn btn-ghost" onclick="hideModal(\'sfaeMainModal\')">取消</button>'
+                + '<button class="btn btn-primary" id="sfaeGoBtn" onclick="doSfaeExtract()">提取</button>'
                 + '</div></div>';
             document.body.appendChild(overlay);
         }
 
-        loadBindAssetList();
-        showModal('bindAssetModal');
-    }
+        document.getElementById('sfaeShotDesc').textContent = shotDesc || '（无描述）';
+        var frameHtml = frameDescs.map(function(d, i) {
+            return '<div style="padding:3px 0;font-size:12px;border-bottom:1px solid var(--border);">'
+                + '<strong style="color:var(--text3);">帧' + i + '：</strong>' + (d || '（无描述）') + '</div>';
+        }).join('');
+        document.getElementById('sfaeFrameDescs').innerHTML = frameHtml || '<div style="color:var(--text3);font-size:12px;">（无帧描述）</div>';
+        document.getElementById('sfaeFrameCount').textContent = frameDescs.length;
 
-function loadBindAssetList() {
-        fetch('/Assets/ListByProject?projectId=' + window.projectId)
-            .then(function(r) { return r.json(); })
-            .then(function(res) {
-                var assets = res.data || [];
-                var state = window.shotState[window.currentChapterIdx];
-                var shot = state.shots[_shotAssetBindShotIdx];
-                
-                // Use new shot.assets array (from ShotAsset join table)
-                var currentAssets = shot.assets || [];
-                var currentNames = currentAssets.map(function(a) { return a.name || a.Name || ''; }).filter(Boolean);
-                var currentRoles = currentAssets.reduce(function(map, a) { 
-                    if (a.name) map[a.name] = a.role || a.Role || ''; 
-                    return map; 
-                }, {});
+        var goBtn = document.getElementById('sfaeGoBtn');
+        goBtn.style.display = '';
+        goBtn.disabled = false;
+        goBtn.textContent = '提取';
 
-                var currentEl = document.getElementById('bindAssetCurrent');
-                if (currentEl) currentEl.textContent = currentNames.length ? currentNames.join(', ') : '无';
-
-                var typeIcons = { 'Actor':'👤', 'Scene':'🏞️', 'Bgm':'🎵', 'Prop':'📦', 'VoiceVoice':'🎤' };
-                var typeNames = { 'Actor':'角色', 'Scene':'场景', 'Bgm':'BGM', 'Prop':'道具', 'VoiceVoice':'音色' };
-
-                var html = assets.map(function(a) {
-                    var isBound = currentNames.includes(a.name);
-                    var icon = typeIcons[a.assetType] || '📄';
-                    var typeLabel = typeNames[a.assetType] || a.assetType || '未知';
-                    return '<label style="display:flex;align-items:center;gap:8px;padding:10px;background:var(--surface);border:1.5px solid ' + (isBound ? 'var(--primary)' : 'var(--border)') + ';border-radius:8px;cursor:pointer;transition:.15s;" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'var(--surface)\'">'
-                        + '<input type="checkbox" class="bind-asset-chk" value="' + a.name + '" data-type="' + (a.assetType || '') + '" data-role="' + (currentRoles[a.name] || '') + '" ' + (isBound ? 'checked' : '') + ' style="accent-color:var(--primary);width:18px;height:18px;">'
-                        + '<span style="font-size:20px;">' + icon + '</span>'
-                        + '<div style="flex:1;min-width:0;">'
-                        + '<div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (a.name || '') + '</div>'
-                        + '<div style="font-size:11px;color:var(--text3);">' + typeLabel + '</div>'
-                        + '</div>'
-                        + '</label>';
-                }).join('');
-
-                var listEl = document.getElementById('bindAssetList');
-                if (listEl) listEl.innerHTML = html || '<div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:20px;">暂无资产，请先在资产管理中创建</div>';
-
-// Search filter
-                var searchEl = document.getElementById('bindAssetSearch');
-                if (searchEl) {
-                    searchEl.oninput = function() {
-                        var q = this.value.toLowerCase();
-                        document.querySelectorAll('#bindAssetList label').forEach(function(l) {
-                            var name = l.querySelector('div').textContent.toLowerCase();
-                            l.style.display = name.includes(q) ? 'flex' : 'none';
-                        });
-                    };
-                }
+        // Load providers
+        var sel = document.getElementById('sfaeProviderSelect');
+        var saved = localStorage.getItem('sfaeExtract_providerId');
+        fetch('/api/v1/providers/list')
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+                var list = (res.data || []).filter(function(p){ return p.capability === 1; });
+                var html = '';
+                var preSelected = saved || (list.length > 0 ? list[0].id : null);
+                list.forEach(function(p) {
+                    var s = preSelected && preSelected == p.id ? ' selected' : '';
+                    html += '<option value="' + p.id + '"' + s + '>' + p.name + ' [' + (p.model || '') + ']</option>';
+                });
+                sel.innerHTML = html || '<option value="">未找到提供者</option>';
+            })
+            .catch(function(){
+                sel.innerHTML = '<option value="">加载失败</option>';
             });
-    }
 
-    function saveShotAssetBinding() {
-        var chks = document.querySelectorAll('#bindAssetList .bind-asset-chk:checked');
-        var selectedNames = Array.from(chks).map(function(c){ return c.value; });
-        var selectedTypes = Array.from(chks).map(function(c){ return c.getAttribute('data-type'); });
-        var selectedRoles = Array.from(chks).map(function(c){ return c.getAttribute('data-role') || ''; });
+        // Load ALL project assets + current shot assets
+        Promise.all([
+            fetch('/Assets/ListByProject?projectId=' + window.projectId)
+                .then(function(r){ return r.json(); })
+                .catch(function(){ return { success: false, data: [] }; }),
+            fetch('/api/v1/assets/shot-frame-assets/' + shot.id)
+                .then(function(r){ return r.json(); })
+                .catch(function(){ return { data: [] }; })
+        ])
+        .then(function(results) {
+            var allAssets = results[0] && results[0].success !== false ? (results[0].data || []) : [];
+            var shotAssetsData = results[1].data || [];
+            _sfaeShotAssets = shotAssetsData;
 
-        if (selectedNames.length === 0) {
-            showToast('请至少选择一个资产', 'error');
-            return;
-        }
+            var shotNames = new Set(shotAssetsData.map(function(a){ return (a.name || '').toLowerCase(); }));
+            var typeIcons = { 'Actor':'👤', 'Scene':'🏞️', 'Bgm':'🎵', 'Prop':'📦', 'VoiceVoice':'🎤' };
+            var typeNames = { 'Actor':'角色', 'Scene':'场景', 'Bgm':'BGM', 'Prop':'道具', 'VoiceVoice':'音色' };
 
-        var state = window.shotState[window.currentChapterIdx];
-        var shot = state.shots[_shotAssetBindShotIdx];
-
-        // Update local state
-        shot.assetRefs = selectedNames.join(',');
-        shot.assets = selectedNames.map(function(name, i) {
-            return { name: name, assetType: selectedTypes[i] || '', role: selectedRoles[i] || '' };
+            var html = allAssets.map(function(a) {
+                var name = a.name || '';
+                var isBound = shotNames.has(name.toLowerCase());
+                var icon = typeIcons[a.assetType] || '📄';
+                var typeLabel = typeNames[a.assetType] || a.assetType || '';
+                return '<label style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--surface);border:1.5px solid ' + (isBound ? 'var(--primary)' : 'var(--border)') + ';border-radius:6px;cursor:pointer;font-size:12px;">'
+                    + '<input type="checkbox" class="sfae-asset-chk" value="' + escapeHtml(name) + '" data-type="' + (a.assetType || '') + '" ' + (isBound ? 'checked' : '') + ' style="accent-color:var(--primary);width:15px;height:15px;">'
+                    + '<span style="font-size:15px;">' + icon + '</span>'
+                    + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(name) + '</span>'
+                    + '<span style="color:var(--text3);font-size:10px;">' + typeLabel + '</span>'
+                    + '</label>';
+            }).join('');
+            document.getElementById('sfaeAssetList').innerHTML = html || '<div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:16px;">暂无资产</div>';
+            var totalAssets = allAssets.length;
+            var checkedCount = document.querySelectorAll('#sfaeAssetList .sfae-asset-chk:checked').length;
+            document.getElementById('sfaeAssetCount').textContent = '（已选 ' + checkedCount + '/' + totalAssets + '）';
+            document.querySelectorAll('#sfaeAssetList .sfae-asset-chk').forEach(function(c) {
+                c.addEventListener('change', function() {
+                    var ch = document.querySelectorAll('#sfaeAssetList .sfae-asset-chk:checked').length;
+                    document.getElementById('sfaeAssetCount').textContent = '（已选 ' + ch + '/' + totalAssets + '）';
+                });
+            });
+        })
+        .catch(function() {
+            document.getElementById('sfaeAssetList').innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--danger);padding:16px;">加载资产失败</div>';
         });
 
-        // Save to backend
-        var btn = document.querySelector('#bindAssetModal .btn-primary');
-        if (btn) { btn.disabled = true; btn.textContent = '保存中...'; }
+        showModal('sfaeMainModal');
+    }
 
-        fetch('/api/v1/production/shots/' + shot.id + '/assets', {
+    function doSfaeExtract() {
+        var providerId = document.getElementById('sfaeProviderSelect').value;
+        if (!providerId) { alert('请选择 AI 提供者'); return; }
+        localStorage.setItem('sfaeExtract_providerId', providerId);
+
+        var state = window.shotState[window.currentChapterIdx];
+        var shot = state.shots[_sfaeShotIdx];
+        if (!shot) return;
+
+        var chks = document.querySelectorAll('#sfaeAssetList .sfae-asset-chk:checked');
+        var selectedNames = Array.from(chks).map(function(c) { return c.value; });
+        _sfaeSelectedExisting = selectedNames;
+
+        var goBtn = document.getElementById('sfaeGoBtn');
+        goBtn.disabled = true;
+        goBtn.textContent = '正在提取...';
+
+        fetch('/api/v1/ai/extract-shot-frame-assets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ assetRefs: selectedNames, roles: selectedRoles })
+            body: JSON.stringify({
+                providerId: parseInt(providerId),
+                projectId: window.projectId,
+                shotId: shot.id,
+                shotDescription: shot.description || '',
+                frameDescriptions: (shot.frames || []).map(function(f) { return f.description || ''; }),
+                selectedAssetNames: selectedNames
+            })
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
-            if (btn) { btn.disabled = false; btn.textContent = '保存绑定'; }
+            goBtn.disabled = false;
+            goBtn.textContent = '提取';
+
+            if (!res.success) {
+                alert('提取失败：' + (res.message || '未知错误'));
+                return;
+            }
+
+            var text = res.data || '';
+            var raw = text;
+            var m = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+            if (m) raw = m[1].trim();
+            var parsed;
+            try { parsed = JSON.parse(raw); } catch(e) {}
+            var newAssets = Array.isArray(parsed) ? parsed : (parsed && parsed.assets ? parsed.assets : []);
+
+            _sfaeNewAssets = newAssets || [];
+
+            hideModal('sfaeMainModal');
+            showSfaeConfirmMerge(selectedNames, newAssets);
+        })
+        .catch(function(err) {
+            goBtn.disabled = false;
+            goBtn.textContent = '提取';
+            alert('请求失败：' + err.message);
+        });
+    }
+
+    function showSfaeConfirmMerge(selectedNames, newAssets) {
+        var hasExisting = selectedNames.length > 0;
+        var hasNew = newAssets && newAssets.length > 0;
+
+        if (!hasExisting && !hasNew) {
+            alert('没有可保存的资产（未选择已有资产，AI 也未提取到新资产）');
+            return;
+        }
+
+        var overlay = document.getElementById('sfaeConfirmModal');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.id = 'sfaeConfirmModal';
+            overlay.innerHTML = '<div class="modal" style="width:860px;max-height:90vh;">'
+                + '<div class="modal-header">'
+                + '<h3>✅ 确认保存资产并绑定到分镜帧</h3>'
+                + '<button class="modal-close" onclick="hideModal(\'sfaeConfirmModal\')">&times;</button>'
+                + '</div>'
+                + '<div class="modal-body">'
+                + '<div id="sfaeConfirmExistingSection" style="margin-bottom:12px;display:none;">'
+                + '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;">📦 已选的已有资产（将绑定到该分镜的每一帧）</div>'
+                + '<div id="sfaeConfirmExistingList" style="max-height:150px;overflow-y:auto;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;"></div>'
+                + '</div>'
+                + '<div id="sfaeConfirmNewSection" style="display:none;">'
+                + '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;">🔍 AI 提取的新资产（将绑定到指定帧）</div>'
+                + '<div id="sfaeConfirmNewList" style="max-height:250px;overflow-y:auto;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;"></div>'
+                + '</div>'
+                + '</div>'
+                + '<div class="modal-footer">'
+                + '<button class="btn btn-ghost" onclick="hideModal(\'sfaeConfirmModal\')">取消</button>'
+                + '<button class="btn btn-primary" id="sfaeConfirmSaveBtn" onclick="doSfaeSave()">确认保存</button>'
+                + '</div></div>';
+            document.body.appendChild(overlay);
+        }
+
+        // Show existing selected assets
+        var existingSection = document.getElementById('sfaeConfirmExistingSection');
+        var existingList = document.getElementById('sfaeConfirmExistingList');
+        if (hasExisting) {
+            existingSection.style.display = '';
+            existingList.innerHTML = selectedNames.map(function(n) {
+                return '<div style="padding:3px 0;font-size:12px;">✅ ' + escapeHtml(n) + '</div>';
+            }).join('');
+        } else {
+            existingSection.style.display = 'none';
+        }
+
+        // Show new extracted assets
+        var newSection = document.getElementById('sfaeConfirmNewSection');
+        var newList = document.getElementById('sfaeConfirmNewList');
+        var typeIcons = { 'Actor':'👤', 'Scene':'🏞️', 'Prop':'📦' };
+        var typeNames = { 'Actor':'角色', 'Scene':'场景', 'Prop':'道具' };
+        if (hasNew) {
+            newSection.style.display = '';
+            newList.innerHTML = newAssets.map(function(a) {
+                var icon = typeIcons[a.assetType] || '📄';
+                var typeLabel = typeNames[a.assetType] || a.assetType || '';
+                var frameLabel = a.belongFrame !== undefined && a.belongFrame >= 0 ? '帧' + a.belongFrame : '分镜';
+                return '<div style="padding:3px 0;font-size:12px;border-bottom:1px solid var(--border);">'
+                    + icon + ' <strong>' + escapeHtml(a.name || '') + '</strong>'
+                    + ' <span style="color:var(--text3);font-size:10px;">[' + typeLabel + ']</span>'
+                    + ' <span style="color:var(--sec);font-size:11px;">→ ' + frameLabel + '</span>'
+                    + '</div>';
+            }).join('');
+        } else {
+            newSection.style.display = 'none';
+        }
+
+        showModal('sfaeConfirmModal');
+    }
+
+    function doSfaeSave() {
+        var state = window.shotState[window.currentChapterIdx];
+        var shot = state.shots[_sfaeShotIdx];
+        if (!shot || !shot.id) { alert('分镜数据异常'); return; }
+
+        var btn = document.getElementById('sfaeConfirmSaveBtn');
+        btn.disabled = true;
+        btn.textContent = '保存中...';
+
+        fetch('/api/v1/assets/save-shot-frame-assets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                projectId: window.projectId,
+                shotId: shot.id,
+                selectedAssetNames: _sfaeSelectedExisting || [],
+                newAssets: _sfaeNewAssets || []
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            btn.disabled = false;
+            btn.textContent = '确认保存';
             if (res.success) {
-                showToast('资产绑定保存成功', 'success');
-                hideModal('bindAssetModal');
-                renderShotsTab();
+                showToast(res.message, 'success');
+                hideModal('sfaeConfirmModal');
+                // Reload shot data from server to get frame-level assets
+                var idx = window.currentChapterIdx;
+                window.loadShotsForChapter(idx, true).then(function() {
+                    renderShotsTab();
+                });
             } else {
                 alert('保存失败：' + (res.message || '未知错误'));
             }
         })
         .catch(function(err) {
-            if (btn) { btn.disabled = false; btn.textContent = '保存绑定'; }
+            btn.disabled = false;
+            btn.textContent = '确认保存';
+            alert('请求失败：' + err.message);
+        });
+    }
+
+    function sfaeToggleAll(checked) {
+        document.querySelectorAll('#sfaeAssetList .sfae-asset-chk').forEach(function(c) {
+            c.checked = checked;
+        });
+        var total = document.querySelectorAll('#sfaeAssetList .sfae-asset-chk').length;
+        var ch = document.querySelectorAll('#sfaeAssetList .sfae-asset-chk:checked').length;
+        document.getElementById('sfaeAssetCount').textContent = '（已选 ' + ch + '/' + total + '）';
+    }
+
+    // ============ 绑定分镜帧资产（手风琴折叠模式） ============
+    var _bindFrameShotIdx = -1;
+    var _bindActiveFrame = 0;
+
+    function showShotFrameAssetBindModal(shotIdx) {
+        _bindFrameShotIdx = shotIdx;
+        _bindActiveFrame = 0;
+        var state = window.shotState[window.currentChapterIdx];
+        var shot = state.shots[shotIdx];
+        if (!shot) return;
+
+        var frames = shot.frames || [];
+
+        var overlay = document.getElementById('sfaeBindModal');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.id = 'sfaeBindModal';
+            overlay.innerHTML = '<div class="modal" style="width:860px;max-height:94vh;">'
+                + '<div class="modal-header">'
+                + '<h3>🏷️ 绑定分镜帧资产</h3>'
+                + '<button class="modal-close" onclick="hideModal(\'sfaeBindModal\')">&times;</button>'
+                + '</div>'
+                + '<div class="modal-body" style="padding:16px;">'
+                + '<div style="font-size:12px;color:var(--text2);margin-bottom:6px;">点击展开各帧，按帧勾选需要绑定的资产，未勾选的将从该帧移除。</div>'
+                + '<div style="font-size:12px;color:var(--text);padding:8px 10px;background:var(--bg);border-radius:6px;margin-bottom:10px;max-height:80px;overflow-y:auto;line-height:1.5;"><strong>分镜描述：</strong>' + escapeHtml(shot.description || '（无）') + '</div>'
+                + '<div id="sfaeBindBody" style="max-height:65vh;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>'
+                + '</div>'
+                + '<div class="modal-footer">'
+                + '<button class="btn btn-ghost" onclick="hideModal(\'sfaeBindModal\')">取消</button>'
+                + '<button class="btn btn-primary" id="sfaeBindSaveBtn" onclick="doSfaeBindSave()">保存</button>'
+                + '</div></div>';
+            document.body.appendChild(overlay);
+        }
+
+        var bodyEl = document.getElementById('sfaeBindBody');
+        bodyEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);">加载中...</div>';
+
+        fetch('/Assets/ListByProject?projectId=' + window.projectId)
+            .then(function(r){ return r.json(); })
+            .then(function(res) {
+                var allAssets = (res.data || []).filter(function(a){ return a.name; });
+                if (allAssets.length === 0) {
+                    bodyEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3);">暂无项目资产，请先创建资产</div>';
+                    return;
+                }
+
+                var typeIcons = { 'Actor':'👤', 'Scene':'🏞️', 'Bgm':'🎵', 'Prop':'📦', 'VoiceVoice':'🎤' };
+                var typeNames = { 'Actor':'角色', 'Scene':'场景', 'Bgm':'BGM', 'Prop':'道具', 'VoiceVoice':'音色' };
+                function getLabel(t) { return typeNames[t] || (t === 1 ? '角色' : t === 3 ? '场景' : t === 4 ? 'BGM' : t === 5 ? '道具' : t === 2 ? '音色' : t) || '未知'; }
+                function getIcon(t) { return typeIcons[t] || (t === 1 ? '👤' : t === 3 ? '🏞️' : t === 4 ? '🎵' : t === 5 ? '📦' : t === 2 ? '🎤' : '📄'); }
+
+                var fullHtml = frames.map(function(f, fi) {
+                    var ft = f.frameType || '';
+                    var label = ft === 'First' ? '首帧' : ft === 'Last' ? '末帧' : '中帧' + (fi);
+                    var frameAssets = f.assets || [];
+                    var boundNames = new Set(frameAssets.map(function(af){ return (af.name || '').toLowerCase(); }));
+                    var desc = f.description || '';
+
+                    var chkHtml = allAssets.map(function(a) {
+                        var name = a.name || '';
+                        var checked = boundNames.has(name.toLowerCase()) ? 'checked' : '';
+                        var icon = getIcon(a.assetType);
+                        var typeLabel = getLabel(a.assetType);
+                        return '<label style="display:flex;align-items:center;gap:5px;padding:4px 6px;border-radius:4px;cursor:pointer;font-size:12px;background:var(--surface);border:1px solid ' + (checked ? 'var(--primary)' : 'var(--border)') + ';">'
+                            + '<input type="checkbox" class="sfae-frm-chk" data-frame="' + fi + '" data-asset="' + escapeHtml(name) + '" ' + checked + ' style="accent-color:var(--primary);width:14px;height:14px;">'
+                            + '<span style="font-size:13px;">' + icon + '</span>'
+                            + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(name) + '</span>'
+                            + '<span style="color:var(--text3);font-size:9px;">' + typeLabel + '</span>'
+                            + '</label>';
+                    }).join('');
+
+                    var isActive = fi === _bindActiveFrame;
+                    return '<div style="border:1.5px solid var(--border);border-radius:8px;overflow:hidden;">'
+                        + '<div class="sfae-accordion-header" data-idx="' + fi + '" onclick="sfaeToggleFrame(' + fi + ')" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg);cursor:pointer;user-select:none;">'
+                        + '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">'
+                        + '<span id="sfae-arrow-' + fi + '" style="font-size:10px;transition:transform .2s;' + (isActive ? 'transform:rotate(90deg);' : '') + '">▶</span>'
+                        + '<strong style="font-size:13px;white-space:nowrap;">🎬 ' + label + '</strong>'
+                        + '</div>'
+                        + '<div style="display:flex;gap:6px;flex-shrink:0;" onclick="event.stopPropagation();">'
+                        + '<button class="btn btn-xs btn-ghost" onclick="sfaeFrameSelectAll(' + fi + ', true)" style="font-size:10px;">全选</button>'
+                        + '<button class="btn btn-xs btn-ghost" onclick="sfaeFrameSelectAll(' + fi + ', false)" style="font-size:10px;">清空</button>'
+                        + '</div></div>'
+                        + '<div id="sfae-frame-desc-' + fi + '" style="display:' + (isActive ? 'block' : 'none') + ';padding:4px 12px 8px;font-size:12px;color:var(--text2);line-height:1.5;max-height:60px;overflow-y:auto;background:var(--surface);border-bottom:1px solid var(--border);">' + escapeHtml(desc) + '</div>'
+                        + '<div id="sfae-frame-assets-' + fi + '" style="display:' + (isActive ? 'grid' : 'none') + ';grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:4px;padding:8px;">'
+                        + chkHtml
+                        + '</div></div>';
+                }).join('');
+
+                bodyEl.innerHTML = fullHtml;
+                document.getElementById('sfaeBindSaveBtn').textContent = '保存';
+            })
+            .catch(function() {
+                bodyEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--danger);">加载资产失败</div>';
+            });
+
+        showModal('sfaeBindModal');
+    }
+
+    function sfaeToggleFrame(idx) {
+        // If clicking the already-open frame, close it
+        if (idx === _bindActiveFrame) {
+            var target = document.getElementById('sfae-frame-assets-' + idx);
+            if (target) target.style.display = 'none';
+            var desc = document.getElementById('sfae-frame-desc-' + idx);
+            if (desc) desc.style.display = 'none';
+            var arrow = document.getElementById('sfae-arrow-' + idx);
+            if (arrow) arrow.style.transform = 'rotate(0deg)';
+            _bindActiveFrame = -1;
+            return;
+        }
+        // Close all
+        document.querySelectorAll('[id^="sfae-frame-assets-"]').forEach(function(el) {
+            el.style.display = 'none';
+        });
+        document.querySelectorAll('[id^="sfae-frame-desc-"]').forEach(function(el) {
+            el.style.display = 'none';
+        });
+        document.querySelectorAll('[id^="sfae-arrow-"]').forEach(function(el) {
+            el.style.transform = 'rotate(0deg)';
+        });
+        // Open selected
+        var target = document.getElementById('sfae-frame-assets-' + idx);
+        if (target) target.style.display = 'grid';
+        var desc = document.getElementById('sfae-frame-desc-' + idx);
+        if (desc) desc.style.display = 'block';
+        var arrow = document.getElementById('sfae-arrow-' + idx);
+        if (arrow) arrow.style.transform = 'rotate(90deg)';
+        _bindActiveFrame = idx;
+    }
+
+    function sfaeFrameSelectAll(frameIdx, checked) {
+        var container = document.getElementById('sfae-frame-assets-' + frameIdx);
+        if (!container) return;
+        container.querySelectorAll('.sfae-frm-chk').forEach(function(c) { c.checked = checked; });
+    }
+
+    function doSfaeBindSave() {
+        var state = window.shotState[window.currentChapterIdx];
+        var shot = state.shots[_bindFrameShotIdx];
+        if (!shot || !shot.id) { alert('分镜数据异常'); return; }
+
+        // Collect per-frame asset names
+        var frameAssets = [];
+        var frames = shot.frames || [];
+        frames.forEach(function(f, fi) {
+            var container = document.getElementById('sfae-frame-assets-' + fi);
+            if (!container) return;
+            var names = [];
+            container.querySelectorAll('.sfae-frm-chk:checked').forEach(function(c) {
+                names.push(c.getAttribute('data-asset'));
+            });
+            frameAssets.push({ frameIdx: fi, assetNames: names });
+        });
+
+        var btn = document.getElementById('sfaeBindSaveBtn');
+        btn.disabled = true;
+        btn.textContent = '保存中...';
+
+        fetch('/api/v1/assets/replace-frame-assets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                projectId: window.projectId,
+                shotId: shot.id,
+                frameAssets: frameAssets
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            btn.disabled = false;
+            btn.textContent = '保存';
+            if (res.success) {
+                showToast(res.message, 'success');
+                hideModal('sfaeBindModal');
+                var idx = window.currentChapterIdx;
+                window.loadShotsForChapter(idx, true).then(function() {
+                    renderShotsTab();
+                });
+            } else {
+                alert('保存失败：' + (res.message || '未知错误'));
+            }
+        })
+        .catch(function(err) {
+            btn.disabled = false;
+            btn.textContent = '保存';
             alert('请求失败：' + err.message);
         });
     }
 
     // Expose globally
-    window.showShotAssetBindModal = showShotAssetBindModal;
-    window.loadBindAssetList = loadBindAssetList;
-    window.saveShotAssetBinding = saveShotAssetBinding;
+    window.showShotFrameAssetExtractModal = showShotFrameAssetExtractModal;
+    window.doSfaeExtract = doSfaeExtract;
+    window.showSfaeConfirmMerge = showSfaeConfirmMerge;
+    window.doSfaeSave = doSfaeSave;
+    window.sfaeToggleAll = sfaeToggleAll;
+    window.showShotFrameAssetBindModal = showShotFrameAssetBindModal;
+    window.sfaeToggleFrame = sfaeToggleFrame;
+    window.sfaeFrameSelectAll = sfaeFrameSelectAll;
+    window.doSfaeBindSave = doSfaeBindSave;
 })();

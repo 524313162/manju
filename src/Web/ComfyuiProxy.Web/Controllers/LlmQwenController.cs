@@ -15,6 +15,11 @@ public class LlmQwenController : ControllerBase
         _agentFactory = agentFactory;
     }
 
+    /// <summary>
+    /// 文本LLM处理大模型，推理
+    /// </summary>
+    /// <param name="dto"></param>
+    /// <returns></returns>
     [HttpPost("execute")]
     public async Task<ActionResult<object>> Execute(
         [FromBody] LlmQwenRequestDto dto)

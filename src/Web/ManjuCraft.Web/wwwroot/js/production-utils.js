@@ -116,41 +116,290 @@
         }, interval);
     }
 
-    // Frame generation
-    function generateFrameImage(shotIdx, frameIdx) {
+    // Frame image provider dialog
+    var _frameGenShotIdx = -1;
+    var _frameGenFrameIdx = -1;
+    var _frameGenModels = [];
+    var _frameGenImageUrl = null;
+
+    function showFrameImageProviderDialog(shotIdx, frameIdx) {
+        _frameGenShotIdx = shotIdx;
+        _frameGenFrameIdx = frameIdx;
+        _frameGenImageUrl = null;
+
         var state = window.shotState[window.currentChapterIdx];
         var shot = state.shots[shotIdx];
-        if (!shot) return;
-
         var targetFrame = frameIdx >= 0 ? shot.frames[frameIdx] : null;
-        var prompt = targetFrame ? targetFrame.description : (shot.frames && shot.frames[0] ? shot.frames[0].description : '');
-        if (!prompt) { alert('无法获取提示词'); return; }
+        var frameDesc = targetFrame ? targetFrame.description : '';
 
-        showToast('正在生成帧图片...', 'info');
-        window.shotState[window.currentChapterIdx].shots[shotIdx].generatingFrame = true;
-        renderShotsTab();
+        var overlay = document.getElementById('frameProviderModal');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.id = 'frameProviderModal';
+            document.body.appendChild(overlay);
+        }
+        overlay.innerHTML = '<div class="modal" style="width:700px;">'
+            + '<div class="modal-header">'
+            + '<h3>📷 生成帧图片</h3>'
+            + '<button class="modal-close" onclick="hideModal(\'frameProviderModal\')">&times;</button>'
+            + '</div>'
+            + '<div class="modal-body" style="padding:16px;">'
+            + '<div class="form-group"><label>选择生成模型 *</label>'
+            + '<select id="frameProviderSelect" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:14px;"><option value="">加载中...</option></select></div>'
+            + '<div class="form-group" id="frameTemplateGroup" style="display:none;">'
+            + '<label>系统模板提示词</label>'
+            + '<textarea id="frameTemplatePromptDisplay" rows="6" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:12px;font-family:monospace;resize:vertical;" readonly></textarea>'
+            + '</div>'
+            + '<div class="form-group">'
+            + '<label>帧描述提示词 *</label>'
+            + '<textarea id="frameGenPrompt" rows="4" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px;resize:vertical;font-family:inherit;" placeholder="帧描述内容...">' + escapeHtml(frameDesc) + '</textarea>'
+            + '</div>'
+            + '<div class="form-group" id="framePreviewGroup" style="display:none;">'
+            + '<label>生成预览</label>'
+            + '<div style="text-align:center;padding:16px;background:#fafafa;border-radius:8px;border:1px solid var(--border);min-height:200px;display:flex;align-items:center;justify-content:center;">'
+            + '<div id="framePreviewPlaceholder" style="color:#999;">生成后将在此显示预览</div>'
+            + '<img id="framePreviewImg" src="" style="max-width:100%;max-height:400px;object-fit:contain;border-radius:8px;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.1);" />'
+            + '</div></div>'
+            + '<div id="frameGenStatus" style="margin-top:12px;padding:12px;border-radius:8px;display:none;"></div>'
+            + '</div>'
+            + '<div class="modal-footer">'
+            + '<button class="btn btn-ghost" onclick="hideModal(\'frameProviderModal\')">取消</button>'
+            + '<button class="btn btn-primary" id="frameGenGoBtn" onclick="doGenerateFrameImage()">生成</button>'
+            + '<button class="btn btn-success" id="frameGenSaveBtn" onclick="saveFrameGeneratedImage()" style="display:none;">保存到帧</button>'
+            + '</div></div>';
 
-        fetch('/api/comfyui/zimage/text-to-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: prompt, width: 1024, height: 576 })
-        })
+        var sel = document.getElementById('frameProviderSelect');
+        var saved = localStorage.getItem('frameGen_providerId');
+        fetch('/api/v1/providers/list')
             .then(function(r){ return r.json(); })
-            .then(function(res) {
-                if (res && res.promptId) {
-                    var promptId = res.promptId;
-                    pollAiResultForShot(promptId, 'zimage-text-to-image', shotIdx, 'frame', frameIdx);
+            .then(function(res){
+                var list = (res.data || []).filter(function(p){ return p.capability === 8 || p.capability === 'ImageToImage'; });
+                _frameGenModels = list;
+                var html = '';
+                var preSelected = saved || (list.length > 0 ? list[0].id : null);
+                list.forEach(function(p) {
+                    var s = preSelected && preSelected == p.id ? ' selected' : '';
+                    html += '<option value="' + p.id + '"' + s + '>' + p.name + ' [' + (p.model || '') + ']</option>';
+                });
+                sel.innerHTML = html || '<option value="">未找到 ImageToImage 提供者</option>';
+            })
+            .catch(function(){
+                sel.innerHTML = '<option value="">加载失败</option>';
+            });
+
+        fetch('/api/v1/production/template?type=FrameImageGeneration')
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+                if (res.success && res.content) {
+                    document.getElementById('frameTemplatePromptDisplay').value = res.content;
+                    document.getElementById('frameTemplateGroup').style.display = '';
                 } else {
-                    window.shotState[window.currentChapterIdx].shots[shotIdx].generatingFrame = false;
-                    renderShotsTab();
-                    alert('图片生成失败: ' + (res && res.message ? res.message : '未知错误'));
+                    document.getElementById('frameTemplateGroup').style.display = 'none';
                 }
             })
-            .catch(function(err) {
-                window.shotState[window.currentChapterIdx].shots[shotIdx].generatingFrame = false;
-                renderShotsTab();
-                alert('请求失败: ' + err.message);
+            .catch(function(){
+                document.getElementById('frameTemplateGroup').style.display = 'none';
             });
+
+        showModal('frameProviderModal');
+    }
+
+    var _frameGenPoller = null;
+    var _frameGenPromptId = null;
+    var _frameGenWorkflowType = null;
+    var _frameGenStartTime = null;
+
+    async function doGenerateFrameImage() {
+        var providerId = document.getElementById('frameProviderSelect').value;
+        if (!providerId) { alert('请选择提供者'); return; }
+        var userPrompt = document.getElementById('frameGenPrompt').value.trim();
+        if (!userPrompt) { alert('请输入帧描述提示词'); return; }
+
+        var templateContent = document.getElementById('frameTemplatePromptDisplay').value.trim();
+        var combinedPrompt = templateContent ? templateContent.replace('{prompt}', userPrompt) : userPrompt;
+        if (templateContent && combinedPrompt === templateContent) {
+            combinedPrompt = templateContent + '\n\n' + userPrompt;
+        }
+
+        localStorage.setItem('frameGen_providerId', providerId);
+
+        var goBtn = document.getElementById('frameGenGoBtn');
+        var saveBtn = document.getElementById('frameGenSaveBtn');
+        var statusEl = document.getElementById('frameGenStatus');
+        var previewGroup = document.getElementById('framePreviewGroup');
+        var previewImg = document.getElementById('framePreviewImg');
+        var previewPlaceholder = document.getElementById('framePreviewPlaceholder');
+
+        goBtn.disabled = true;
+        goBtn.textContent = '生成中...';
+        statusEl.style.display = '';
+        statusEl.className = 'status-info';
+        statusEl.innerHTML = '🔄 正在提交生成任务...';
+
+        var state = window.shotState[window.currentChapterIdx];
+        var shot = state.shots[_frameGenShotIdx];
+        if (!shot) { alert('分镜数据不存在'); return; }
+
+        try {
+            var res = await fetch('/api/v1/ai/generate-frame-image-with-assets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shotId: shot.id, frameIdx: _frameGenFrameIdx, providerId: parseInt(providerId), prompt: combinedPrompt })
+            });
+            var data = await res.json();
+
+            if (!data || !data.promptId) {
+                throw new Error(data.message || '提交任务失败');
+            }
+
+            _frameGenPromptId = data.promptId;
+            _frameGenWorkflowType = data.workflowType || 'hidream-storyboard';
+            _frameGenStartTime = Date.now();
+
+            updateFrameGenStatus('pending');
+            startFrameGenPolling();
+        } catch (err) {
+            statusEl.className = 'status-error';
+            statusEl.innerHTML = '❌ 生成失败: ' + err.message;
+            goBtn.disabled = false;
+            goBtn.textContent = '重新生成';
+        }
+    }
+
+    function updateFrameGenStatus(state) {
+        var statusEl = document.getElementById('frameGenStatus');
+        var goBtn = document.getElementById('frameGenGoBtn');
+        var saveBtn = document.getElementById('frameGenSaveBtn');
+        var previewGroup = document.getElementById('framePreviewGroup');
+        var previewImg = document.getElementById('framePreviewImg');
+        var previewPlaceholder = document.getElementById('framePreviewPlaceholder');
+
+        if (state === 'pending') {
+            var elapsed = Math.floor((Date.now() - _frameGenStartTime) / 1000);
+            var min = Math.floor(elapsed / 60);
+            var sec = elapsed % 60;
+            statusEl.style.display = '';
+            statusEl.className = 'status-info';
+            statusEl.innerHTML = '⏳ 任务已提交，正在生成中... (' + min + '分' + sec + '秒)'
+                + '<br><span style="font-size:11px;color:var(--text3);">promptId: ' + _frameGenPromptId + '</span>'
+                + '<br><button class="btn btn-xs btn-ghost" style="margin-top:6px;" onclick="manualFetchFrameResult()">🔍 手动获取</button>';
+        } else if (state === 'success') {
+            statusEl.className = 'status-success';
+            statusEl.innerHTML = '✅ 帧图片生成成功！';
+            goBtn.style.display = 'none';
+            saveBtn.style.display = '';
+            previewGroup.style.display = '';
+            previewImg.style.display = '';
+            previewImg.src = _frameGenImageUrl;
+            previewPlaceholder.style.display = 'none';
+        } else if (state === 'error') {
+            statusEl.className = 'status-error';
+            statusEl.innerHTML = '❌ ' + (arguments[1] || '生成失败');
+            goBtn.disabled = false;
+            goBtn.textContent = '重新生成';
+        } else if (state === 'preview') {
+            previewImg.src = _frameGenImageUrl;
+        }
+    }
+
+    function startFrameGenPolling() {
+        if (_frameGenPoller != null) { clearTimeout(_frameGenPoller); _frameGenPoller = null; }
+
+        var pollCount = 0;
+        var maxPolls = 360;
+        var pollInterval = 5000;
+
+        function doPoll() {
+            if (pollCount >= maxPolls) {
+                updateFrameGenStatus('error', '生成超时（已等待30分钟）');
+                return;
+            }
+            pollCount++;
+            fetch('/api/v1/comfyui/result/' + _frameGenPromptId + '/image?workflowType=' + encodeURIComponent(_frameGenWorkflowType))
+                .then(function(r){ return r.json(); })
+                .then(function(data) {
+                    if (data.success && data.data) {
+                        var urls = data.data.imageUrls || [];
+                        if (urls.length > 0) {
+                            _frameGenImageUrl = urls[0];
+                            updateFrameGenStatus('success');
+                            return;
+                        }
+                    }
+                    updateFrameGenStatus('pending');
+                    _frameGenPoller = setTimeout(doPoll, pollInterval);
+                })
+                .catch(function() {
+                    updateFrameGenStatus('pending');
+                    _frameGenPoller = setTimeout(doPoll, pollInterval);
+                });
+        }
+        doPoll();
+    }
+
+    function manualFetchFrameResult() {
+        if (!_frameGenPromptId) { showToast('没有正在进行的任务', 'error'); return; }
+        if (_frameGenPoller) { clearTimeout(_frameGenPoller); _frameGenPoller = null; }
+
+        fetch('/api/v1/comfyui/result/' + _frameGenPromptId + '/image?workflowType=' + encodeURIComponent(_frameGenWorkflowType))
+            .then(function(r){ return r.json(); })
+            .then(function(data) {
+                if (data.success && data.data) {
+                    var urls = data.data.imageUrls || [];
+                    if (urls.length > 0) {
+                        _frameGenImageUrl = urls[0];
+                        updateFrameGenStatus('success');
+                        return;
+                    }
+                }
+                updateFrameGenStatus('pending');
+                showToast('还未生成完成，继续等待...', 'info');
+                startFrameGenPolling();
+            })
+            .catch(function() {
+                updateFrameGenStatus('pending');
+                startFrameGenPolling();
+            });
+    }
+
+    async function saveFrameGeneratedImage() {
+        var imageUrl = _frameGenImageUrl;
+        if (!imageUrl) { alert('没有可保存的图片'); return; }
+
+        var saveBtn = document.getElementById('frameGenSaveBtn');
+        saveBtn.disabled = true;
+        saveBtn.textContent = '保存中...';
+
+        var state = window.shotState[window.currentChapterIdx];
+        var shot = state.shots[_frameGenShotIdx];
+        var targetFrame = _frameGenFrameIdx >= 0 ? shot.frames[_frameGenFrameIdx] : null;
+        if (!targetFrame || !targetFrame.id) {
+            alert('帧数据不存在');
+            saveBtn.disabled = false;
+            saveBtn.textContent = '保存到帧';
+            return;
+        }
+
+        try {
+            var res = await fetch('/api/v1/production/save-frame-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ frameId: targetFrame.id, imageUrl: imageUrl })
+            });
+            var data = await res.json();
+            if (data.success) {
+                showToast('帧图片已保存！', 'success');
+                hideModal('frameProviderModal');
+                loadShotsForChapter(window.currentChapterIdx, true).then(function() { renderShotsTab(); });
+            } else {
+                throw new Error(data.message || '保存失败');
+            }
+        } catch (err) {
+            alert('保存失败: ' + err.message);
+            saveBtn.disabled = false;
+            saveBtn.textContent = '保存到帧';
+        }
     }
 
     // Shot video generation
@@ -281,9 +530,32 @@
     }
 
     // Utility functions
-    function showImagePreview(src) {
+    function showImagePreview(src, assetIdOrShotIdx, nameOrFrameIdx, assetType, description) {
         if (!src) return;
-        window.open(src, '_blank');
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:10000;display:flex;align-items:center;justify-content:center;';
+        overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+        var img = document.createElement('img');
+        img.src = src;
+        img.style.cssText = 'max-width:90%;max-height:85%;object-fit:contain;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,0.5);';
+        overlay.appendChild(img);
+
+        var btn = document.createElement('button');
+        btn.style.cssText = 'position:fixed;bottom:40px;left:50%;transform:translateX(-50%);padding:10px 24px;background:var(--primary);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;z-index:10001;box-shadow:0 4px 16px rgba(0,0,0,0.3);';
+        if (assetIdOrShotIdx !== undefined && typeof assetIdOrShotIdx === 'number') {
+            var frameIdx = nameOrFrameIdx;
+            btn.textContent = '🔄 重新生成';
+            btn.onclick = function() { overlay.remove(); showFrameImageProviderDialog(assetIdOrShotIdx, frameIdx); };
+        } else if (assetIdOrShotIdx) {
+            btn.textContent = '🔄 重新生成';
+            btn.onclick = function() { overlay.remove(); showSingleAssetGenModalFromFrame(assetIdOrShotIdx, nameOrFrameIdx || '', assetType || '', description || ''); };
+        } else {
+            btn.textContent = '✕ 关闭';
+            btn.onclick = function() { overlay.remove(); };
+        }
+        overlay.appendChild(btn);
+
+        document.body.appendChild(overlay);
     }
 
     function formatMarkdown(text) {
@@ -326,7 +598,8 @@
     // Expose globally
     window.createPoller = createPoller;
     window.pollAiResultForShot = pollAiResultForShot;
-    window.generateFrameImage = generateFrameImage;
+    window.showFrameImageProviderDialog = showFrameImageProviderDialog;
+    window.doGenerateFrameImage = doGenerateFrameImage;
     window.generateShotVideo = generateShotVideo;
     window.generateStoryboardShot = generateStoryboardShot;
     window.showFrameTemplates = showFrameTemplates;
@@ -337,6 +610,8 @@
     window.showToast = showToast;
     window.showModal = showModal;
     window.hideModal = hideModal;
+    window.saveFrameGeneratedImage = saveFrameGeneratedImage;
+    window.manualFetchFrameResult = manualFetchFrameResult;
     window.escapeHtml = escapeHtml;
     window._frameTemplates = window._frameTemplates || [
         { first: '晨曦微露，薄雾笼罩的村落全景', middle: '镜头缓缓扫过村庄，石板路上有早起的居民开始劳作', last: '视线逐渐拉远，远景渐入云海' },
