@@ -408,36 +408,253 @@
         var shot = state.shots[shotIdx];
         if (!shot) return;
 
-        showToast('正在生成分镜视频...', 'info');
-        var userMessage = shot.frames ? shot.frames.map(function(f){ return f.description; }).join('\n') : '';
+        _shotVideoShotIdx = shotIdx;
+
+        var firstFrame = shot.frames && shot.frames.length > 0 ? shot.frames[0] : null;
+        var frameDescs = shot.frames ? shot.frames.map(function(f, i){
+            var label = i === 0 ? '首帧' : i === shot.frames.length - 1 ? '末帧' : '中帧';
+            return '<div style="padding:6px 10px;border-left:3px solid var(--primary);background:var(--surface2);border-radius:4px;margin-bottom:6px;"><strong style="font-size:12px;color:var(--text3);">[' + label + ']</strong><div style="font-size:13px;color:var(--text);margin-top:2px;">' + escapeHtml(f.description || '') + '</div></div>';
+        }).join('') : '';
+
+        var overlay = document.getElementById('shotVideoModal');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.id = 'shotVideoModal';
+            document.body.appendChild(overlay);
+        }
+
+        var firstFrameHtml = firstFrame && firstFrame.hasImage && firstFrame.imagePath
+            ? '<div style="margin-bottom:12px;"><label style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;display:block;">首帧参考图</label><img src="' + firstFrame.imagePath + '" style="width:100%;max-height:200px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#000;"></div>'
+            : '<div style="padding:16px;text-align:center;background:var(--surface2);border-radius:8px;margin-bottom:12px;color:var(--text3);font-size:13px;">⚠️ 首帧未生成图片，视频将基于文字描述生成</div>';
+
+        overlay.innerHTML = '<div class="modal" style="width:680px;">'
+            + '<div class="modal-header"><h3>🎬 生成分镜视频</h3><button class="modal-close" onclick="hideModal(\'shotVideoModal\')">&times;</button></div>'
+            + '<div class="modal-body" style="padding:16px;max-height:60vh;overflow-y:auto;">'
+            + '<div class="form-group"><label>选择模型 *</label>'
+            + '<select id="shotVideoProviderSelect" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:14px;"><option value="">加载中...</option></select></div>'
+            + '<div class="form-group"><label>分镜描述</label><div style="font-size:13px;color:var(--text);padding:8px 10px;background:var(--surface2);border-radius:6px;line-height:1.5;">' + escapeHtml(shot.description || '') + '</div></div>'
+            + '<div class="form-group"><label>帧描述（' + (shot.frames ? shot.frames.length : 0) + '帧）</label>' + frameDescs + '</div>'
+            + firstFrameHtml
+            + '<div id="shotVideoGenStatus" style="margin-top:12px;padding:12px;border-radius:8px;display:none;"></div>'
+            + '</div>'
+            + '<div class="modal-footer">'
+            + '<button class="btn btn-ghost" onclick="hideModal(\'shotVideoModal\')">取消</button>'
+            + '<button class="btn btn-primary" id="shotVideoGoBtn" onclick="doGenerateShotVideo()">生成视频</button>'
+            + '</div></div>';
+
+        showModal('shotVideoModal');
+
+        fetch('/api/v1/providers/list')
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+                var list = (res.data || []).filter(function(p){ return p.capability === 5 || p.capability === 'ImageToVideo' || p.capability === 4 || p.capability === 'TextToVideo'; });
+                var html = '';
+                list.forEach(function(p) { html += '<option value="' + p.id + '">' + p.name + ' [' + (p.model || '') + ']</option>'; });
+                document.getElementById('shotVideoProviderSelect').innerHTML = html || '<option value="">未找到视频生成提供者</option>';
+            })
+            .catch(function(){
+                document.getElementById('shotVideoProviderSelect').innerHTML = '<option value="">加载失败</option>';
+            });
+    }
+
+    var _shotVideoShotIdx = -1;
+    var _shotVideoPromptId = null;
+    var _shotVideoTimer = null;
+    var _shotVideoStartTime = null;
+
+    function doGenerateShotVideo() {
+        var providerId = document.getElementById('shotVideoProviderSelect').value;
+        if (!providerId) { alert('请选择提供者'); return; }
+
+        var state = window.shotState[window.currentChapterIdx];
+        var shot = state.shots[_shotVideoShotIdx];
+        if (!shot) return;
+
+        var firstFrame = shot.frames && shot.frames.length > 0 ? shot.frames[0] : null;
+        var imagePath = firstFrame && firstFrame.hasImage && firstFrame.imagePath ? firstFrame.imagePath : null;
+        var userMessage = shot.frames ? shot.frames.map(function(f){ return f.description || ''; }).join('\n') : '';
+
+        var goBtn = document.getElementById('shotVideoGoBtn');
+        var statusEl = document.getElementById('shotVideoGenStatus');
+        goBtn.disabled = true;
+        goBtn.textContent = '提交中...';
+        statusEl.style.display = '';
+        statusEl.className = 'status-info';
+        statusEl.innerHTML = '🔄 正在提交生成任务...';
 
         fetch('/api/v1/production/generate-video', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: userMessage })
+            body: JSON.stringify({ prompt: userMessage, imagePath: imagePath, providerId: parseInt(providerId) })
         })
             .then(function(r){ return r.json(); })
             .then(function(res) {
                 if (!res.success) {
-                    window.shotState[window.currentChapterIdx].shots[shotIdx].generatingVideo = false;
-                    renderShotsTab();
-                    alert('视频生成失败: ' + (res.message || '未知错误'));
+                    goBtn.disabled = false;
+                    goBtn.textContent = '生成视频';
+                    statusEl.className = 'status-error';
+                    statusEl.innerHTML = '❌ 提交失败: ' + (res.message || '未知错误');
                     return;
                 }
                 if (res.isComfyui && res.promptId) {
-                    pollAiResultForShot(res.promptId, res.workflowType || 'ltx-text-to-video', shotIdx, 'video');
+                    _shotVideoPromptId = res.promptId;
+                    _shotVideoStartTime = Date.now();
+                    goBtn.textContent = '生成中...';
+                    startShotVideoPolling();
                 } else if (res.data) {
-                    window.shotState[window.currentChapterIdx].shots[shotIdx].videoUrl = res.data;
-                    window.shotState[window.currentChapterIdx].shots[shotIdx].generatingVideo = false;
+                    window.shotState[window.currentChapterIdx].shots[_shotVideoShotIdx].videoUrl = res.data;
+                    window.shotState[window.currentChapterIdx].shots[_shotVideoShotIdx].generatingVideo = false;
+                    hideModal('shotVideoModal');
                     renderShotsTab();
                     showToast('视频生成完成！', 'success');
                 }
             })
             .catch(function(err) {
-                window.shotState[window.currentChapterIdx].shots[shotIdx].generatingVideo = false;
-                renderShotsTab();
-                alert('请求失败: ' + err.message);
+                goBtn.disabled = false;
+                goBtn.textContent = '生成视频';
+                statusEl.className = 'status-error';
+                statusEl.innerHTML = '❌ 请求失败: ' + err.message;
             });
+    }
+
+    function resetShotVideoGoBtn() {
+        var goBtn = document.getElementById('shotVideoGoBtn');
+        if (goBtn) { goBtn.disabled = false; goBtn.textContent = '生成视频'; }
+    }
+
+    function showShotVideoError(msg) {
+        resetShotVideoGoBtn();
+        var statusEl = document.getElementById('shotVideoGenStatus');
+        var elapsed = _shotVideoStartTime ? Math.floor((Date.now() - _shotVideoStartTime) / 1000) : 0;
+        var min = Math.floor(elapsed / 60);
+        var sec = elapsed % 60;
+        statusEl.className = 'status-error';
+        statusEl.innerHTML = '❌ ' + msg
+            + (_shotVideoPromptId ? '<br><span style="font-size:11px;color:var(--text3);">promptId: ' + _shotVideoPromptId + ' | 已等待 ' + min + '分' + sec + '秒</span>' : '')
+            + (_shotVideoPromptId ? '<br><button class="btn btn-xs btn-ghost" style="margin-top:6px;" onclick="manualFetchShotVideoResult()">🔍 手动获取</button>' : '')
+            + '<br><button class="btn btn-xs btn-ghost" style="margin-top:6px;" onclick="hideModal(\'shotVideoModal\');generateShotVideo(' + _shotVideoShotIdx + ')">🔄 重新提交</button>';
+    }
+
+    function startShotVideoPolling() {
+        var statusEl = document.getElementById('shotVideoGenStatus');
+
+        function updateStatus(msg) {
+            var elapsed = Math.floor((Date.now() - _shotVideoStartTime) / 1000);
+            var min = Math.floor(elapsed / 60);
+            var sec = elapsed % 60;
+            statusEl.className = 'status-info';
+            statusEl.innerHTML = msg
+                + '<br><span style="font-size:11px;color:var(--text3);">promptId: ' + _shotVideoPromptId + ' | 已等待 ' + min + '分' + sec + '秒</span>'
+                + '<br><button class="btn btn-xs btn-ghost" style="margin-top:6px;" onclick="manualFetchShotVideoResult()">🔍 手动获取</button>';
+        }
+
+        var pollCount = 0;
+        var maxPolls = 120;
+        var interval = 5000;
+
+        updateStatus('⏳ 任务已提交，正在生成中...');
+
+        _shotVideoTimer = setInterval(function() {
+            pollCount++;
+            fetch('/api/v1/comfyui/result/' + _shotVideoPromptId + '/video?workflowType=' + encodeURIComponent('ltx-image-to-video'))
+                .then(function(r){ return r.json(); })
+                .then(function(res) {
+                    if (res.success && res.data) {
+                        var urls = res.data.videoUrls || [];
+                        if (urls.length > 0) {
+                            clearInterval(_shotVideoTimer);
+                            window.shotState[window.currentChapterIdx].shots[_shotVideoShotIdx].videoUrl = urls[0];
+                            window.shotState[window.currentChapterIdx].shots[_shotVideoShotIdx].generatingVideo = false;
+                            hideModal('shotVideoModal');
+                            renderShotsTab();
+                            showToast('视频生成完成！', 'success');
+                            return;
+                        }
+                    }
+                    if (pollCount >= maxPolls) {
+                        clearInterval(_shotVideoTimer);
+                        showShotVideoError('生成超时');
+                        return;
+                    }
+                    if (res.success === false && res.pending === false) {
+                        clearInterval(_shotVideoTimer);
+                        showShotVideoError(res.message || '生成失败');
+                        return;
+                    }
+                    updateStatus('⏳ 任务已提交，正在生成中...');
+                })
+                .catch(function() {
+                    if (pollCount >= maxPolls) {
+                        clearInterval(_shotVideoTimer);
+                        showShotVideoError('请求超时');
+                    }
+                });
+        }, interval);
+    }
+
+    function manualFetchShotVideoResult() {
+        if (!_shotVideoPromptId) { return; }
+
+        var statusEl = document.getElementById('shotVideoGenStatus');
+        statusEl.innerHTML = '🔄 手动获取中...';
+
+        fetch('/api/v1/comfyui/result/' + _shotVideoPromptId + '/video?workflowType=' + encodeURIComponent('ltx-image-to-video'))
+            .then(function(r){ return r.json(); })
+            .then(function(res) {
+                if (res.success && res.data) {
+                    var urls = res.data.videoUrls || [];
+                    if (urls.length > 0) {
+                        window.shotState[window.currentChapterIdx].shots[_shotVideoShotIdx].videoUrl = urls[0];
+                        window.shotState[window.currentChapterIdx].shots[_shotVideoShotIdx].generatingVideo = false;
+                        if (_shotVideoTimer) { clearInterval(_shotVideoTimer); _shotVideoTimer = null; }
+                        hideModal('shotVideoModal');
+                        renderShotsTab();
+                        showToast('视频生成完成！', 'success');
+                        return;
+                    }
+                }
+                if (res.success === false && res.pending === false) {
+                    if (_shotVideoTimer) { clearInterval(_shotVideoTimer); _shotVideoTimer = null; }
+                    showShotVideoError(res.message || '获取失败');
+                } else {
+                    statusEl.className = 'status-info';
+                    statusEl.innerHTML = '⏳ 还未生成完成，继续等待...'
+                        + '<br><span style="font-size:11px;color:var(--text3);">promptId: ' + _shotVideoPromptId + '</span>'
+                        + '<br><button class="btn btn-xs btn-ghost" style="margin-top:6px;" onclick="manualFetchShotVideoResult()">🔍 手动获取</button>';
+                    if (!_shotVideoTimer) startShotVideoPolling();
+                }
+            })
+            .catch(function() {
+                showShotVideoError('请求失败');
+            });
+    }
+
+    function saveShotVideo(shotIdx) {
+        var state = window.shotState[window.currentChapterIdx];
+        var shot = state && state.shots[shotIdx];
+        if (!shot || !shot.videoUrl) { showToast('没有可保存的视频', 'error'); return; }
+        var shotId = shot.id;
+        if (!shotId) { showToast('分镜ID不存在', 'error'); return; }
+
+        fetch('/api/v1/production/save-shot-video', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shotId: shotId, videoUrl: shot.videoUrl })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res) {
+            if (res.success) {
+                showToast('视频已保存到分镜！', 'success');
+                var idx = window.currentChapterIdx;
+                window.loadShotsForChapter(idx, true).then(function() { renderShotsTab(); });
+            } else {
+                showToast('保存失败: ' + (res.message || ''), 'error');
+            }
+        })
+        .catch(function(err) {
+            showToast('保存失败: ' + err.message, 'error');
+        });
     }
 
     // Storyboard generation
@@ -612,6 +829,7 @@
     window.hideModal = hideModal;
     window.saveFrameGeneratedImage = saveFrameGeneratedImage;
     window.manualFetchFrameResult = manualFetchFrameResult;
+    window.doGenerateShotVideo = doGenerateShotVideo;
     window.escapeHtml = escapeHtml;
     window._frameTemplates = window._frameTemplates || [
         { first: '晨曦微露，薄雾笼罩的村落全景', middle: '镜头缓缓扫过村庄，石板路上有早起的居民开始劳作', last: '视线逐渐拉远，远景渐入云海' },

@@ -30,7 +30,10 @@ namespace ManjuCraft.Application.Service
             var existing = await _db.ShotFrames.FindAsync(frame.Id);
             if (existing == null) return null;
             existing.FrameType = frame.FrameType;
-            existing.Description = frame.Description;
+            existing.NarrativeDescription = frame.NarrativeDescription;
+            existing.GeneratePrompt = frame.GeneratePrompt;
+            existing.CameraMovement = frame.CameraMovement;
+            existing.ShotSize = frame.ShotSize;
             existing.ResourceId = frame.ResourceId;
             existing.StartTime = frame.StartTime;
             existing.Duration = frame.Duration;

@@ -1,5 +1,0 @@
-{
-  "name": "角色声音生成提示词",
-  "templateType": "AssetGenerationVoiceVoice",
-  "content": "生成角色声音要求：\n1. 描述角色声音特征：音色、音高、语速、语气、情感表达\n2. 语言：中文/英文/日文等\n3. 格式：MP3/WAV，采样率22.05kHz或更高\n4. 语句清晰，情感自然，符合角色设定\n\n用户需求：{prompt}"
-}

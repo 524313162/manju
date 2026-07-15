@@ -29,9 +29,6 @@ public async Task<Shot> UpdateAsync(Shot shot)
         {
             var existing = await _db.Shots.FindAsync(shot.Id);
             if (existing == null) return null;
-            existing.Description = shot.Description;
-            existing.ShotSize = shot.ShotSize;
-            existing.CameraMovement = shot.CameraMovement;
             existing.Duration = shot.Duration;
             existing.Order = shot.Order;
             existing.UpdatedTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

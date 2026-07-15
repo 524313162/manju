@@ -156,7 +156,11 @@
                             return {
                                 id: f.id,
                                 frameType: f.frameType,
-                                description: f.description,
+                                narrativeDescription: f.narrativeDescription || f.NarrativeDescription || '',
+                                generatePrompt: f.generatePrompt || f.GeneratePrompt || '',
+                                cameraMovement: f.cameraMovement || f.CameraMovement || '',
+                                shotSize: f.shotSize || f.ShotSize || '',
+                                description: f.narrativeDescription || f.NarrativeDescription || f.description,
                                 order: f.order,
                                 startTime: f.startTime,
                                 duration: f.duration,

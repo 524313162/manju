@@ -106,7 +106,7 @@ public class AIGenerationController : ControllerBase
             if (frame == null)
                 return Ok(new { success = false, message = "未找到帧" });
 
-            var prompt = frame.Description;
+            var prompt = !string.IsNullOrWhiteSpace(frame.GeneratePrompt) ? frame.GeneratePrompt : frame.NarrativeDescription;
             if (string.IsNullOrWhiteSpace(prompt))
                 return Ok(new { success = false, message = "帧描述为空，无法生成" });
 
@@ -140,7 +140,7 @@ public class AIGenerationController : ControllerBase
             if (frame == null)
                 return Ok(new { success = false, message = "未找到帧" });
 
-            var prompt = !string.IsNullOrWhiteSpace(req.Prompt) ? req.Prompt : frame.Description;
+            var prompt = !string.IsNullOrWhiteSpace(req.Prompt) ? req.Prompt : frame.GeneratePrompt;
             if (string.IsNullOrWhiteSpace(prompt))
                 return Ok(new { success = false, message = "帧描述为空，无法生成" });
 

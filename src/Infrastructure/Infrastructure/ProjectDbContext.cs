@@ -69,6 +69,13 @@ namespace ManjuCraft.Infrastructure
                 .HasForeignKey(e => e.StoryChapterId)
                 .OnDelete(DeleteBehavior.SetNull);
 
+            // Shot -> Resource
+            modelBuilder.Entity<Shot>()
+                .HasOne(s => s.Resource)
+                .WithMany()
+                .HasForeignKey(s => s.ResourceId)
+                .OnDelete(DeleteBehavior.SetNull);
+
             // Shot -> ShotFrame
             modelBuilder.Entity<Shot>()
                 .HasMany(s => s.Frames)
@@ -144,16 +151,16 @@ namespace ManjuCraft.Infrastructure
                 .Property(r => r.FilePath)
                 .HasMaxLength(1024);
 
-            modelBuilder.Entity<Shot>()
-                .Property(s => s.ShotSize)
+            modelBuilder.Entity<ShotFrame>()
+                .Property(f => f.FrameType)
                 .HasMaxLength(32);
 
-            modelBuilder.Entity<Shot>()
-                .Property(s => s.CameraMovement)
+            modelBuilder.Entity<ShotFrame>()
+                .Property(f => f.CameraMovement)
                 .HasMaxLength(64);
 
             modelBuilder.Entity<ShotFrame>()
-                .Property(f => f.FrameType)
+                .Property(f => f.ShotSize)
                 .HasMaxLength(32);
 
             modelBuilder.Entity<Episode>()

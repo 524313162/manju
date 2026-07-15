@@ -30,4 +30,7 @@ public class LtxTextToVideoRequestDto
 
     /// <summary>帧率，默认 25</summary>
     public int Fps { get; set; } = 25;
+
+    /// <summary>随机种子（默认 -1 表示随机）</summary>
+    public long Seed { get; set; } = -1;
 }

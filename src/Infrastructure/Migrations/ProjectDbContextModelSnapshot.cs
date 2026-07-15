@@ -234,16 +234,8 @@ namespace ManjuCraft.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("CameraMovement")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
                     b.Property<long>("CreatedTime")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
 
                     b.Property<float?>("Duration")
                         .HasColumnType("REAL");
@@ -254,12 +246,11 @@ namespace ManjuCraft.Infrastructure.Migrations
                     b.Property<int>("Order")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("ResourceId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("ShotNumber")
                         .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ShotSize")
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
@@ -270,6 +261,8 @@ namespace ManjuCraft.Infrastructure.Migrations
 
                     b.HasIndex("EpisodeId");
 
+                    b.HasIndex("ResourceId");
+
                     b.ToTable("Shots");
                 });
 
@@ -279,12 +272,12 @@ namespace ManjuCraft.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("CameraMovement")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<long>("CreatedTime")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
 
                     b.Property<float?>("Duration")
                         .HasColumnType("REAL");
@@ -292,6 +285,13 @@ namespace ManjuCraft.Infrastructure.Migrations
                     b.Property<string>("FrameType")
                         .IsRequired()
                         .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GeneratePrompt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NarrativeDescription")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Order")
@@ -308,6 +308,10 @@ namespace ManjuCraft.Infrastructure.Migrations
 
                     b.Property<string>("ShotNumber")
                         .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ShotSize")
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
@@ -485,7 +489,14 @@ namespace ManjuCraft.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("ManjuCraft.Domain.Models.Resource", "Resource")
+                        .WithMany()
+                        .HasForeignKey("ResourceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Episode");
+
+                    b.Navigation("Resource");
                 });
 
             modelBuilder.Entity("ManjuCraft.Domain.Models.ShotFrame", b =>

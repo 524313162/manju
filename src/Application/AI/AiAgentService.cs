@@ -22,6 +22,7 @@ public interface IAiAgentService
     Task<(bool success, string? resultUrl, string? message)> GenerateAudioAsync(string prompt, string? tags = null, CancellationToken ct = default, long? providerId = null);
     Task<JsonElement> GetComfyuiResultAsync(string promptId, string workflowType, CancellationToken ct = default);
     Task<(bool success, string? promptId, string? workflowType, string? message)> SubmitFrameImageWithAssetsAsync(string prompt, string compositeImagePath, long? providerId = null, CancellationToken ct = default);
+    Task<(bool success, string? promptId, string? workflowType, string? message)> SubmitShotVideoAsync(string prompt, string imagePath, long? providerId = null, CancellationToken ct = default);
 }
 
 public class AiAgentService : IAiAgentService
@@ -510,6 +511,69 @@ public class AiAgentService : IAiAgentService
         {
             return (false, null, null, ex.Message);
         }
+    }
+
+    public async Task<(bool success, string? promptId, string? workflowType, string? message)> SubmitShotVideoAsync(string prompt, string imagePath, long? providerId = null, CancellationToken ct = default)
+    {
+        var provider = providerId.HasValue
+            ? await GetProviderAsync(providerId!.Value, ct)
+            : await GetProviderByCapabilityAsync(AiCapability.ImageToVideo, ct);
+
+        if (provider == null)
+            return (false, null, null, "未找到视频生成提供者（需 Capability=ImageToVideo）");
+
+        if (provider.Type == ProviderType.ComfyUI)
+        {
+            try
+            {
+                using var formData = new MultipartFormDataContent();
+                var fileStream = new FileStream(imagePath, FileMode.Open, FileAccess.Read);
+                var streamContent = new StreamContent(fileStream);
+                formData.Add(streamContent, "image", Path.GetFileName(imagePath));
+                formData.Add(new StringContent(""), "subfolder");
+
+                var uploadRes = await _http.PostAsync($"{_comfyuiProxyUrl.TrimEnd('/')}/api/comfyui/upload", formData, ct);
+                string uploadedFilename = null;
+                if (uploadRes.IsSuccessStatusCode)
+                {
+                    var uploadBody = await uploadRes.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+                    uploadedFilename = uploadBody.TryGetProperty("name", out var fn) ? fn.GetString()
+                        : uploadBody.TryGetProperty("filename", out var fn2) ? fn2.GetString() : null;
+                }
+                fileStream.Close();
+
+                var payload = new
+                {
+                    prompt,
+                    imagePath = uploadedFilename,
+                    width = 1280,
+                    height = 720,
+                    duration = 5,
+                    fps = 24,
+                    seed = -1
+                };
+                var json = JsonSerializer.Serialize(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var res = await _http.PostAsync($"{_comfyuiProxyUrl.TrimEnd('/')}/api/comfyui/ltx/image-to-video", content, ct);
+                res.EnsureSuccessStatusCode();
+                var responseBody = await res.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+
+                var promptId = responseBody.TryGetProperty("promptId", out var pid) ? pid.GetString() : null;
+                if (string.IsNullOrEmpty(promptId))
+                    return (false, null, null, "ComfyUI 返回的 promptId 为空");
+
+                return (true, promptId, "ltx-image-to-video", null);
+            }
+            catch (Exception ex)
+            {
+                return (false, null, null, ex.Message);
+            }
+        }
+
+        var result = await GenerateVideoAsync(prompt, imagePath, ct, providerId);
+        if (!result.success)
+            return (false, null, null, result.message);
+        return (true, result.resultUrl, null, null);
     }
 
     public async Task<JsonElement> GetComfyuiResultAsync(string promptId, string workflowType, CancellationToken ct = default)

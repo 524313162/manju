@@ -1,19 +1,10 @@
-using System.Reflection;
 using ManjuCraft.Domain.Models;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 
 namespace ManjuCraft.Infrastructure;
 
 public static class DatabaseSeeder
 {
-    private const string EmbeddedResourcePrefix = "ManjuCraft.Infrastructure.SeedData.";
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
-
     public static async Task SeedAsync(ProjectDbContext db)
     {
         var hasApiProviders = db.ApiProviders.Any();
@@ -22,8 +13,6 @@ public static class DatabaseSeeder
         {
             await SeedApiProvidersAsync(db);
         }
-
-        await SeedPromptTemplatesAsync(db);
 
         // Seed test data if database is empty
         if (!db.Projects.Any())
@@ -145,30 +134,8 @@ public static class DatabaseSeeder
         var episode1 = episodes[0];
         var shots = new List<Shot>
         {
-            new Shot
-            {
-                EpisodeId = episode1.Id,
-                ShotNumber = "SH001",
-                Description = "清晨公主府",
-                ShotSize = "全景",
-                CameraMovement = "固定",
-                Duration = 8,
-                Order = 0,
-                CreatedTime = now,
-                UpdatedTime = now
-            },
-            new Shot
-            {
-                EpisodeId = episode1.Id,
-                ShotNumber = "SH002",
-                Description = "李轩和太平公主游园赏花",
-                ShotSize = "全景",
-                CameraMovement = "平移",
-                Duration = 8,
-                Order = 1,
-                CreatedTime = now,
-                UpdatedTime = now
-            }
+            new Shot { EpisodeId = episode1.Id, ShotNumber = "SH001", Duration = 8, Order = 0, CreatedTime = now, UpdatedTime = now },
+            new Shot { EpisodeId = episode1.Id, ShotNumber = "SH002", Duration = 8, Order = 1, CreatedTime = now, UpdatedTime = now }
         };
         await db.Shots.AddRangeAsync(shots);
         await db.SaveChangesAsync();
@@ -176,11 +143,11 @@ public static class DatabaseSeeder
         // Create ShotFrames for Shot 1
         var frames1 = new List<ShotFrame>
         {
-            new ShotFrame { ShotId = shots[0].Id, ProjectId = project.Id, ShotNumber = "SH001", FrameType = "First", Description = "首帧：李轩从雕花床上惊醒，脑中还残留着现代图书馆里的轰鸣声。镜头语言：全景拍摄，展示公主府的奢华典雅，李轩的睡姿和表情。", StartTime = 0f, Duration = 1.5f, Order = 0, CreatedTime = now, UpdatedTime = now },
-            new ShotFrame { ShotId = shots[0].Id, ProjectId = project.Id, ShotNumber = "SH001", FrameType = "Middle", Description = "中间帧：太平公主端着一碗醒酒汤推门而入，眉目间既有皇室贵气又带着少女的俏皮。镜头语言：中景拍摄，展示太平公主的美丽和李轩的惊讶。", StartTime = 1.5f, Duration = 1.5f, Order = 1, CreatedTime = now, UpdatedTime = now },
-            new ShotFrame { ShotId = shots[0].Id, ProjectId = project.Id, ShotNumber = "SH001", FrameType = "Middle", Description = "中间帧：李轩愣愣地看着太平公主，想起了史书中关于这位公主的记载——权倾朝野、最终死于政变。他暗暗发誓，这一世定要护她周全。镜头语言：近景拍摄，展示李轩的表情和内心世界。", StartTime = 3.0f, Duration = 1.5f, Order = 2, CreatedTime = now, UpdatedTime = now },
-            new ShotFrame { ShotId = shots[0].Id, ProjectId = project.Id, ShotNumber = "SH001", FrameType = "Middle", Description = "中间帧：太平见他发呆，笑着将汤碗递到他唇边，李轩接过时指尖相触，两人都红了脸。镜头语言：特写拍摄，展示两人之间的亲密和羞涩。", StartTime = 4.5f, Duration = 1.5f, Order = 3, CreatedTime = now, UpdatedTime = now },
-            new ShotFrame { ShotId = shots[0].Id, ProjectId = project.Id, ShotNumber = "SH001", FrameType = "Last", Description = "末帧：李轩和太平公主的对话和互动，镜头语言：中景拍摄，展示两人之间的关系和情感。", StartTime = 6.0f, Duration = 1.5f, Order = 4, CreatedTime = now, UpdatedTime = now }
+            new ShotFrame { ShotId = shots[0].Id, ProjectId = project.Id, ShotNumber = "SH001", FrameType = "First", NarrativeDescription = "首帧：李轩从雕花床上惊醒，脑中还残留着现代图书馆里的轰鸣声。镜头语言：全景拍摄，展示公主府的奢华典雅，李轩的睡姿和表情。", StartTime = 0f, Duration = 1.5f, Order = 0, CreatedTime = now, UpdatedTime = now },
+            new ShotFrame { ShotId = shots[0].Id, ProjectId = project.Id, ShotNumber = "SH001", FrameType = "Middle", NarrativeDescription = "中间帧：太平公主端着一碗醒酒汤推门而入，眉目间既有皇室贵气又带着少女的俏皮。镜头语言：中景拍摄，展示太平公主的美丽和李轩的惊讶。", StartTime = 1.5f, Duration = 1.5f, Order = 1, CreatedTime = now, UpdatedTime = now },
+            new ShotFrame { ShotId = shots[0].Id, ProjectId = project.Id, ShotNumber = "SH001", FrameType = "Middle", NarrativeDescription = "中间帧：李轩愣愣地看着太平公主，想起了史书中关于这位公主的记载——权倾朝野、最终死于政变。他暗暗发誓，这一世定要护她周全。镜头语言：近景拍摄，展示李轩的表情和内心世界。", StartTime = 3.0f, Duration = 1.5f, Order = 2, CreatedTime = now, UpdatedTime = now },
+            new ShotFrame { ShotId = shots[0].Id, ProjectId = project.Id, ShotNumber = "SH001", FrameType = "Middle", NarrativeDescription = "中间帧：太平见他发呆，笑着将汤碗递到他唇边，李轩接过时指尖相触，两人都红了脸。镜头语言：特写拍摄，展示两人之间的亲密和羞涩。", StartTime = 4.5f, Duration = 1.5f, Order = 3, CreatedTime = now, UpdatedTime = now },
+            new ShotFrame { ShotId = shots[0].Id, ProjectId = project.Id, ShotNumber = "SH001", FrameType = "Last", NarrativeDescription = "末帧：李轩和太平公主的对话和互动，镜头语言：中景拍摄，展示两人之间的关系和情感。", StartTime = 6.0f, Duration = 1.5f, Order = 4, CreatedTime = now, UpdatedTime = now }
         };
         await db.ShotFrames.AddRangeAsync(frames1);
         await db.SaveChangesAsync();
@@ -188,11 +155,11 @@ public static class DatabaseSeeder
         // Create ShotFrames for Shot 2
         var frames2 = new List<ShotFrame>
         {
-            new ShotFrame { ShotId = shots[1].Id, ProjectId = project.Id, ShotNumber = "SH002", FrameType = "First", Description = "首帧：李轩和太平公主在公主府的花园中游玩，镜头语言：全景拍摄，展示公主府的美丽和两人之间的关系。", StartTime = 0f, Duration = 1.5f, Order = 0, CreatedTime = now, UpdatedTime = now },
-            new ShotFrame { ShotId = shots[1].Id, ProjectId = project.Id, ShotNumber = "SH002", FrameType = "Middle", Description = "中间帧：李轩和太平公主谈古论今，用现代知识解释星象与农时，引得太平公主惊叹连连。镜头语言：中景拍摄，展示两人之间的互动和知识交流。", StartTime = 1.5f, Duration = 1.5f, Order = 1, CreatedTime = now, UpdatedTime = now },
-            new ShotFrame { ShotId = shots[1].Id, ProjectId = project.Id, ShotNumber = "SH002", FrameType = "Middle", Description = "中间帧：李轩和太平公主的情愫暗生，镜头语言：近景拍摄，展示两人之间的感情和关系。", StartTime = 3.0f, Duration = 1.5f, Order = 2, CreatedTime = now, UpdatedTime = now },
-            new ShotFrame { ShotId = shots[1].Id, ProjectId = project.Id, ShotNumber = "SH002", FrameType = "Middle", Description = "中间帧：李轩和太平公主结为真正夫妻，镜头语言：特写拍摄，展示两人之间的爱情和幸福。", StartTime = 4.5f, Duration = 1.5f, Order = 3, CreatedTime = now, UpdatedTime = now },
-            new ShotFrame { ShotId = shots[1].Id, ProjectId = project.Id, ShotNumber = "SH002", FrameType = "Last", Description = "末帧：李轩和太平公主的幸福生活，镜头语言：全景拍摄，展示公主府的美丽和两人之间的关系。", StartTime = 6.0f, Duration = 1.5f, Order = 4, CreatedTime = now, UpdatedTime = now }
+            new ShotFrame { ShotId = shots[1].Id, ProjectId = project.Id, ShotNumber = "SH002", FrameType = "First", NarrativeDescription = "首帧：李轩和太平公主在公主府的花园中游玩，镜头语言：全景拍摄，展示公主府的美丽和两人之间的关系。", StartTime = 0f, Duration = 1.5f, Order = 0, CreatedTime = now, UpdatedTime = now },
+            new ShotFrame { ShotId = shots[1].Id, ProjectId = project.Id, ShotNumber = "SH002", FrameType = "Middle", NarrativeDescription = "中间帧：李轩和太平公主谈古论今，用现代知识解释星象与农时，引得太平公主惊叹连连。镜头语言：中景拍摄，展示两人之间的互动和知识交流。", StartTime = 1.5f, Duration = 1.5f, Order = 1, CreatedTime = now, UpdatedTime = now },
+            new ShotFrame { ShotId = shots[1].Id, ProjectId = project.Id, ShotNumber = "SH002", FrameType = "Middle", NarrativeDescription = "中间帧：李轩和太平公主的情愫暗生，镜头语言：近景拍摄，展示两人之间的感情和关系。", StartTime = 3.0f, Duration = 1.5f, Order = 2, CreatedTime = now, UpdatedTime = now },
+            new ShotFrame { ShotId = shots[1].Id, ProjectId = project.Id, ShotNumber = "SH002", FrameType = "Middle", NarrativeDescription = "中间帧：李轩和太平公主结为真正夫妻，镜头语言：特写拍摄，展示两人之间的爱情和幸福。", StartTime = 4.5f, Duration = 1.5f, Order = 3, CreatedTime = now, UpdatedTime = now },
+            new ShotFrame { ShotId = shots[1].Id, ProjectId = project.Id, ShotNumber = "SH002", FrameType = "Last", NarrativeDescription = "末帧：李轩和太平公主的幸福生活，镜头语言：全景拍摄，展示公主府的美丽和两人之间的关系。", StartTime = 6.0f, Duration = 1.5f, Order = 4, CreatedTime = now, UpdatedTime = now }
         };
         await db.ShotFrames.AddRangeAsync(frames2);
         await db.SaveChangesAsync();
@@ -248,69 +215,4 @@ public static class DatabaseSeeder
         }
     }
 
-    private static async Task SeedPromptTemplatesAsync(ProjectDbContext db)
-    {
-        var existingTypes = await db.PromptTemplates.Select(t => t.TemplateType).ToHashSetAsync();
-        var templates = LoadPromptTemplatesFromEmbeddedResources();
-        
-        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        
-        // 更新已存在的模板（如果种子中有），插入不存在的
-        foreach (var seedTemplate in templates)
-        {
-            var existing = await db.PromptTemplates.FirstOrDefaultAsync(t => t.TemplateType == seedTemplate.TemplateType);
-            if (existing != null)
-            {
-                // 更新已有模板的内容
-                existing.Name = seedTemplate.Name;
-                existing.Content = seedTemplate.Content;
-                existing.UpdatedTime = now;
-            }
-            else
-            {
-                seedTemplate.CreatedTime = now;
-                seedTemplate.UpdatedTime = now;
-                await db.PromptTemplates.AddAsync(seedTemplate);
-            }
-        }
-    }
-
-    private static List<PromptTemplate> LoadPromptTemplatesFromEmbeddedResources()
-    {
-        var result = new List<PromptTemplate>();
-        var assembly = typeof(DatabaseSeeder).GetTypeInfo().Assembly;
-        var resourceNames = assembly.GetManifestResourceNames();
-
-        var jsonFiles = resourceNames
-            .Where(r => r.StartsWith(EmbeddedResourcePrefix) && r.EndsWith(".json"))
-            .ToList();
-
-        foreach (var resourceName in jsonFiles)
-        {
-            using var stream = assembly.GetManifestResourceStream(resourceName);
-            if (stream == null) continue;
-
-            using var reader = new StreamReader(stream);
-            var json = reader.ReadToEnd();
-
-            using var doc = System.Text.Json.JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            var name = root.GetProperty("name").GetString();
-            var templateType = root.GetProperty("templateType").GetString();
-            var content = root.GetProperty("content").GetString();
-
-            if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(templateType) && !string.IsNullOrEmpty(content))
-            {
-                result.Add(new PromptTemplate
-                {
-                    Name = name,
-                    TemplateType = templateType,
-                    Content = content
-                });
-            }
-        }
-
-        return result;
-    }
 }

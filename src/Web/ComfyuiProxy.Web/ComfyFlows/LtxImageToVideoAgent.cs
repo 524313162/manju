@@ -66,6 +66,16 @@ public class LtxImageToVideoAgent : ComfyUIAgentBase<LtxImageToVideoRequestDto, 
                 inputs["value"] = dto.Duration;
         }
 
+        var seed = dto.Seed >= 0 ? dto.Seed : (int)(DateTime.UtcNow.Ticks % int.MaxValue);      
+
+        var seedNode = workflow["320:277"]?.AsObject();
+        if (seedNode != null)
+        {
+            var inputs = seedNode["inputs"]?.AsObject();
+            if (inputs != null)
+                inputs["noise_seed"] = seed;
+        }
+
         return workflow.ToJsonString();
     }
 
@@ -75,25 +85,24 @@ public class LtxImageToVideoAgent : ComfyUIAgentBase<LtxImageToVideoRequestDto, 
         if (outputs == null)
             return;
 
-        foreach (var kvp in outputs)
+        var videoNode = outputs["75"]?.AsObject();
+        if (videoNode == null)
+            return;
+
+        var images = videoNode["images"]?.AsArray();
+        if (images == null)
+            return;
+
+        foreach (var video in images)
         {
-            var nodeOutput = kvp.Value?.AsObject();
-            if (nodeOutput == null) continue;
-
-            var videoArray = nodeOutput["images"]?.AsArray();
-            if (videoArray == null) continue;
-
-            foreach (var video in videoArray)
+            var videoObj = video?.AsObject();
+            if (videoObj == null) continue;
+            var filename = videoObj["filename"]?.GetValue<string>();
+            var subfolder = videoObj["subfolder"]?.GetValue<string>();
+            var type = videoObj["type"]?.GetValue<string>() ?? "output";
+            if (!string.IsNullOrEmpty(filename))
             {
-                var videoObj = video?.AsObject();
-                if (videoObj == null) continue;
-                var filename = videoObj["filename"]?.GetValue<string>();
-                var subfolder = videoObj["subfolder"]?.GetValue<string>();
-                var type = videoObj["type"]?.GetValue<string>() ?? "output";
-                if (!string.IsNullOrEmpty(filename))
-                {
-                    result.VideoUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}&type={type}");
-                }
+                result.VideoUrls.Add($"{_proxyService.GetBaseUrl()}/view?filename={filename}&subfolder={subfolder}&type={type}");
             }
         }
     }

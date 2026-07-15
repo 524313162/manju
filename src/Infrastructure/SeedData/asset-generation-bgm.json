@@ -1,5 +1,0 @@
-{
-  "name": "BGM生成提示词",
-  "templateType": "AssetGenerationBgm",
-  "content": "生成BGM要求：\n1. 风格、情绪、节奏、乐器配置描述清晰\n2. 时长建议：30-120秒\n3. 格式：MP3/WAV，采样率44.1kHz或48kHz\n4. 可循环播放，无明显起止边界\n\n用户需求：{prompt}"
-}

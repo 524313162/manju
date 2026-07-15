@@ -209,13 +209,12 @@
     function renderVideoArea(shot, shotIdx, hasVideo, isGenerating) {
         return `
             <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
-                <!-- Video content - 16:9 aspect ratio via aspect-ratio CSS, limited max-height -->
                 <div style="position:relative;background:#000;border-radius:8px;overflow:hidden;aspect-ratio:16/9;max-height:220px;width:100%;">
                     ${hasVideo && shot.videoUrl
                         ? `<video src="${shot.videoUrl}" controls style="width:100%;height:100%;object-fit:contain;background:#000;"></video>
-                           <div style="position:absolute;top:8px;right:8px;display:flex;gap:6px;">
-                               <button class="btn btn-ghost btn-xs" onclick="showImagePreview('${shot.videoUrl}')" style="background:rgba(0,0,0,0.7);color:#fff;border:none;">🔍 全屏</button>
-                               <button class="btn btn-ghost btn-xs" onclick="regenerateShotVideo(${shotIdx})" style="background:rgba(0,0,0,0.7);color:#fff;border:none;">🔄 重新生成</button>
+                           <div style="position:absolute;top:8px;right:8px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+                               <button class="btn btn-ghost btn-xs" onclick="saveShotVideo(${shotIdx})" style="background:rgba(0,0,0,0.7);color:#fff;border:none;">💾 保存</button>
+                               <button class="btn btn-ghost btn-xs" onclick="generateShotVideo(${shotIdx})" style="background:rgba(0,0,0,0.7);color:#fff;border:none;">🔄 重新生成</button>
                            </div>`
                         : isGenerating
                             ? `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text3);">
@@ -242,6 +241,8 @@
         const typeColor = frameType === 'First' ? 'var(--info)' : frameType === 'Last' ? 'var(--danger)' : 'var(--ok)';
         const hasImage = frame.hasImage && frame.imagePath;
         const isGenerating = frame.generating;
+        const narrativeDesc = frame.narrativeDescription || frame.description || '暂无描述';
+        const shotSize = frame.shotSize || '';
         const frameId = `frame-${shotIdx}-${frameIdx}`;
 
         const imageHtml = hasImage
@@ -254,7 +255,7 @@
                     <span style="font-size:12px;font-weight:500;">点击生成</span>
                </div>`;
 
-        const description = frame.description || '暂无描述';
+        const description = narrativeDesc;
         const isLongDesc = description.length > 120;
 
         return `
