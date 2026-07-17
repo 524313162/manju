@@ -476,9 +476,13 @@
         var shot = state.shots[_shotVideoShotIdx];
         if (!shot) return;
 
-        var firstFrame = shot.frames && shot.frames.length > 0 ? shot.frames[0] : null;
-        var imagePath = firstFrame && firstFrame.hasImage && firstFrame.imagePath ? firstFrame.imagePath : null;
-        var userMessage = shot.frames ? shot.frames.map(function(f){ return f.description || ''; }).join('\n') : '';
+    var firstFrame = shot.frames && shot.frames.length > 0 ? shot.frames[0] : null;
+    var imagePath = firstFrame && firstFrame.hasImage && firstFrame.imagePath ? firstFrame.imagePath : null;
+    var userMessage = shot.frames ? shot.frames.map(function(f){
+        var desc = f.description || '';
+        var dialogue = f.dialogue ? '台词：' + f.dialogue : '';
+        return dialogue ? desc + '，' + dialogue : desc;
+    }).join('\n') : '';
 
         var goBtn = document.getElementById('shotVideoGoBtn');
         var statusEl = document.getElementById('shotVideoGenStatus');

@@ -420,7 +420,7 @@ public class ProductionController : Controller
         {
             s.shotNumber, s.duration,
             assetRefs = s.assetRefs ?? new List<string>(),
-            frames = s.frames?.Select(f => new { f.frameType, narrativeDescription = f.narrativeDescription ?? f.description, generatePrompt = f.generatePrompt, f.cameraMovement, f.shotSize, f.order, f.startTime, f.duration }).ToList()
+            frames = s.frames?.Select(f => new { f.frameType, narrativeDescription = f.narrativeDescription ?? f.description, generatePrompt = f.generatePrompt, f.cameraMovement, f.shotSize, f.dialogue, f.order, f.startTime, f.duration }).ToList()
         }).ToList() ?? new List<object>();
 
         var assetsList = parsed.assets?.Select(a => (object)new { a.assetType, a.name, a.description }).ToList() ?? new List<object>();
@@ -535,6 +535,7 @@ public class ProductionController : Controller
                                 FrameType = frameData.frameType ?? "Middle",
                                 NarrativeDescription = frameData.narrativeDescription ?? frameData.description ?? "",
                                 GeneratePrompt = frameData.generatePrompt ?? "",
+                                Dialogue = frameData.dialogue ?? "",
                                 CameraMovement = frameData.cameraMovement ?? "",
                                 ShotSize = frameData.shotSize ?? shotData.shotSize ?? "",
                                 Order = frameData.order,
@@ -678,6 +679,7 @@ public class ProductionController : Controller
                         GeneratePrompt = f.GeneratePrompt,
                         f.CameraMovement,
                         f.ShotSize,
+                        f.Dialogue,
                         f.Order,
                         f.StartTime,
                         f.Duration,
@@ -738,6 +740,7 @@ public class ProductionController : Controller
                         GeneratePrompt = f.GeneratePrompt,
                         f.CameraMovement,
                         f.ShotSize,
+                        f.Dialogue,
                         f.Order,
                         f.StartTime,
                         f.Duration,
@@ -1103,6 +1106,7 @@ internal class FrameData
     public string? generatePrompt { get; set; }
     public string? cameraMovement { get; set; }
     public string? shotSize { get; set; }
+    public string? dialogue { get; set; }
     public List<string>? assetRefs { get; set; }
     public int order { get; set; }
     public float? startTime { get; set; }

@@ -255,6 +255,7 @@
                </div>`;
 
         const description = narrativeDesc;
+        const dialogue = frame.dialogue || '';
         const isLongDesc = description.length > 120;
 
         return `
@@ -268,9 +269,10 @@
                     </div>
                 </div>
 
-                <!-- Middle: Description (flexible) -->
+                <!-- Middle: Description + Dialogue (flexible) -->
                 <div style="flex:1;min-width:0;padding:12px 16px;display:flex;flex-direction:column;justify-content:center;position:relative;">
                     <div class="frame-desc" data-full="${description.replace(/"/g, '"')}" data-collapsed="${isLongDesc}" style="font-size:13px;color:var(--text);font-weight:500;line-height:1.6;${isLongDesc ? 'display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;' : ''}">${description}</div>
+                    ${dialogue ? `<div style="margin-top:4px;font-size:12px;color:var(--primary);font-weight:600;">🎤 台词：${dialogue}</div>` : ''}
                     ${isLongDesc ? `<button class="frame-toggle" onclick="toggleFrameDesc('${frameId}')" style="position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;background:var(--bg);border:1px solid var(--border);color:var(--text3);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .15s;" title="展开/收起" onmouseover="this.style.background='var(--primary)';this.style.color='white';this.style.borderColor='var(--primary)'" onmouseout="this.style.background='var(--bg)';this.style.color='var(--text3)';this.style.borderColor='var(--border)'">▼</button>` : ''}
                 </div>
 

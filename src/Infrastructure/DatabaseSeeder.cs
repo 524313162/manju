@@ -14,10 +14,16 @@ public static class DatabaseSeeder
             await SeedApiProvidersAsync(db);
         }
 
-        // Seed test data if database is empty
-        if (!db.Projects.Any())
+        // Only seed prompt templates and test data when API providers table is empty (brand new DB)
+        if (!hasApiProviders)
         {
-            await SeedTestDataAsync(db);
+            await SeedPromptTemplatesAsync(db);
+
+            // Seed test data if database is empty
+            if (!db.Projects.Any())
+            {
+                await SeedTestDataAsync(db);
+            }
         }
 
         var hasChanges = db.ChangeTracker.Entries().Any(e => e.State == EntityState.Added);
@@ -163,6 +169,275 @@ public static class DatabaseSeeder
         };
         await db.ShotFrames.AddRangeAsync(frames2);
         await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedPromptTemplatesAsync(ProjectDbContext db)
+    {
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var existing = await db.PromptTemplates.ToListAsync();
+        var existingTypes = existing.Select(t => t.TemplateType).ToHashSet();
+
+        var templates = new List<PromptTemplate>
+        {
+            // ═══ 剧本创作 (StoryGeneration) ═══
+            new PromptTemplate
+            {
+                Name = "剧本创作提示词",
+                TemplateType = "StoryGeneration",
+                Content = @"你是一个专业的漫剧（动态漫画）编剧助手。请根据用户提供的标题和主题，生成一个完整的漫剧剧本。
+
+用户需要的是完整的章节内容，每个章节至少800字以上，包含详细的情节描写、对话和场景描述。
+
+要求：
+1. 内容要丰富生动，有细节描写
+2. 情节要连贯完整，有人物性格刻画
+3. 对话要自然符合人物身份
+4. 包含场景氛围描写
+5. 输出JSON格式，包含 chapters 数组，每章有 chapterNumber, chapterName, content 字段",
+                IsDefault = true
+            },
+            // ═══ 系统提示词 (SystemPrompt) ═══
+            new PromptTemplate
+            {
+                Name = "系统提示词",
+                TemplateType = "SystemPrompt",
+                Content = @"你是一个专业的漫剧（动态漫画）编剧助手。请根据用户提供的标题和主题，生成一个完整的漫剧剧本。
+用户需要的是完整的章节内容，每个章节至少800字以上，包含详细的情节描写、对话和场景描述。
+要求：
+1. 内容要丰富生动，有细节描写
+2. 情节要连贯完整，有人物性格刻画
+3. 对话要自然符合人物身份
+4. 包含场景氛围描写
+5. 输出JSON格式，包含 chapters 数组，每章有 chapterNumber, chapterName, content 字段",
+                IsDefault = true
+            },
+            // ═══ 剧本重写 (RewriteStory) ═══
+            new PromptTemplate
+            {
+                Name = "剧本重写提示词",
+                TemplateType = "RewriteStory",
+                Content = @"你是一个专业的漫剧剧本编辑。请根据用户指定的改写模式对剧本内容进行改写。
+
+改写模式说明：
+- 润色：优化文字表达，保持原有情节不变
+- 扩写：在原有基础上增加细节描写
+- 缩写：精简内容，保留核心情节
+
+要求：
+1. 保持人物性格和故事主线不变
+2. 语言风格保持一致
+3. 输出JSON格式，包含 content 字段",
+                IsDefault = true
+            },
+            // ═══ 分镜与资产提取 (ShotAssetExtraction) ═══
+            new PromptTemplate
+            {
+                Name = "分镜与资产提取（通用）",
+                TemplateType = "ShotAssetExtraction",
+                Content = @"你是一个专业的漫剧分镜师和资产管理员。
+请根据提供的章节内容，提取分镜头脚本和资产信息。
+
+<分镜头规范>
+1. 每个分镜包含镜头运动、景别、持续时间
+2. 每个分镜包含多个帧（首帧、中间帧、末帧）
+3. 每帧包含：叙事描述、镜头运动、景别、台词、持续时间、绑定的资产引用
+4. 帧描述要详细：机位、光影、角色动作、表情、台词、氛围
+
+<资产规范>
+1. 角色(Actor)：描述外貌、发型发色、身高体型、服饰、神态特征
+2. 场景(Scene)：描述空间布局、色调氛围
+3. 道具(Prop)：描述外观、材质、用途
+
+输出JSON格式：
+{
+  ""shots"": [
+    {
+      ""shotNumber"": ""SH001"",
+      ""shotName"": ""分镜名称"",
+      ""shotSize"": ""全景/中景/特写/远景/近景"",
+      ""cameraMovement"": ""固定/前推/拉远/平移/跟拍"",
+      ""duration"": 5,
+      ""description"": ""分镜整体描述"",
+      ""assetRefs"": [""资产名称1"", ""资产名称2""],
+      ""frames"": [
+        {
+          ""frameType"": ""First/Middle/Last"",
+          ""narrativeDescription"": ""叙事描述"",
+          ""cameraMovement"": ""镜头运动"",
+          ""shotSize"": ""景别"",
+          ""dialogue"": ""台词内容"",
+          ""assetRefs"": [""资产名称1""],
+          ""startTime"": 0,
+          ""duration"": 2
+        }
+      ]
+    }
+  ],
+  ""assets"": [
+    {
+      ""assetType"": ""Actor/Scene/Prop"",
+      ""name"": ""资产名称"",
+      ""description"": ""详细描述""
+    }
+  ]
+}",
+                IsDefault = true
+            },
+            // ═══ 一键提取资产 (AssetExtraction) ═══
+            new PromptTemplate
+            {
+                Name = "一键提取资产信息",
+                TemplateType = "AssetExtraction",
+                Content = @"你是一个专业的漫剧资产管理员。请根据提供的章节内容和已有项目资产，提取新的资产信息。
+
+资产类型：
+- Actor（角色）：主要角色、次要角色、龙套
+- Scene（场景）：室内、室外、虚拟场景
+- Prop（道具）：物品、武器、装饰
+- Bgm（背景音乐）：场景氛围音乐
+- VoiceVoice（声音）：角色配音、旁白
+
+每个资产需要：
+- name：资产名称（包含角色身份，如""李轩(男一号)""）
+- assetType：资产类型
+- description：详细描述（包含外貌、性格、特征等）
+
+请严格按JSON格式输出：
+{
+  ""assets"": [
+    {""assetType"": ""Actor"", ""name"": ""角色名"", ""description"": ""详细描述""}
+  ]
+}",
+                IsDefault = true
+            },
+            // ═══ 分镜头帧资产提取 (ShotFrameAssetExtraction) ═══
+            new PromptTemplate
+            {
+                Name = "分镜头帧资产提取",
+                TemplateType = "ShotFrameAssetExtraction",
+                Content = @"你是一个专业的漫剧资产管理员。请根据提供的分镜描述和帧描述，提取每一帧所需的资产信息。
+
+资产类型：
+- Actor（角色）
+- Scene（场景）
+- Prop（道具）
+
+输出JSON格式：
+{
+  ""assets"": [
+    {""assetType"": ""Actor/Scene/Prop"", ""name"": ""资产名称"", ""description"": ""详细描述""}
+  ]
+}",
+                IsDefault = true
+            },
+            // ═══ 资产生成通用 (AssetGeneration) ═══
+            new PromptTemplate
+            {
+                Name = "资产生成提示词（通用）",
+                TemplateType = "AssetGeneration",
+                Content = @"请根据资产描述生成一个符合漫剧风格的图片。保持角色一致性，注意构图和光影。",
+                IsDefault = true
+            },
+            // ═══ 角色生成 (AssetGenerationActor) ═══
+            new PromptTemplate
+            {
+                Name = "角色档案生成提示词",
+                TemplateType = "AssetGenerationActor",
+                Content = @"请根据角色描述生成角色画像。要求：
+1. 正面全身或半身像
+2. 清晰显示面部特征
+3. 服饰细节完整
+4. 漫剧/动漫画风
+5. 白色或纯色背景",
+                IsDefault = true
+            },
+            // ═══ 场景生成 (AssetGenerationScene) ═══
+            new PromptTemplate
+            {
+                Name = "场景档案生成提示词",
+                TemplateType = "AssetGenerationScene",
+                Content = @"请根据场景描述生成场景背景图。要求：
+1. 无角色，纯场景
+2. 符合描述的空间布局和色调
+3. 漫剧/动漫画风
+4. 16:9宽屏比例",
+                IsDefault = true
+            },
+            // ═══ 道具生成 (AssetGenerationProp) ═══
+            new PromptTemplate
+            {
+                Name = "道具档案生成提示词",
+                TemplateType = "AssetGenerationProp",
+                Content = @"请根据道具描述生成道具图片。要求：
+1. 清晰展示道具外观
+2. 白色或透明背景
+3. 漫剧/动漫画风",
+                IsDefault = true
+            },
+            // ═══ BGM生成 (AssetGenerationBgm) ═══
+            new PromptTemplate
+            {
+                Name = "BGM生成提示词",
+                TemplateType = "AssetGenerationBgm",
+                Content = @"BGM标签格式：风格，情绪，乐器，节奏，时长",
+                IsDefault = true
+            },
+            // ═══ 角色声音生成 (AssetGenerationVoiceVoice) ═══
+            new PromptTemplate
+            {
+                Name = "角色声音生成提示词",
+                TemplateType = "AssetGenerationVoiceVoice",
+                Content = @"声音标签格式：性别，年龄，语调，情感，语速",
+                IsDefault = true
+            },
+            // ═══ 帧图片生成 (FrameImageGeneration) ═══
+            new PromptTemplate
+            {
+                Name = "帧图片生成提示词",
+                TemplateType = "FrameImageGeneration",
+                Content = @"请根据帧描述生成帧图片。要求：
+1. 基于{ prompt }中的描述进行创作
+2. 镜头语言：景别、机位角度
+3. 角色动作和表情
+4. 光影氛围
+5. 漫剧/动漫画风",
+                IsDefault = true
+            },
+            // ═══ 分镜提取旧模板 (StoryboardExtraction) ═══
+            new PromptTemplate
+            {
+                Name = "分镜提取",
+                TemplateType = "StoryboardExtraction",
+                Content = @"你是一个专业的漫剧分镜师。请根据提供的章节内容和资产信息，生成分镜头脚本。
+
+每个分镜包含：
+- shotNumber: 分镜编号
+- shotName: 分镜名称
+- shotSize: 景别
+- cameraMovement: 镜头运动
+- duration: 持续时间（秒）
+- description: 分镜描述
+- assetRefs: 引用的资产名称列表
+- frames: 帧列表
+
+每帧包含：
+- frameType: First/Middle/Last
+- description: 帧描述
+- startTime: 起始时间
+- duration: 持续时间",
+                IsDefault = true
+            }
+        };
+
+        foreach (var t in templates)
+        {
+            if (!existingTypes.Contains(t.TemplateType))
+            {
+                t.CreatedTime = now;
+                t.UpdatedTime = now;
+                db.PromptTemplates.Add(t);
+            }
+        }
     }
 
     private static async Task SeedApiProvidersAsync(ProjectDbContext db)

@@ -28,6 +28,9 @@ public class ShotFrame : BaseEntity
     /// <summary>图生图提示词，含构图+角色+场景+光影+镜头</summary>
     public string GeneratePrompt { get; set; }
 
+    /// <summary>台词</summary>
+    public string Dialogue { get; set; }
+
     /// <summary>镜头运动：固定/前推/拉远/平移等</summary>
     [StringLength(64)]
     public string CameraMovement { get; set; }
