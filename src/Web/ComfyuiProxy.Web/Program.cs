@@ -33,6 +33,7 @@ builder.Services.AddTransient<HiDreamStoryboardAgent>();
 builder.Services.AddTransient<AceMusicAgent>();
 builder.Services.AddTransient<StableBgmAgent>();
 builder.Services.AddTransient<LlmQwenAgent>();
+builder.Services.AddTransient<QwenImageEditAgent>();
 
 // 注册 Agent 工厂
 builder.Services.AddSingleton<ComfyUIAgentFactory>();

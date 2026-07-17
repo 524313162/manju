@@ -22,6 +22,10 @@ public interface IAiAgentService
     Task<(bool success, string? resultUrl, string? message)> GenerateAudioAsync(string prompt, string? tags = null, CancellationToken ct = default, long? providerId = null);
     Task<JsonElement> GetComfyuiResultAsync(string promptId, string workflowType, CancellationToken ct = default);
     Task<(bool success, string? promptId, string? workflowType, string? message)> SubmitFrameImageWithAssetsAsync(string prompt, string compositeImagePath, long? providerId = null, CancellationToken ct = default);
+    /// <summary>
+    /// 使用 QWen 图生图工作流提交帧图片生成（角色/场景/道具分三张图传入）
+    /// </summary>
+    Task<(bool success, string? promptId, string? workflowType, string? message)> SubmitFrameImageWithQwenEditAsync(string prompt, string? characterImagePath, string? sceneImagePath, string? propImagePath, long? providerId = null, CancellationToken ct = default);
     Task<(bool success, string? promptId, string? workflowType, string? message)> SubmitShotVideoAsync(string prompt, string imagePath, long? providerId = null, CancellationToken ct = default);
 }
 
@@ -461,7 +465,32 @@ public class AiAgentService : IAiAgentService
     }
 
     /// <summary>
-    /// 查询 ComfyUI 任务结果。{} 表示执行中，否则为执行完成。
+    /// 上传本地图片到 ComfyUI 输入目录，返回 ComfyUI 中的文件名
+    /// </summary>
+    private async Task<string?> UploadToComfyuiAsync(string? imagePath, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(imagePath) || !System.IO.File.Exists(imagePath))
+            return null;
+
+        using var formData = new MultipartFormDataContent();
+        var fileStream = new FileStream(imagePath, FileMode.Open, FileAccess.Read);
+        var streamContent = new StreamContent(fileStream);
+        formData.Add(streamContent, "image", Path.GetFileName(imagePath));
+        formData.Add(new StringContent(""), "subfolder");
+
+        var uploadRes = await _http.PostAsync($"{_comfyuiProxyUrl.TrimEnd('/')}/api/comfyui/upload", formData, ct);
+        fileStream.Close();
+
+        if (!uploadRes.IsSuccessStatusCode)
+            return null;
+
+        var uploadBody = await uploadRes.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+        return uploadBody.TryGetProperty("name", out var fn) ? fn.GetString()
+            : uploadBody.TryGetProperty("filename", out var fn2) ? fn2.GetString() : null;
+    }
+
+    /// <summary>
+    /// 提交帧图片生成任务（HiDream 分镜工作流），将所有资产合并为一张图后上传到 ComfyUI
     /// </summary>
     public async Task<(bool success, string? promptId, string? workflowType, string? message)> SubmitFrameImageWithAssetsAsync(string prompt, string compositeImagePath, long? providerId = null, CancellationToken ct = default)
     {
@@ -474,26 +503,12 @@ public class AiAgentService : IAiAgentService
 
         try
         {
-            using var formData = new MultipartFormDataContent();
-            var fileStream = new FileStream(compositeImagePath, FileMode.Open, FileAccess.Read);
-            var streamContent = new StreamContent(fileStream);
-            formData.Add(streamContent, "image", Path.GetFileName(compositeImagePath));
-            formData.Add(new StringContent(""), "subfolder");
-
-            var uploadRes = await _http.PostAsync($"{_comfyuiProxyUrl.TrimEnd('/')}/api/comfyui/upload", formData, ct);
-            string compositeImageFilename = null;
-            if (uploadRes.IsSuccessStatusCode)
-            {
-                var uploadBody = await uploadRes.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
-                compositeImageFilename = uploadBody.TryGetProperty("name", out var fn) ? fn.GetString()
-                    : uploadBody.TryGetProperty("filename", out var fn2) ? fn2.GetString() : null;
-            }
-            fileStream.Close();
+            var compositeImageFilename = await UploadToComfyuiAsync(compositeImagePath, ct);
 
             var payload = new
             {
                 prompt,
-                imagePath = compositeImageFilename
+                imagePath = compositeImageFilename ?? ""
             };
             var json = JsonSerializer.Serialize(payload);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -506,6 +521,58 @@ public class AiAgentService : IAiAgentService
                 return (false, null, null, "ComfyUI 返回的 promptId 为空");
 
             return (true, promptId, "hidream-storyboard", null);
+        }
+        catch (Exception ex)
+        {
+            return (false, null, null, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// 提交帧图片生成任务（QWen 图生图工作流），将角色/场景/道具分别上传到 ComfyUI 的三个图片位
+    /// </summary>
+    /// <param name="prompt">生成提示词</param>
+    /// <param name="characterImagePath">角色合成图片路径（图1，可为 null）</param>
+    /// <param name="sceneImagePath">场景合成图片路径（图2，可为 null）</param>
+    /// <param name="propImagePath">道具合成图片路径（图3，可为 null）</param>
+    /// <param name="providerId">AI 提供者 ID（null 则按 ImageToImageQwen 能力自动查找）</param>
+    public async Task<(bool success, string? promptId, string? workflowType, string? message)> SubmitFrameImageWithQwenEditAsync(string prompt, string? characterImagePath, string? sceneImagePath, string? propImagePath, long? providerId = null, CancellationToken ct = default)
+    {
+        var provider = providerId.HasValue
+            ? await GetProviderAsync(providerId!.Value, ct)
+            : await GetProviderByCapabilityAsync(AiCapability.ImageToImageQwen, ct);
+
+        if (provider == null || provider.Type != ProviderType.ComfyUI)
+            return (false, null, null, "未找到可用的 ComfyUI ImageToImageQwen 提供者");
+
+        try
+        {
+            var uploaded1 = await UploadToComfyuiAsync(characterImagePath, ct);
+            var uploaded2 = await UploadToComfyuiAsync(sceneImagePath, ct);
+            var uploaded3 = await UploadToComfyuiAsync(propImagePath, ct);
+
+            var payload = new
+            {
+                imagePath1 = uploaded1 ?? "",
+                imagePath2 = uploaded2 ?? "",
+                imagePath3 = uploaded3 ?? "",
+                prompt,
+                width = 1920,
+                height = 1080,
+                enableLightningLora = true,
+                seed = -1
+            };
+            var json = JsonSerializer.Serialize(payload);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var res = await _http.PostAsync($"{_comfyuiProxyUrl.TrimEnd('/')}/api/comfyui/llm-qwen/image-edit", content, ct);
+            res.EnsureSuccessStatusCode();
+            var responseBody = await res.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+
+            var promptId = responseBody.TryGetProperty("promptId", out var pid) ? pid.GetString() : null;
+            if (string.IsNullOrEmpty(promptId))
+                return (false, null, null, "ComfyUI 返回的 promptId 为空");
+
+            return (true, promptId, "qwen-image-edit", null);
         }
         catch (Exception ex)
         {
@@ -526,26 +593,12 @@ public class AiAgentService : IAiAgentService
         {
             try
             {
-                using var formData = new MultipartFormDataContent();
-                var fileStream = new FileStream(imagePath, FileMode.Open, FileAccess.Read);
-                var streamContent = new StreamContent(fileStream);
-                formData.Add(streamContent, "image", Path.GetFileName(imagePath));
-                formData.Add(new StringContent(""), "subfolder");
-
-                var uploadRes = await _http.PostAsync($"{_comfyuiProxyUrl.TrimEnd('/')}/api/comfyui/upload", formData, ct);
-                string uploadedFilename = null;
-                if (uploadRes.IsSuccessStatusCode)
-                {
-                    var uploadBody = await uploadRes.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
-                    uploadedFilename = uploadBody.TryGetProperty("name", out var fn) ? fn.GetString()
-                        : uploadBody.TryGetProperty("filename", out var fn2) ? fn2.GetString() : null;
-                }
-                fileStream.Close();
+                var uploadedFilename = await UploadToComfyuiAsync(imagePath, ct);
 
                 var payload = new
                 {
                     prompt,
-                    imagePath = uploadedFilename,
+                    imagePath = uploadedFilename ?? "",
                     width = 1280,
                     height = 720,
                     duration = 5,

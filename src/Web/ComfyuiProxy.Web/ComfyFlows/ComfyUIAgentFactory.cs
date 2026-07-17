@@ -21,6 +21,7 @@ public class ComfyUIAgentFactory
             "ace-music-compose" => _serviceProvider.GetRequiredService<AceMusicAgent>(),
             "stable-bgm-generate" => _serviceProvider.GetRequiredService<StableBgmAgent>(),
             "llm-qwen-execute" => _serviceProvider.GetRequiredService<LlmQwenAgent>(),
+            "qwen-image-edit" => _serviceProvider.GetRequiredService<QwenImageEditAgent>(),
             _ => throw new ArgumentException($"未知的工作流类型: {workflowType}")
         };
     }

@@ -28,6 +28,9 @@ namespace ManjuCraft.Domain.Models
         /// <summary>图片到图片</summary>
         ImageToImage = 8,
 
+        /// <summary>图生图 - QWen Image Edit</summary>
+        ImageToImageQwen = 9,
+
         /// <summary>文生音频 - 音乐</summary>
         TextToMusic = 7
     }

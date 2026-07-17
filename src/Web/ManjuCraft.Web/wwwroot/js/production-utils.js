@@ -1,5 +1,4 @@
 // Production Utils - Common utilities
-(function() {
     // Poller helper
     function createPoller(options) {
         var pollCount = 0;
@@ -242,7 +241,7 @@
         if (!shot) { alert('分镜数据不存在'); return; }
 
         try {
-            var res = await fetch('/api/v1/ai/generate-frame-image-with-assets', {
+            var res = await fetch('/api/v1/ai/generate-frame-image-with-qwen', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ shotId: shot.id, frameIdx: _frameGenFrameIdx, providerId: parseInt(providerId), prompt: combinedPrompt })
@@ -257,7 +256,7 @@
             _frameGenWorkflowType = data.workflowType || 'hidream-storyboard';
             _frameGenStartTime = Date.now();
 
-            updateFrameGenStatus('pending');
+            updateFrameGenStatus('pending', 0);
             startFrameGenPolling();
         } catch (err) {
             statusEl.className = 'status-error';
@@ -267,7 +266,7 @@
         }
     }
 
-    function updateFrameGenStatus(state) {
+    function updateFrameGenStatus(state, optMsg) {
         var statusEl = document.getElementById('frameGenStatus');
         var goBtn = document.getElementById('frameGenGoBtn');
         var saveBtn = document.getElementById('frameGenSaveBtn');
@@ -279,11 +278,12 @@
             var elapsed = Math.floor((Date.now() - _frameGenStartTime) / 1000);
             var min = Math.floor(elapsed / 60);
             var sec = elapsed % 60;
+            var pollCount = optMsg || 0;
             statusEl.style.display = '';
             statusEl.className = 'status-info';
-            statusEl.innerHTML = '⏳ 任务已提交，正在生成中... (' + min + '分' + sec + '秒)'
-                + '<br><span style="font-size:11px;color:var(--text3);">promptId: ' + _frameGenPromptId + '</span>'
-                + '<br><button class="btn btn-xs btn-ghost" style="margin-top:6px;" onclick="manualFetchFrameResult()">🔍 手动获取</button>';
+            statusEl.innerHTML = '⏳ 任务已提交，正在生成中... (第 ' + pollCount + ' 次轮询)'
+                + ' <span style="font-size:11px;color:var(--text3);">promptId: ' + _frameGenPromptId + ' | 已等待 ' + min + '分' + sec + '秒'
+                + ' <a href="javascript:void(0)" style="color:var(--accent);text-decoration:underline;" onclick="manualFetchFrameResult()">手动获取</a></span>';
         } else if (state === 'success') {
             statusEl.className = 'status-success';
             statusEl.innerHTML = '✅ 帧图片生成成功！';
@@ -327,11 +327,11 @@
                             return;
                         }
                     }
-                    updateFrameGenStatus('pending');
+                    updateFrameGenStatus('pending', pollCount);
                     _frameGenPoller = setTimeout(doPoll, pollInterval);
                 })
                 .catch(function() {
-                    updateFrameGenStatus('pending');
+                    updateFrameGenStatus('pending', pollCount);
                     _frameGenPoller = setTimeout(doPoll, pollInterval);
                 });
         }
@@ -353,12 +353,12 @@
                         return;
                     }
                 }
-                updateFrameGenStatus('pending');
+                updateFrameGenStatus('pending', 0);
                 showToast('还未生成完成，继续等待...', 'info');
                 startFrameGenPolling();
             })
             .catch(function() {
-                updateFrameGenStatus('pending');
+                updateFrameGenStatus('pending', 0);
                 startFrameGenPolling();
             });
     }
@@ -428,7 +428,7 @@
             ? '<div style="margin-bottom:12px;"><label style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;display:block;">首帧参考图</label><img src="' + firstFrame.imagePath + '" style="width:100%;max-height:200px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#000;"></div>'
             : '<div style="padding:16px;text-align:center;background:var(--surface2);border-radius:8px;margin-bottom:12px;color:var(--text3);font-size:13px;">⚠️ 首帧未生成图片，视频将基于文字描述生成</div>';
 
-        overlay.innerHTML = '<div class="modal" style="width:680px;">'
+        overlay.innerHTML = '<div class="modal" style="width:750px;">'
             + '<div class="modal-header"><h3>🎬 生成分镜视频</h3><button class="modal-close" onclick="hideModal(\'shotVideoModal\')">&times;</button></div>'
             + '<div class="modal-body" style="padding:16px;max-height:60vh;overflow-y:auto;">'
             + '<div class="form-group"><label>选择模型 *</label>'
@@ -436,11 +436,16 @@
             + '<div class="form-group"><label>分镜描述</label><div style="font-size:13px;color:var(--text);padding:8px 10px;background:var(--surface2);border-radius:6px;line-height:1.5;">' + escapeHtml(shot.description || '') + '</div></div>'
             + '<div class="form-group"><label>帧描述（' + (shot.frames ? shot.frames.length : 0) + '帧）</label>' + frameDescs + '</div>'
             + firstFrameHtml
+            + '<div id="shotVideoPreviewGroup" style="display:none;margin-bottom:12px;">'
+            + '<label>生成预览</label>'
+            + '<div style="background:#000;border-radius:8px;overflow:hidden;margin-top:6px;"><video id="shotVideoPreview" controls style="width:100%;max-height:300px;object-fit:contain;display:block;"></video></div>'
+            + '</div>'
             + '<div id="shotVideoGenStatus" style="margin-top:12px;padding:12px;border-radius:8px;display:none;"></div>'
             + '</div>'
             + '<div class="modal-footer">'
-            + '<button class="btn btn-ghost" onclick="hideModal(\'shotVideoModal\')">取消</button>'
+            + '<button class="btn btn-ghost" id="shotVideoCancelBtn" onclick="hideModal(\'shotVideoModal\')">取消</button>'
             + '<button class="btn btn-primary" id="shotVideoGoBtn" onclick="doGenerateShotVideo()">生成视频</button>'
+            + '<button class="btn btn-success" id="shotVideoSaveBtn" onclick="doSaveShotVideo()" style="display:none;">💾 保存到数据库</button>'
             + '</div></div>';
 
         showModal('shotVideoModal');
@@ -545,8 +550,9 @@
             var sec = elapsed % 60;
             statusEl.className = 'status-info';
             statusEl.innerHTML = msg
-                + '<br><span style="font-size:11px;color:var(--text3);">promptId: ' + _shotVideoPromptId + ' | 已等待 ' + min + '分' + sec + '秒</span>'
-                + '<br><button class="btn btn-xs btn-ghost" style="margin-top:6px;" onclick="manualFetchShotVideoResult()">🔍 手动获取</button>';
+                + ' (第 ' + pollCount + ' 次轮询) '
+                + '<span style="font-size:11px;color:var(--text3);">promptId: ' + _shotVideoPromptId + ' | 已等待 ' + min + '分' + sec + '秒'
+                + ' <a href="javascript:void(0)" style="color:var(--accent);text-decoration:underline;" onclick="manualFetchShotVideoResult()">手动获取</a></span>';
         }
 
         var pollCount = 0;
@@ -566,9 +572,12 @@
                             clearInterval(_shotVideoTimer);
                             window.shotState[window.currentChapterIdx].shots[_shotVideoShotIdx].videoUrl = urls[0];
                             window.shotState[window.currentChapterIdx].shots[_shotVideoShotIdx].generatingVideo = false;
-                            hideModal('shotVideoModal');
+                            document.getElementById('shotVideoGenStatus').style.display = 'none';
+                            document.getElementById('shotVideoPreview').src = urls[0];
+                            document.getElementById('shotVideoPreviewGroup').style.display = '';
+                            document.getElementById('shotVideoGoBtn').style.display = 'none';
+                            document.getElementById('shotVideoSaveBtn').style.display = '';
                             renderShotsTab();
-                            showToast('视频生成完成！', 'success');
                             return;
                         }
                     }
@@ -608,9 +617,12 @@
                         window.shotState[window.currentChapterIdx].shots[_shotVideoShotIdx].videoUrl = urls[0];
                         window.shotState[window.currentChapterIdx].shots[_shotVideoShotIdx].generatingVideo = false;
                         if (_shotVideoTimer) { clearInterval(_shotVideoTimer); _shotVideoTimer = null; }
-                        hideModal('shotVideoModal');
+                        document.getElementById('shotVideoGenStatus').style.display = 'none';
+                        document.getElementById('shotVideoPreview').src = urls[0];
+                        document.getElementById('shotVideoPreviewGroup').style.display = '';
+                        document.getElementById('shotVideoGoBtn').style.display = 'none';
+                        document.getElementById('shotVideoSaveBtn').style.display = '';
                         renderShotsTab();
-                        showToast('视频生成完成！', 'success');
                         return;
                     }
                 }
@@ -646,6 +658,7 @@
         .then(function(res) {
             if (res.success) {
                 showToast('视频已保存到分镜！', 'success');
+                hideModal('shotVideoModal');
                 var idx = window.currentChapterIdx;
                 window.loadShotsForChapter(idx, true).then(function() { renderShotsTab(); });
             } else {
@@ -655,6 +668,14 @@
         .catch(function(err) {
             showToast('保存失败: ' + err.message, 'error');
         });
+    }
+
+    function doSaveShotVideo() {
+        saveShotVideo(_shotVideoShotIdx);
+    }
+
+    function saveShotVideoFromCard(shotIdx) {
+        saveShotVideo(shotIdx);
     }
 
     // Storyboard generation
@@ -830,6 +851,8 @@
     window.saveFrameGeneratedImage = saveFrameGeneratedImage;
     window.manualFetchFrameResult = manualFetchFrameResult;
     window.doGenerateShotVideo = doGenerateShotVideo;
+    window.doSaveShotVideo = doSaveShotVideo;
+    window.saveShotVideoFromCard = saveShotVideoFromCard;
     window.escapeHtml = escapeHtml;
     window._frameTemplates = window._frameTemplates || [
         { first: '晨曦微露，薄雾笼罩的村落全景', middle: '镜头缓缓扫过村庄，石板路上有早起的居民开始劳作', last: '视线逐渐拉远，远景渐入云海' },
@@ -840,4 +863,3 @@
         { first: '全景俯拍——角色在古老的森林中穿行', middle: '镜头平移跟拍角色在森林中的奔跑', last: '角色冲出树林到达悬崖边缘，豁然开朗' },
         { first: '超大远景——古战场遗迹横亘在荒原之上', middle: '镜头缓缓拉远，荒原上星罗棋布的篝火逐渐化为光点', last: '画面升向高空穿破云层' }
     ];
-})();

@@ -188,6 +188,95 @@ public class AIGenerationController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// 使用 QWen 图生图工作流生成帧图片（按资产类型分组：角色→图1、场景→图2、道具→图3）
+    /// 与原 generate-frame-image-with-assets 的区别：
+    /// - 老接口将全部资产合并到一张图中传入 HiDream 分镜工作流
+    /// - 新接口按角色/场景/道具分组合成三张图，分别传入 QWen Image Edit 工作流的三个图片位
+    /// </summary>
+    [HttpPost("generate-frame-image-with-qwen")]
+    public async Task<IActionResult> GenerateFrameImageWithQwen([FromBody] GenerateFrameImageWithQwenRequestDto req)
+    {
+        try
+        {
+            var frame = await _db.ShotFrames
+                .Where(f => f.ShotId == req.ShotId)
+                .OrderBy(f => f.Order)
+                .Skip(req.FrameIdx)
+                .FirstOrDefaultAsync();
+
+            if (frame == null)
+                return Ok(new { success = false, message = "未找到帧" });
+
+            var prompt = !string.IsNullOrWhiteSpace(req.Prompt) ? req.Prompt : frame.GeneratePrompt;
+            if (string.IsNullOrWhiteSpace(prompt))
+                return Ok(new { success = false, message = "帧描述为空，无法生成" });
+
+            var shotFrameAssets = await _db.ShotFrameAssets
+                .Where(sfa => sfa.ShotFrameId == frame.Id)
+                .Include(sfa => sfa.Asset)
+                .ThenInclude(a => a.Resource)
+                .ToListAsync();
+
+            var wwwRoot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+
+            // 按资产类型分组：角色(Actor)、场景(Scene)、道具(Prop)
+            var actorAssets = shotFrameAssets
+                .Where(sfa => sfa.Asset?.Resource != null && !string.IsNullOrEmpty(sfa.Asset.Resource.FilePath) && sfa.Asset.AssetType == AssetTypeEnum.Actor)
+                .Select(sfa => sfa.Asset.Resource.FilePath)
+                .Distinct()
+                .ToList();
+
+            var sceneAssets = shotFrameAssets
+                .Where(sfa => sfa.Asset?.Resource != null && !string.IsNullOrEmpty(sfa.Asset.Resource.FilePath) && sfa.Asset.AssetType == AssetTypeEnum.Scene)
+                .Select(sfa => sfa.Asset.Resource.FilePath)
+                .Distinct()
+                .ToList();
+
+            var propAssets = shotFrameAssets
+                .Where(sfa => sfa.Asset?.Resource != null && !string.IsNullOrEmpty(sfa.Asset.Resource.FilePath) && sfa.Asset.AssetType == AssetTypeEnum.Prop)
+                .Select(sfa => sfa.Asset.Resource.FilePath)
+                .Distinct()
+                .ToList();
+
+            // 将相对路径解析为绝对路径，不存在则返回 null
+            string? ResolveFullPath(string relativePath)
+            {
+                var fullPath = relativePath;
+                if (!Path.IsPathRooted(fullPath))
+                    fullPath = Path.Combine(wwwRoot, fullPath.TrimStart('/'));
+                return System.IO.File.Exists(fullPath) ? fullPath : null;
+            }
+
+            // 将一组图片纵向合成为一张图片，返回合成后的文件路径
+            string? CompositeGroup(List<string> paths, string groupName)
+            {
+                var resolved = paths.Select(ResolveFullPath).Where(p => p != null).Cast<string>().ToList();
+                if (resolved.Count == 0) return null;
+
+                var tempsDir = Path.Combine(wwwRoot, "temps");
+                var fileName = $"{groupName}_{req.ShotId}_{req.FrameIdx}_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}.png";
+                var fullPaths = resolved.Select(p => (p, Path.GetFileNameWithoutExtension(p))).ToList();
+                return ImageCompositeHelper.CreateCompositeImage(fullPaths, tempsDir, fileName).compositeFilePath;
+            }
+
+            var actorComposite = CompositeGroup(actorAssets, "actor");
+            var sceneComposite = CompositeGroup(sceneAssets, "scene");
+            var propComposite = CompositeGroup(propAssets, "prop");
+
+            var result = await _aiService.SubmitFrameImageWithQwenEditAsync(prompt, actorComposite, sceneComposite, propComposite, req.ProviderId > 0 ? req.ProviderId : null);
+
+            if (!result.success)
+                return Ok(new { success = false, message = result.message ?? "提交任务失败" });
+
+            return Ok(new { success = true, promptId = result.promptId, workflowType = result.workflowType, isComfyui = true });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
     [HttpPost("extract-shot-frame-assets")]
     public async Task<IActionResult> ExtractShotFrameAssets([FromBody] JsonElement body)
     {
@@ -243,19 +332,59 @@ public class AIGenerationController : ControllerBase
 
 }
 
+/// <summary>
+/// 帧图片生成请求（HiDream 分镜工作流，不携带资产图片）
+/// </summary>
 public class GenerateFrameImageRequestDto
 {
+    /// <summary>分镜 ID</summary>
     public long ShotId { get; set; }
+
+    /// <summary>帧在分镜中的序号（从 0 开始）</summary>
     public int FrameIdx { get; set; }
+
+    /// <summary>AI 提供者 ID（0 表示自动选择）</summary>
     public long ProviderId { get; set; }
+
+    /// <summary>生成宽度，默认 1024</summary>
     public int Width { get; set; } = 1024;
+
+    /// <summary>生成高度，默认 576</summary>
     public int Height { get; set; } = 576;
 }
 
+/// <summary>
+/// 帧图片生成请求（HiDream 分镜工作流，全部资产合并到一张图传入）
+/// </summary>
 public class GenerateFrameImageWithAssetsRequestDto
 {
+    /// <summary>分镜 ID</summary>
     public long ShotId { get; set; }
+
+    /// <summary>帧在分镜中的序号（从 0 开始）</summary>
     public int FrameIdx { get; set; }
+
+    /// <summary>AI 提供者 ID（0 表示自动选择）</summary>
     public long ProviderId { get; set; }
+
+    /// <summary>自定义提示词（为空则使用帧的 GeneratePrompt）</summary>
+    public string? Prompt { get; set; }
+}
+
+/// <summary>
+/// 帧图片生成请求（QWen 图生图工作流，角色/场景/道具分三张图传入）
+/// </summary>
+public class GenerateFrameImageWithQwenRequestDto
+{
+    /// <summary>分镜 ID</summary>
+    public long ShotId { get; set; }
+
+    /// <summary>帧在分镜中的序号（从 0 开始）</summary>
+    public int FrameIdx { get; set; }
+
+    /// <summary>AI 提供者 ID（0 表示自动选择）</summary>
+    public long ProviderId { get; set; }
+
+    /// <summary>自定义提示词（为空则使用帧的 GeneratePrompt）</summary>
     public string? Prompt { get; set; }
 }

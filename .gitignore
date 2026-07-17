@@ -58,3 +58,4 @@ Thumbs.db
 desktop.ini
 publish/*
 /src/Web/ManjuCraft.Web/wwwroot/asset/*
+src/Web/ManjuCraft.Web/wwwroot/temps/*

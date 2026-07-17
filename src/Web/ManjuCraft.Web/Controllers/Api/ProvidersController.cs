@@ -23,7 +23,19 @@ public class ProvidersController : ControllerBase
         var providers = await _db.ApiProviders
             .OrderByDescending(p => p.Id)
             .ToListAsync();
-        return Ok(new { success = true, data = providers });
+
+        var result = providers.Select(p => new {
+            id = p.Id,
+            name = p.Name,
+            type = (int)p.Type,
+            capability = (int)p.Capability,
+            capabilityName = p.Capability.ToString(),
+            apiUrl = p.ApiUrl,
+            apiKey = p.ApiKey,
+            model = p.Model
+        }).ToList();
+
+        return Ok(new { success = true, data = result });
     }
 
     [HttpGet("image-models")]

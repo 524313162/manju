@@ -213,8 +213,7 @@
                     ${hasVideo && shot.videoUrl
                         ? `<video src="${shot.videoUrl}" controls style="width:100%;height:100%;object-fit:contain;background:#000;"></video>
                            <div style="position:absolute;top:8px;right:8px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-                               <button class="btn btn-ghost btn-xs" onclick="saveShotVideo(${shotIdx})" style="background:rgba(0,0,0,0.7);color:#fff;border:none;">💾 保存</button>
-                               <button class="btn btn-ghost btn-xs" onclick="generateShotVideo(${shotIdx})" style="background:rgba(0,0,0,0.7);color:#fff;border:none;">🔄 重新生成</button>
+                                <button class="btn btn-ghost btn-xs" onclick="generateShotVideo(${shotIdx})" style="background:rgba(0,0,0,0.7);color:#fff;border:none;">🔄 重新生成</button>
                            </div>`
                         : isGenerating
                             ? `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text3);">
