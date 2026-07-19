@@ -184,25 +184,33 @@
             <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">粘贴 JSON 格式的分镜数据（可从导出/备份文件获取），将为当前章节创建分镜和帧。</p>
             <div class="form-group">
                 <label>分镜 JSON 数据</label>
-                <textarea id="importShotsJson" rows="14" placeholder='[
-  {
-    "shotName": "分镜1",
-    "shotNumber": "SH001",
-    "shotSize": "全景",
-    "cameraMovement": "固定",
-    "duration": 5,
-    "assetRefs": ["阿亮(男一号)", "京城街道"],
-    "frames": [
-      {"frameType": "First", "description": "首帧描述", "order": 0},
-      {"frameType": "Middle", "description": "中间帧描述", "order": 1},
-      {"frameType": "Last", "description": "末帧描述", "order": 2}
-    ]
-  }
-]' style="font-family:monospace;font-size:12px;width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);"></textarea>
+                <textarea id="importShotsJson" rows="14" placeholder='{
+  "shots": [
+    {
+      "shotName": "分镜1",
+      "shotNumber": "SH001",
+      "shotSize": "全景",
+      "cameraMovement": "固定",
+      "duration": 5,
+      "frames": [
+        {"frameType": "First", "dialogue": "角色名：台词", "description": "首帧描述", "assetRefs": ["资产名称"], "order": 0, "startTime": 0.0, "duration": 1.5},
+        {"frameType": "Middle", "dialogue": "", "description": "中间帧描述", "assetRefs": ["资产名称"], "order": 1, "startTime": 1.5, "duration": 1.5},
+        {"frameType": "Last", "dialogue": "角色名：台词", "description": "末帧描述", "assetRefs": ["资产名称"], "order": 2, "startTime": 3.0, "duration": 1.5}
+      ]
+    }
+  ],
+  "assets": [
+    {"assetType": "Actor", "name": "人物名称", "description": "描述"},
+    {"assetType": "Scene", "name": "场景名称", "description": "描述"},
+    {"assetType": "Prop", "name": "道具名称", "description": "描述"},
+    {"assetType": "Bgm", "name": "背景音乐名称", "description": "描述"},
+    {"assetType": "VoiceVoice", "name": "配音名称", "description": "描述"}
+  ]
+}' style="font-family:monospace;font-size:12px;width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);"></textarea>
             </div>
             <div style="display:flex;gap:8px;margin-top:10px;">
                 <button class="btn btn-info btn-sm" style="width:150px" onclick="previewImportShots()">👁️ 预览解析</button>
-                <span style="align-self:center;font-size:12px;color:var(--text2);">💡 支持字段：shotName, shotNumber, shotSize, cameraMovement, duration, assetRefs, frames[frameType, description, order, startTime, duration]</span>
+                <span style="align-self:center;font-size:12px;color:var(--text2);">💡 格式说明：shots[shotName, shotNumber, shotSize, cameraMovement, duration, frames[frameType, dialogue, description, assetRefs, order, startTime, duration]] + assets[assetType(Actor/Scene/Prop/Bgm/VoiceVoice), name, description]</span>
             </div>
             <div class="form-group" style="margin-top:12px;">
                 <label>预览结果</label>

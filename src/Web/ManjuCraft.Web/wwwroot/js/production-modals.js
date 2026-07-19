@@ -526,11 +526,12 @@
         try {
             var parsed = JSON.parse(text);
             var shots = Array.isArray(parsed) ? parsed : (parsed.shots || []);
+            var assets = parsed.assets || [];
             if (!shots.length) throw new Error('无分镜数据');
-            _importShotsData = shots;
+            _importShotsData = parsed;
 
             var typeIcons = { 'Actor':'\uD83D\uDCC8', 'Scene':'\uD83C\uDFD0', 'Bgm':'\uD83C\uDFA5', 'Prop':'\uD83D\uDD25', 'VoiceVoice':'\uD83C\uDFA4' };
-            var html = '<div style="font-size:13px;color:var(--ok);margin-bottom:8px;">✓ 解析成功，共 ' + shots.length + ' 个分镜</div>';
+            var html = '<div style="font-size:13px;color:var(--ok);margin-bottom:8px;">\u2713 解析成功，共 ' + shots.length + ' 个分镜' + (assets.length > 0 ? '，' + assets.length + ' 个资产' : '') + '</div>';
             html += '<div style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">';
             shots.forEach(function(shot, i) {
                 var frames = shot.frames || [];
@@ -544,6 +545,13 @@
                     + (assetStr ? '<div style="color:var(--text2);font-size:11px;margin-top:2px;">资产: ' + assetStr + '</div>' : '')
                     + '</div>';
             });
+            if (assets.length > 0) {
+                html += '<div style="margin-top:8px;font-weight:600;font-size:12px;">📦 待导入资产</div>';
+                assets.forEach(function(a) {
+                    var icon = typeIcons[a.assetType] || '📦';
+                    html += '<div style="font-size:11px;color:var(--text2);padding:2px 0;">' + icon + ' ' + a.name + ' (' + a.assetType + ')</div>';
+                });
+            }
             html += '</div>';
             if (container) container.innerHTML = html;
             if (goBtn) goBtn.disabled = false;
@@ -555,17 +563,20 @@
     }
 
     function saveImportShots() {
-        if (!_importShotsData || _importShotsData.length === 0) {
+        if (!_importShotsData) {
             alert('请先粘贴并预览有效的分镜 JSON');
             return;
         }
+        var parsed = _importShotsData;
+        var shots = Array.isArray(parsed) ? parsed : (parsed.shots || []);
+        if (!shots.length) { alert('无分镜数据'); return; }
         var btn = document.getElementById('importShotsGoBtn');
         if (btn) {
             btn.disabled = true;
             btn.textContent = '保存中...';
         }
 
-        var shots = _importShotsData.map(function(s) {
+        var mappedShots = shots.map(function(s) {
             return {
                 shotName: s.shotName || '',
                 shotNumber: s.shotNumber || '',
@@ -575,20 +586,27 @@
                 assetRefs: s.assetRefs || [],
                 frames: (s.frames || []).map(function(f, fi) {
                     return {
-                        frameType: f.frameType || (fi === 0 ? 'First' : fi === (s.frames?.length - 1 || 0) ? 'Last' : 'Middle'),
-                        description: f.description || '',
-                        order: f.order ?? fi,
-                        startTime: f.startTime,
-                        duration: f.duration
+                        frameType: f.frameType || f.FrameType || (fi === 0 ? 'First' : fi === (s.frames?.length - 1 || 0) ? 'Last' : 'Middle'),
+                        description: f.description || f.NarrativeDescription || '',
+                        narrativeDescription: f.NarrativeDescription || f.description || '',
+                        generatePrompt: f.GeneratePrompt || '',
+                        dialogue: f.dialogue || f.Dialogue || '',
+                        cameraMovement: f.cameraMovement || f.CameraMovement || '',
+                        shotSize: f.shotSize || f.ShotSize || '',
+                        assetRefs: f.assetRefs || f.AssetRefs || [],
+                        order: f.order ?? f.Order ?? fi,
+                        startTime: f.startTime ?? f.StartTime,
+                        duration: f.duration ?? f.Duration
                     };
                 })
             };
         });
 
+        var mappedAssets = parsed.assets || [];
         var body = {
             projectId: window.projectId,
             chapterIdx: window.currentChapterIdx,
-            aiResponse: JSON.stringify({ shots: shots, newAssets: [] })
+            aiResponse: JSON.stringify({ shots: mappedShots, assets: mappedAssets })
         };
 
         fetch('/api/v1/ai/confirm-save-extraction', {
@@ -605,8 +623,7 @@
             if (res.success) {
                 showToast('分镜导入保存成功！', 'success');
                 hideModal('importShotsModal');
-                loadChapters();
-                render();
+                window.loadShotsForChapter(window.currentChapterIdx, true).then(function() { renderShotsTab(); });
             } else {
                 alert('保存失败：' + (res.message || '未知错误'));
             }

@@ -42,7 +42,7 @@ public class ProvidersController : ControllerBase
     public async Task<IActionResult> GetImageModels()
     {
         var providers = await _db.ApiProviders
-            .Where(p => p.Type == ProviderType.ComfyUI && (p.Capability == AiCapability.TextToImage || p.Capability == AiCapability.ImageToImage))
+            .Where(p => p.Type == ProviderType.ComfyUI && p.Capability == AiCapability.TextToImage)
             .OrderByDescending(p => p.Id)
             .ToListAsync();
         

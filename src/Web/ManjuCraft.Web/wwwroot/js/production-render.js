@@ -405,11 +405,11 @@
         select.innerHTML = '<option value="">加载中...</option>';
         select.disabled = true;
         try {
-            var res = await fetch('/api/v1/providers/asset-gen-models');
+            var res = await fetch('/api/v1/providers/image-models');
             var data = await res.json();
             var imageProviders = data.success ? data.data : [];
             if (imageProviders.length === 0) {
-                select.innerHTML = '<option value="">暂无可用的文生图模型(TextToImage2=6)，请先配置 ComfyUI</option>';
+                select.innerHTML = '<option value="">暂无可用的文生图模型，请先配置 ComfyUI</option>';
                 select.disabled = true;
                 return;
             }
@@ -451,7 +451,7 @@
             var promptEl = document.getElementById('sagPrompt');
             promptEl.placeholder = prompts[typeKey] || '输入描述词...';
             document.getElementById('sagPromptHint').textContent = prompts[typeKey] || '';
-            promptEl.value = assetDesc ? assetDesc + '\n' : '';
+            promptEl.value = assetDesc ? '名称：' + assetName + '\n' + assetDesc + '\n' : '名称：' + assetName + '\n';
 
             var templateDisplay = document.getElementById('sagTemplatePromptDisplay');
             if (templateContent) {
